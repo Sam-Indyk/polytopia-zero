@@ -1,0 +1,110 @@
+# Technology tree for the current Steam ruleset (base tribes).
+# Each tech has a stable bit index (`id`) used in the per-player tech bitmask,
+# a prerequisite (`requires` = "" for tier-1 roots), and a `tier` (1/2/3) used
+# to price research: cost = tier * num_cities + tech_discount.
+# Source: Battle of Polytopia wiki, "Technology" page (base tech tree).
+
+ruleset_version = "current-2026.07"
+
+# --- Tier 1 (roots) ---
+[tech.climbing]
+id = 0
+tier = 1
+requires = ""
+
+[tech.fishing]
+id = 1
+tier = 1
+requires = ""
+
+[tech.hunting]
+id = 2
+tier = 1
+requires = ""
+
+[tech.organization]
+id = 3
+tier = 1
+requires = ""
+
+[tech.riding]
+id = 4
+tier = 1
+requires = ""
+
+# --- Tier 2 ---
+[tech.mining]
+id = 5
+tier = 2
+requires = "climbing"
+
+[tech.meditation]
+id = 6
+tier = 2
+requires = "climbing"
+
+[tech.sailing]
+id = 7
+tier = 2
+requires = "fishing"
+
+[tech.archery]
+id = 8
+tier = 2
+requires = "hunting"
+
+[tech.forestry]
+id = 9
+tier = 2
+requires = "hunting"
+
+[tech.farming]
+id = 10
+tier = 2
+requires = "organization"
+
+[tech.shields]
+id = 11
+tier = 2
+requires = "organization"
+
+[tech.roads]
+id = 12
+tier = 2
+requires = "riding"
+
+[tech.free_spirit]
+id = 13
+tier = 2
+requires = "riding"
+
+# --- Tier 3 ---
+[tech.smithery]
+id = 14
+tier = 3
+requires = "mining"
+
+[tech.philosophy]
+id = 15
+tier = 3
+requires = "meditation"
+
+[tech.navigation]
+id = 16
+tier = 3
+requires = "sailing"
+
+[tech.mathematics]
+id = 17
+tier = 3
+requires = "forestry"
+
+[tech.construction]
+id = 18
+tier = 3
+requires = "farming"
+
+[tech.chivalry]
+id = 19
+tier = 3
+requires = "free_spirit"

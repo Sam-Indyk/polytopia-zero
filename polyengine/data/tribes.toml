@@ -1,0 +1,35 @@
+# The 4 base tribes. Special tribes (Aquarion, Elyrion, Polaris, Cymanti) are
+# deferred to M4 because they modify core rules. Tribes share unit/tech stats and
+# differ only in starting tech, terrain/resource weighting, and flavour.
+# Source: Battle of Polytopia wiki, tribe pages.
+
+ruleset_version = "current-2026.07"
+
+[tribe.xin_xi]
+id = 0
+symbol = "X"
+starting_tech = "climbing"
+# Relative spawn weights for terrain around this tribe's territory.
+terrain_weights = { field = 0.45, forest = 0.25, mountain = 0.30 }
+resource_weights = { fruit = 0.30, crop = 0.15, game = 0.20, metal = 0.35 }
+
+[tribe.imperius]
+id = 1
+symbol = "I"
+starting_tech = "organization"
+terrain_weights = { field = 0.60, forest = 0.25, mountain = 0.15 }
+resource_weights = { fruit = 0.45, crop = 0.30, game = 0.15, metal = 0.10 }
+
+[tribe.bardur]
+id = 2
+symbol = "B"
+starting_tech = "hunting"
+terrain_weights = { field = 0.35, forest = 0.50, mountain = 0.15 }
+resource_weights = { fruit = 0.15, crop = 0.10, game = 0.55, metal = 0.20 }
+
+[tribe.oumaji]
+id = 3
+symbol = "O"
+starting_tech = "riding"
+terrain_weights = { field = 0.75, forest = 0.10, mountain = 0.15 }
+resource_weights = { fruit = 0.35, crop = 0.35, game = 0.10, metal = 0.20 }

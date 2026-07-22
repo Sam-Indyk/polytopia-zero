@@ -1,0 +1,106 @@
+# Unit definitions for the current Steam ruleset.
+# Stats are shared across tribes; tribes differ by starting tech / terrain (see tribes.toml).
+# Source: Battle of Polytopia wiki, "Units" page.
+#
+# range == 1  -> melee (takes retaliation)
+# range >  1  -> ranged (no retaliation taken)
+# `trainable` units can be produced in a city; others (e.g. giant) only appear via level-up.
+# `requires_tech` gates training ("" = available from game start).
+
+ruleset_version = "current-2026.07"
+
+[unit.warrior]
+id = 0
+symbol = "W"
+cost = 2
+max_hp = 10
+attack = 2.0
+defense = 2.0
+movement = 1
+range = 1
+trainable = true
+requires_tech = ""
+
+[unit.archer]
+id = 1
+symbol = "A"
+cost = 3
+max_hp = 10
+attack = 2.0
+defense = 1.0
+movement = 1
+range = 2
+trainable = true
+requires_tech = "archery"
+
+[unit.rider]
+id = 2
+symbol = "R"
+cost = 3
+max_hp = 10
+attack = 2.0
+defense = 1.0
+movement = 2
+range = 1
+trainable = true
+requires_tech = "riding"
+
+[unit.defender]
+id = 3
+symbol = "D"
+cost = 3
+max_hp = 15
+attack = 1.0
+defense = 3.0
+movement = 1
+range = 1
+trainable = true
+requires_tech = "shields"
+
+[unit.swordsman]
+id = 4
+symbol = "S"
+cost = 5
+max_hp = 15
+attack = 3.0
+defense = 3.0
+movement = 1
+range = 1
+trainable = true
+requires_tech = "smithery"
+
+[unit.catapult]
+id = 5
+symbol = "C"
+cost = 8
+max_hp = 10
+attack = 4.0
+defense = 0.0
+movement = 1
+range = 3
+trainable = true
+requires_tech = "mathematics"
+
+[unit.knight]
+id = 6
+symbol = "K"
+cost = 8
+max_hp = 10
+attack = 3.5
+defense = 1.0
+movement = 3
+range = 1
+trainable = true
+requires_tech = "chivalry"
+
+[unit.giant]
+id = 7
+symbol = "G"
+cost = 0
+max_hp = 40
+attack = 5.0
+defense = 4.0
+movement = 1
+range = 1
+trainable = false          # only from a city level-up reward
+requires_tech = ""

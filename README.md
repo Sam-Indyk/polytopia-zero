@@ -2,7 +2,40 @@
 
 Training a bot to play *The Battle of Polytopia* better than any human.
 
-**Status: planning phase — no code yet.** The full research + architecture plan lives in [PLAN.md](PLAN.md).
+**Status: M0 in progress — engine core is live and green.** The full research + architecture plan lives in [PLAN.md](PLAN.md).
+
+## Quickstart
+
+```bash
+# One-time: create the venv and install (Windows / PowerShell shown; adapt for your OS)
+py -3.12 -m venv .venv
+.venv\Scripts\python -m pip install -e ".[dev]"
+
+# Run the golden + property tests
+.venv\Scripts\python -m pytest
+
+# Watch a random-vs-random game print turn by turn (the M0 watch target)
+.venv\Scripts\python scripts/demo_random.py --size 11 --seed 7 --show-every 25
+
+# Rough single-core throughput probe
+.venv\Scripts\python scripts/bench_throughput.py
+```
+
+### What's landed (M0 core)
+
+- `polyengine.core.state.GameState` — flat-array, cheaply-copyable state with deterministic
+  hashing, dict (de)serialization, and per-player **fog memory** (`mem_*` last-seen snapshots).
+- **Ruleset-as-data** — versioned TOMLs in `polyengine/data/` (terrain, units, techs, tribes,
+  combat constants) loaded into flat NumPy lookup arrays.
+- **Forward model** — mapgen, 8-connected movement/pathfinding, the wiki combat formula
+  (Numba kernel, golden-tested), city capture, simplified economy, Domination win/turn-cap.
+- **Legality/action contract** — the four-field `Action` (type → source → target → sub-type)
+  that the Phase-2 auto-regressive heads will mask against.
+- `RandomAgent` baseline, ASCII renderer (god's-eye + fogged views), and a **39-test** golden +
+  property + determinism suite (`pytest`).
+
+Still simplified pending later milestones: the resource/building economy, the full tech-effect
+logic, naval/oceans, and special tribes (all scheduled M1–M4 in [PLAN.md](PLAN.md)).
 
 The short version:
 

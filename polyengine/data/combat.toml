@@ -1,0 +1,26 @@
+# Combat constants for the current Steam ruleset.
+# Source: Battle of Polytopia wiki, "Combat" page (community-documented formulas).
+#
+# Damage model (per exchange):
+#   attack_force  = attacker.attack  * (attacker.hp / attacker.max_hp)
+#   defense_force = defender.defense * (defender.hp / defender.max_hp) * defense_bonus
+#   total_force   = attack_force + defense_force
+#   attack_result = round_half_up( (attack_force  / total_force) * attacker.attack  * accuracy )
+#   defense_result= round_half_up( (defense_force / total_force) * defender.defense * accuracy )
+#
+# Defender takes `attack_result`. If it survives AND the attack is melee (range == 1)
+# AND the defender can retaliate, the attacker takes `defense_result`.
+
+ruleset_version = "current-2026.07"
+
+[constants]
+accuracy = 4.5            # the "* 4.5" multiplier in the damage formula
+round_mode = "half_up"    # round-half-up (Math.round semantics), not banker's rounding
+
+[defense_bonus]
+# Multipliers applied to defense_force based on the tile the defender stands on / its state.
+none = 1.0
+fortified = 1.5           # inside a city with walls, or a Defender's terrain bonus
+mountain = 1.5            # defending on a mountain
+forest = 1.5              # defending in a forest (with the relevant tech)
+water = 1.0
