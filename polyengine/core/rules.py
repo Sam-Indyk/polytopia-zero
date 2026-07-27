@@ -45,12 +45,15 @@ class Ruleset:
     unit_range: np.ndarray               # int8[U]
     unit_trainable: np.ndarray           # bool[U]
     unit_requires_tech: np.ndarray       # int8[U]  (tech id or -1)
+    unit_naval: np.ndarray               # bool[U]
+    unit_skills: tuple[frozenset, ...]   # frozenset[str] per unit
 
     # techs
     tech_names: tuple[str, ...]
     tech_id: dict[str, int]
     tech_tier: np.ndarray                # int8[K]
     tech_requires: np.ndarray            # int8[K]  (tech id or -1)
+    tech_cost_override: np.ndarray       # int16[K] (-1 = use tier formula)
 
     # tribes
     tribes: dict[str, dict]
@@ -110,10 +113,13 @@ def load_ruleset(name: str = "current") -> Ruleset:
     tech_names = tuple(sorted(tech_id, key=lambda k: tech_id[k]))
     tech_tier = _fill_by_id(tech_entries, n_techs, "tier", np.int8)
     tech_requires = np.full(n_techs, -1, dtype=np.int8)
+    tech_cost_override = np.full(n_techs, -1, dtype=np.int16)
     for name, e in tech_entries.items():
         req = e["requires"]
         if req:
             tech_requires[e["id"]] = tech_id[req]
+        if e.get("cost_override", -1) >= 0:
+            tech_cost_override[e["id"]] = int(e["cost_override"])
 
     def tech_or_none(s: str) -> int:
         return tech_id[s] if s else -1
@@ -152,9 +158,13 @@ def load_ruleset(name: str = "current") -> Ruleset:
     unit_movement = _fill_by_id(unit_entries, n_units, "movement", np.int8)
     unit_range = _fill_by_id(unit_entries, n_units, "range", np.int8)
     unit_trainable = _fill_by_id(unit_entries, n_units, "trainable", bool, False)
+    unit_naval = _fill_by_id(unit_entries, n_units, "naval", bool, False)
     unit_requires_tech = np.full(n_units, -1, dtype=np.int8)
+    skills_by_id: list[frozenset] = [frozenset()] * n_units
     for e in unit_entries.values():
         unit_requires_tech[e["id"]] = tech_or_none(e["requires_tech"])
+        skills_by_id[e["id"]] = frozenset(e.get("skills", []))
+    unit_skills = tuple(skills_by_id)
 
     return Ruleset(
         version=version,
@@ -176,10 +186,13 @@ def load_ruleset(name: str = "current") -> Ruleset:
         unit_range=unit_range,
         unit_trainable=unit_trainable,
         unit_requires_tech=unit_requires_tech,
+        unit_naval=unit_naval,
+        unit_skills=unit_skills,
         tech_names=tech_names,
         tech_id=tech_id,
         tech_tier=tech_tier,
         tech_requires=tech_requires,
+        tech_cost_override=tech_cost_override,
         tribes=tribes["tribe"],
         accuracy=float(combat["constants"]["accuracy"]),
         defense_bonus_map=dict(dbmap),

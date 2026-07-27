@@ -1,14 +1,21 @@
-# Unit definitions for the current Steam ruleset.
-# Stats are shared across tribes; tribes differ by starting tech / terrain (see tribes.toml).
-# Source: Battle of Polytopia wiki, "Units" page.
+# Unit definitions — current Steam ruleset (naval "Path of the Ocean" roster +
+# Cloak/Dagger from the Diplomacy update). Special-tribe units excluded.
+# Source: current-rules knowledge (Jan 2026); numbers pinned by the M1 Steam
+# replay fixtures (see PLAN.md). Stats are shared across the base tribes.
 #
-# range == 1  -> melee (takes retaliation)
-# range >  1  -> ranged (no retaliation taken)
-# `trainable` units can be produced in a city; others (e.g. giant) only appear via level-up.
-# `requires_tech` gates training ("" = available from game start).
+# Fields:
+#   range == 1 -> melee (takes retaliation); range > 1 -> ranged (no retaliation)
+#   trainable  -> can be produced directly in a city THIS milestone. Naval units,
+#                 Cloak/Dagger, Giant and Juggernaut are `false` because their
+#                 mechanics (ports/embark, infiltration, level-up super units)
+#                 land in later milestones; their stats live here now so the data
+#                 is already current and M4 only wires the mechanics.
+#   naval      -> true for water vessels (movement/attack apply on water tiles)
+#   skills     -> descriptive metadata; effects are implemented incrementally
 
 ruleset_version = "current-2026.07"
 
+# ---------------- Land units ----------------
 [unit.warrior]
 id = 0
 symbol = "W"
@@ -19,7 +26,9 @@ defense = 2.0
 movement = 1
 range = 1
 trainable = true
+naval = false
 requires_tech = ""
+skills = ["dash", "fortify"]
 
 [unit.archer]
 id = 1
@@ -31,7 +40,9 @@ defense = 1.0
 movement = 1
 range = 2
 trainable = true
+naval = false
 requires_tech = "archery"
+skills = ["dash", "fortify"]
 
 [unit.rider]
 id = 2
@@ -43,7 +54,9 @@ defense = 1.0
 movement = 2
 range = 1
 trainable = true
+naval = false
 requires_tech = "riding"
+skills = ["dash", "escape", "fortify"]
 
 [unit.defender]
 id = 3
@@ -55,7 +68,9 @@ defense = 3.0
 movement = 1
 range = 1
 trainable = true
-requires_tech = "shields"
+naval = false
+requires_tech = "strategy"      # current: Defender comes from Strategy
+skills = ["fortify"]
 
 [unit.swordsman]
 id = 4
@@ -67,7 +82,9 @@ defense = 3.0
 movement = 1
 range = 1
 trainable = true
+naval = false
 requires_tech = "smithery"
+skills = ["dash", "fortify"]
 
 [unit.catapult]
 id = 5
@@ -79,7 +96,9 @@ defense = 0.0
 movement = 1
 range = 3
 trainable = true
+naval = false
 requires_tech = "mathematics"
+skills = ["stiff"]
 
 [unit.knight]
 id = 6
@@ -91,10 +110,26 @@ defense = 1.0
 movement = 3
 range = 1
 trainable = true
+naval = false
 requires_tech = "chivalry"
+skills = ["dash", "persist", "fortify"]
+
+[unit.mind_bender]
+id = 7
+symbol = "M"
+cost = 5
+max_hp = 10
+attack = 0.0
+defense = 1.0
+movement = 1
+range = 1
+trainable = true
+naval = false
+requires_tech = "philosophy"
+skills = ["heal", "convert", "detect"]
 
 [unit.giant]
-id = 7
+id = 8
 symbol = "G"
 cost = 0
 max_hp = 40
@@ -102,5 +137,109 @@ attack = 5.0
 defense = 4.0
 movement = 1
 range = 1
-trainable = false          # only from a city level-up reward
+trainable = false               # super unit from a city level-up reward
+naval = false
 requires_tech = ""
+skills = ["fortify"]
+
+# ---------------- Diplomacy update: stealth ----------------
+[unit.cloak]
+id = 9
+symbol = "L"
+cost = 8
+max_hp = 10
+attack = 0.0
+defense = 0.5
+movement = 2
+range = 1
+trainable = false               # infiltration/stealth mechanics land in M4
+naval = false
+requires_tech = "diplomacy"
+skills = ["hide", "infiltrate", "creep", "scout", "escape", "stiff"]
+
+[unit.dagger]
+id = 10
+symbol = "J"
+cost = 0
+max_hp = 10
+attack = 2.0
+defense = 2.0
+movement = 1
+range = 1
+trainable = false               # spawned by a Cloak infiltrating a city
+naval = false
+requires_tech = "diplomacy"
+skills = ["dash", "surprise", "independent"]
+
+# ---------------- Naval units (Path of the Ocean) ----------------
+# In current rules a land unit boards at a Port and adopts a vessel's combat
+# profile while keeping its own HP; these rows carry the vessel profiles.
+[unit.raft]
+id = 11
+symbol = "1"
+cost = 0                        # a Port converts a passenger into a Raft for free
+max_hp = 10
+attack = 0.0
+defense = 1.0
+movement = 2
+range = 0
+trainable = false
+naval = true
+requires_tech = "sailing"
+skills = ["carry", "float"]
+
+[unit.scout]
+id = 12
+symbol = "2"
+cost = 5
+max_hp = 10
+attack = 2.0
+defense = 1.0
+movement = 3
+range = 2
+trainable = false
+naval = true
+requires_tech = "sailing"
+skills = ["carry", "float", "scout", "dash"]
+
+[unit.rammer]
+id = 13
+symbol = "3"
+cost = 5
+max_hp = 10
+attack = 3.0
+defense = 3.0
+movement = 3
+range = 1
+trainable = false
+naval = true
+requires_tech = "sailing"
+skills = ["carry", "float", "dash"]
+
+[unit.bomber]
+id = 14
+symbol = "4"
+cost = 15
+max_hp = 10
+attack = 3.0
+defense = 2.0
+movement = 2
+range = 3
+trainable = false
+naval = true
+requires_tech = "navigation"
+skills = ["carry", "float", "splash", "stiff"]
+
+[unit.juggernaut]
+id = 15
+symbol = "5"
+cost = 0
+max_hp = 40
+attack = 4.0
+defense = 4.0
+movement = 3
+range = 1
+trainable = false               # naval super unit from a city level-up reward
+naval = true
+requires_tech = "navigation"
+skills = ["carry", "float", "stomp", "stiff"]

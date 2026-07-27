@@ -33,7 +33,15 @@ U_DEFENDER = 3
 U_SWORDSMAN = 4
 U_CATAPULT = 5
 U_KNIGHT = 6
-U_GIANT = 7
+U_MIND_BENDER = 7
+U_GIANT = 8
+U_CLOAK = 9
+U_DAGGER = 10
+U_RAFT = 11
+U_SCOUT = 12
+U_RAMMER = 13
+U_BOMBER = 14
+U_JUGGERNAUT = 15
 
 # --- Ownership sentinels ---
 NEUTRAL = -1  # unowned territory / neutral (village) city

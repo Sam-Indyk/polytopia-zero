@@ -38,11 +38,24 @@ class Action(NamedTuple):
         return f"{name}({self.src}->{self.dst})"
 
 
-# --- research pricing (simplified; see plan Phase 1) --------------------------
+# --- research pricing (current formula: tier * cities + 4) --------------------
 def research_cost(state, player: int, tech_id: int, rules: Ruleset) -> int:
-    n_cities = int(_count_cities(state, player))
-    tier = int(rules.tech_tier[tech_id])
-    return tier * max(1, n_cities) + 4
+    override = int(rules.tech_cost_override[tech_id])
+    if override >= 0:
+        base = override
+    else:
+        n_cities = int(_count_cities(state, player))
+        tier = int(rules.tech_tier[tech_id])
+        base = tier * max(1, n_cities) + 4
+    # Literacy (from Philosophy) discounts research by 33%, rounded up.
+    if _has_literacy(state, player, rules):
+        base = -(-base * 2 // 3)  # ceil(base * 2/3)
+    return base
+
+
+def _has_literacy(state, player: int, rules: Ruleset) -> bool:
+    phil = rules.tech_id.get("philosophy", -1)
+    return phil >= 0 and state.has_tech(player, phil)
 
 
 def _count_cities(state, player: int) -> int:

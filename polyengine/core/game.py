@@ -31,6 +31,17 @@ class Game:
         state = new_game(rules, size=size, tribes=tribes, seed=seed)
         return cls(state, rules)
 
+    def clone(self) -> "Game":
+        """A deep copy that shares the (immutable) ruleset. No turn side effects.
+
+        Bypasses __init__ so cloning does NOT re-run _begin_turn (which would
+        double-collect income). This is what the OSLA / MCTS baselines lean on.
+        """
+        g = Game.__new__(Game)
+        g.state = self.state.copy()
+        g.rules = self.rules
+        return g
+
     # --- queries ------------------------------------------------------------
     @property
     def current_player(self) -> int:
