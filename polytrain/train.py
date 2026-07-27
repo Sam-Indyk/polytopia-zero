@@ -27,6 +27,7 @@ from polyengine.core.actions import Action
 from polyengine.core.game import Game
 from polyengine.core.rules import load_ruleset
 from polynet import ARPolicy, NetConfig, PolyNet
+from polytrain.parallel import ParallelCollector, to_device
 from polytrain.pool import FrozenOpponent, SnapshotPool
 from polytrain.ppo import PPOConfig, PPOLearner
 from polytrain.rollout import collect
@@ -95,6 +96,11 @@ def main() -> None:
     ap.add_argument("--shaping", type=float, default=0.01)
     ap.add_argument("--shaping-anneal", type=int, default=60,
                     help="iterations over which shaping decays to zero")
+    ap.add_argument("--workers", type=int, default=0,
+                    help="rollout worker processes (0 = single-process GPU). "
+                         "Worth it for SMALL nets only; see polytrain/parallel.py")
+    ap.add_argument("--worker-device", default="cpu", choices=("cpu", "cuda"),
+                    help="inference device inside rollout workers")
     ap.add_argument("--pool-every", type=int, default=10,
                     help="snapshot the policy into the opponent pool every N iters (0=off)")
     ap.add_argument("--pool-prob", type=float, default=0.35,
@@ -139,6 +145,12 @@ def main() -> None:
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    collector = None
+    if args.workers > 0:
+        collector = ParallelCollector(cfg.__dict__, workers=args.workers,
+                                      worker_device=args.worker_device)
+        print(f"parallel rollouts: {args.workers} workers on {args.worker_device}")
+
     pool = SnapshotPool(capacity=args.pool_size)
     snap_it = None
     rng = np.random.default_rng(args.seed)
@@ -147,42 +159,59 @@ def main() -> None:
     best_wr = -1.0
     t0 = time.perf_counter()
     for it in range(1, args.iters + 1):
+        t_iter = time.perf_counter()
         shaping = args.shaping * max(0.0, 1 - it / max(1, args.shaping_anneal))
 
         # Play a fraction of iterations against a frozen past self so the policy
         # has to stay good against old styles instead of cycling.
         use_pool = len(pool) > 0 and rng.random() < args.pool_prob
+        snap = None
         if use_pool:
             snap, snap_it = pool.sample(rng)
-            frozen = FrozenOpponent(policy.net, snap, device)
-            frozen_policy = ARPolicy(frozen.net, rules, device=device)
 
-            def opponent(pairs, _p=frozen_policy):
-                with torch.no_grad():
-                    acts, _ = _p.act(pairs)
-                return acts
-
-            roll, stats, pool_games = collect(
-                policy, args.games, args.rollout, size=args.size,
+        if collector is not None:
+            batch_np, stats = collector.collect(
+                policy.net, args.games, args.rollout, size=args.size,
                 seed=args.seed + it * 1000, shaping=shaping,
-                max_turns=args.max_turns, games=pool_games, opponent=opponent)
+                max_turns=args.max_turns, opponent_state=snap)
+            if stats["n"] == 0:
+                continue
+            batch = to_device(batch_np, device)
+            n_steps = stats["n"]
         else:
-            roll, stats, games = collect(
-                policy, args.games, args.rollout, size=args.size,
-                seed=args.seed + it * 1000, shaping=shaping,
-                max_turns=args.max_turns, games=games)
-        if len(roll) == 0:
-            continue
-        batch = roll.stack(device)
+            if use_pool:
+                frozen = FrozenOpponent(policy.net, snap, device)
+                frozen_policy = ARPolicy(frozen.net, rules, device=device)
+
+                def opponent(pairs, _p=frozen_policy):
+                    with torch.no_grad():
+                        acts, _ = _p.act(pairs)
+                    return acts
+
+                roll, stats, pool_games = collect(
+                    policy, args.games, args.rollout, size=args.size,
+                    seed=args.seed + it * 1000, shaping=shaping,
+                    max_turns=args.max_turns, games=pool_games, opponent=opponent)
+            else:
+                roll, stats, games = collect(
+                    policy, args.games, args.rollout, size=args.size,
+                    seed=args.seed + it * 1000, shaping=shaping,
+                    max_turns=args.max_turns, games=games)
+            if len(roll) == 0:
+                continue
+            batch = roll.stack(device)
+            n_steps = len(roll)
+
         logs = learner.update(batch, stats["adv"], stats["ret"])
 
         ep = stats["episodes"]
         avg_len = np.mean(stats["lengths"]) if stats["lengths"] else 0
         vs = f"pool@{snap_it}" if use_pool else "self"
-        print(f"it {it:4d} | {vs:>10} | steps {len(roll):5d} | eps {ep:3d} | "
+        print(f"it {it:4d} | {vs:>10} | steps {n_steps:6d} | eps {ep:3d} | "
               f"len {avg_len:5.1f} | pl {logs['policy_loss']:+.4f} | "
               f"vl {logs['value_loss']:.4f} | ent {logs['entropy']:.3f} | "
               f"kl {logs['approx_kl']:+.4f} | shape {shaping:.4f} | "
+              f"{n_steps/(time.perf_counter()-t_iter):5.0f} st/s | "
               f"{time.perf_counter()-t0:.0f}s")
 
         if args.pool_every and it % args.pool_every == 0:
@@ -209,8 +238,12 @@ def main() -> None:
                 msg += "  <- best"
             print(msg)
 
+    if collector is not None:
+        collector.close()
     print(f"done in {time.perf_counter()-t0:.0f}s")
 
 
 if __name__ == "__main__":
+    import torch.multiprocessing as _mp
+    _mp.freeze_support()
     main()

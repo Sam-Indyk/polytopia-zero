@@ -96,10 +96,31 @@ Most load-bearing invariant: **`polyengine.core.state.GameState` + the ruleset d
 | M1 | `VecGame` + Numba kernels hit throughput target; web replay viewer; Random/OSLA/Scripted baselines; Tribes differential tests. *Watch: bots fight in the browser.* | 2–3 wk |
 | M2 | PPO trainer + network + masking; mirror-Imperius self-play; beats ScriptedBot >90%, MCTS-1k >60%. *Watch: agent replays, first Elo curve.* | 4–5 wk |
 | M3 | League + curriculum stages 2–3 + SPRT eval harness. *Watch: league Elo dashboard; you lose to it in the viewer.* | 4–6 wk |
-| M4 | Special tribes + naval rework golden-tested; curriculum 4–5; IS-MCTS booster; FFA. *Watch: it beats you with Cymanti.* | 6–8 wk |
+| M4 | Special tribes + naval rework golden-tested; **map-generation fidelity** (see below); curriculum 4–5; IS-MCTS booster; FFA. *Watch: it beats you with Cymanti.* | 6–8 wk |
 | M5 | `polypilot` vision+control; plays Steam single-player, beats Crazy bots. *Watch: the end-goal demo.* | 6–10 wk |
 
 ≈ 6–8 months solo, ~4 with two people (engine and training parallelize after M0 freezes the state format).
+
+## Deferred: map-generation fidelity (M4)
+
+Current `mapgen.py` produces *plausible* maps, not Polytopia's. It is good enough for
+M2–M3 because training runs on small maps where the differences barely bind, and because
+the agent's observation contract does not depend on how tiles were placed. Before any
+result is claimed to transfer to the real game — and certainly before M5's Steam pilot —
+generation has to match the real algorithm, including at least:
+
+- **Cities never spawn on the map border**, and respect minimum spacing from each other.
+- **Lighthouses in the four corners** (and their role in revealing the map / ocean routes).
+- Per-tribe terrain weighting applied as the real generator does (tribes already carry
+  spawn weights in `tribes.toml`, but the placement algorithm is ours, not theirs).
+- Village count and distribution scaling with map size; capital placement rules.
+- Ruins, resource placement rules, and the land/water ratio by map type.
+
+Why it is safe to defer: mis-generated maps bias *what positions the agent sees*, not the
+rules it learns. The risk is a policy overfit to unrealistic openings (e.g. border cities),
+which matters exactly when maps get large — which is the M4 curriculum stage. Doing it then
+also lets it be validated the same way the ruleset was: against captured real games rather
+than by hand.
 
 ## Verification
 

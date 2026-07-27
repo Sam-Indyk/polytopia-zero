@@ -42,6 +42,26 @@ class Rollout:
     def __len__(self):
         return len(self.logp)
 
+    def to_numpy(self) -> dict:
+        """Flatten to plain NumPy arrays — the form that crosses a process boundary.
+
+        Worker processes return this; the parent concatenates shards and uploads
+        once. Sending tensors instead would pickle CUDA handles or force
+        per-shard device transfers.
+        """
+        out = {}
+        for k in STORE_KEYS:
+            arr = self.data[k]
+            out[k] = np.concatenate([
+                a.detach().cpu().numpy() if isinstance(a, torch.Tensor) else np.asarray(a)
+                for a in arr])
+        for k in ("source", "target", "subtype"):
+            out[f"applies_{k}"] = np.concatenate(
+                [a.detach().cpu().numpy() for a in self.applies[k]])
+        out["old_logp"] = np.concatenate([v.detach().cpu().numpy() for v in self.logp])
+        out["old_value"] = np.concatenate([v.detach().cpu().numpy() for v in self.value])
+        return out
+
     def stack(self, device) -> dict:
         out = {}
         for k in STORE_KEYS:

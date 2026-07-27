@@ -68,17 +68,26 @@ class BatchEncoder:
             "masks": all_masks,
             "pad": pad,
             "sizes": sizes,
+            "uniform": all(sz == pad for sz in sizes),
             "n_tiles_pad": n_tiles_pad,
         }
 
-    def tile_mask(self, flat_mask: np.ndarray, size: int, pad: int) -> np.ndarray:
-        """Re-index an engine tile mask (size*size) onto the padded grid."""
-        out = np.zeros(pad * pad, dtype=bool)
-        grid = flat_mask.reshape(size, size)
-        out.reshape(pad, pad)[:size, :size] = grid
-        return out
+    def write_tile_mask(self, out_row: np.ndarray, flat_mask: np.ndarray,
+                        size: int, pad: int, uniform: bool) -> None:
+        """Write an engine tile mask (size*size) into a padded row in place.
 
-    def to_engine_tile(self, padded_idx: int, size: int, pad: int) -> int:
+        When every game in the batch is the map size we padded to, padded and
+        engine indices coincide and the re-indexing is a straight copy.
+        """
+        if uniform:
+            out_row[:flat_mask.size] = flat_mask
+        else:
+            out_row.reshape(pad, pad)[:size, :size] = flat_mask.reshape(size, size)
+
+    def to_engine_tile(self, padded_idx: int, size: int, pad: int,
+                       uniform: bool = False) -> int:
+        if uniform:
+            return int(padded_idx)
         y, x = divmod(int(padded_idx), pad)
         return y * size + x
 
@@ -91,6 +100,10 @@ class ARPolicy:
         self.rules = rules
         self.device = torch.device(device)
         self.enc = BatchEncoder(rules, self.device, pad_to)
+        # Sorted arrays for vectorised head-applicability tests.
+        self._src_types = np.array(sorted(M.NEEDS_SOURCE), dtype=np.int64)
+        self._tgt_types = np.array(sorted(M.NEEDS_TARGET), dtype=np.int64)
+        self._sub_types = np.array(sorted(M.NEEDS_SUBTYPE), dtype=np.int64)
 
     # --- acting ---------------------------------------------------------------
     @torch.no_grad()
@@ -103,29 +116,37 @@ class ARPolicy:
 
         atype, lp_type, _ = sample_masked(self.net.type_logits(ctx),
                                           batch["type_mask"], generator, greedy)
+        # Pull the sampled types to host ONCE. Indexing a CUDA tensor per game
+        # (`int(atype[i])`) forces a device synchronisation each time, which
+        # dominated rollout cost far more than any of the actual computation.
+        atype_np = atype.cpu().numpy()
+        sizes = batch["sizes"]
+        uniform = batch["uniform"]
 
         # source
         src_mask = np.zeros((b, batch["n_tiles_pad"]), dtype=bool)
         for i in range(b):
-            at = int(atype[i])
+            at = int(atype_np[i])
             if at in M.NEEDS_SOURCE:
-                src_mask[i] = self.enc.tile_mask(batch["masks"][i].sources(at),
-                                                 batch["sizes"][i], pad)
+                self.enc.write_tile_mask(src_mask[i], batch["masks"][i].sources(at),
+                                         sizes[i], pad, uniform)
         src_mask_t = _t(src_mask, self.device, torch.bool)
         src_idx, lp_src, _ = sample_masked(self.net.source_logits(feat, atype),
                                            src_mask_t, generator, greedy)
-        src_applies = _t([int(atype[i]) in M.NEEDS_SOURCE for i in range(b)],
-                         self.device, torch.bool)
+        src_applies_np = np.isin(atype_np, self._src_types)
+        src_applies = _t(src_applies_np, self.device, torch.bool)
         src_idx = torch.where(src_applies, src_idx, torch.zeros_like(src_idx))
+        src_np = src_idx.cpu().numpy()
 
         # target
         tgt_mask = np.zeros((b, batch["n_tiles_pad"]), dtype=bool)
         for i in range(b):
-            at = int(atype[i])
+            at = int(atype_np[i])
             if at in M.NEEDS_TARGET:
-                eng_src = self.enc.to_engine_tile(int(src_idx[i]), batch["sizes"][i], pad)
-                tgt_mask[i] = self.enc.tile_mask(
-                    batch["masks"][i].targets(at, eng_src), batch["sizes"][i], pad)
+                eng_src = self.enc.to_engine_tile(int(src_np[i]), sizes[i], pad, uniform)
+                self.enc.write_tile_mask(
+                    tgt_mask[i], batch["masks"][i].targets(at, eng_src),
+                    sizes[i], pad, uniform)
         tgt_mask_t = _t(tgt_mask, self.device, torch.bool)
         tgt_idx, lp_tgt, _ = sample_masked(
             self.net.target_logits(feat, atype, src_idx), tgt_mask_t, generator, greedy)
@@ -133,7 +154,7 @@ class ARPolicy:
         # subtype
         sub_mask = np.zeros((b, self.enc.subtype_dim), dtype=bool)
         for i in range(b):
-            at = int(atype[i])
+            at = int(atype_np[i])
             if at in M.NEEDS_SUBTYPE:
                 sub_mask[i] = batch["masks"][i].subtypes(at)
         sub_mask_t = _t(sub_mask, self.device, torch.bool)
@@ -144,27 +165,27 @@ class ARPolicy:
 
         value, _, _ = self.net.value_and_aux(ctx)
 
+        tgt_np = tgt_idx.cpu().numpy()
+        sub_np = sub_idx.cpu().numpy()
         actions: list[Action] = []
         for i in range(b):
-            at = int(atype[i])
-            size = batch["sizes"][i]
+            at = int(atype_np[i])
+            size = sizes[i]
             src = dst = sub = -1
             if at in M.NEEDS_SOURCE:
-                src = self.enc.to_engine_tile(int(src_idx[i]), size, pad)
+                src = self.enc.to_engine_tile(int(src_np[i]), size, pad, uniform)
             if at in M.NEEDS_TARGET:
-                dst = self.enc.to_engine_tile(int(tgt_idx[i]), size, pad)
+                dst = self.enc.to_engine_tile(int(tgt_np[i]), size, pad, uniform)
             elif at == C.A_CAPTURE:
                 dst = src
             if at in M.NEEDS_SUBTYPE:
-                sub = int(sub_idx[i])
+                sub = int(sub_np[i])
             actions.append(Action(at, src, dst, sub))
 
         applies = {
             "source": src_applies,
-            "target": _t([int(atype[i]) in M.NEEDS_TARGET for i in range(b)],
-                         self.device, torch.bool),
-            "subtype": _t([int(atype[i]) in M.NEEDS_SUBTYPE for i in range(b)],
-                          self.device, torch.bool),
+            "target": _t(np.isin(atype_np, self._tgt_types), self.device, torch.bool),
+            "subtype": _t(np.isin(atype_np, self._sub_types), self.device, torch.bool),
         }
         logp = (lp_type
                 + lp_src * applies["source"]

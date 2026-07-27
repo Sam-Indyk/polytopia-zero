@@ -116,7 +116,14 @@ class GameState:
     def has_tech(self, player: int, tech_id: int) -> bool:
         if tech_id < 0:
             return True  # "no tech required"
-        return bool(self.tech[player] & (np.uint32(1) << np.uint32(tech_id)))
+        # Plain Python ints: this is called thousands of times per rollout step,
+        # and building np.uint32 scalars per call dominated mask generation.
+        return bool(int(self.tech[player]) >> tech_id & 1)
+
+    def known_techs(self, player: int, n_techs: int) -> np.ndarray:
+        """Bool mask of researched techs — the vectorised form of `has_tech`."""
+        bits = int(self.tech[player])
+        return (np.right_shift(bits, np.arange(n_techs, dtype=np.int64)) & 1).astype(bool)
 
     def grant_tech(self, player: int, tech_id: int) -> None:
         self.tech[player] |= (np.uint32(1) << np.uint32(tech_id))
