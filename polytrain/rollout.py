@@ -60,11 +60,21 @@ class Rollout:
 def collect(policy, n_games: int, rollout_steps: int, size: int = 9,
             seed: int = 0, gamma: float = 0.999, lam: float = 0.95,
             shaping: float = 0.0, max_turns: int = 100,
-            games: list[Game] | None = None) -> tuple[Rollout, dict, list[Game]]:
-    """Play `rollout_steps` micro-steps across `n_games` self-play games."""
+            games: list[Game] | None = None,
+            opponent=None, learner_seats: list[int] | None = None
+            ) -> tuple[Rollout, dict, list[Game]]:
+    """Play `rollout_steps` micro-steps across `n_games` games.
+
+    With `opponent=None` this is mirror self-play and *both* seats' transitions
+    are trained on. With a frozen `opponent` (a past snapshot), only the seat in
+    `learner_seats[i]` is stored — the opponent's moves shape the environment
+    but must not be treated as the learner's own decisions.
+    """
     rules = policy.rules
     if games is None:
         games = [Game.new(size=size, seed=seed + i) for i in range(n_games)]
+    if opponent is not None and learner_seats is None:
+        learner_seats = [i % 2 for i in range(len(games))]
     roll = Rollout()
     # per (game, player): index into roll of that trajectory's previous transition
     last_idx: dict[tuple[int, int], int] = {}
@@ -72,14 +82,29 @@ def collect(policy, n_games: int, rollout_steps: int, size: int = 9,
     stats = {"episodes": 0, "wins": defaultdict(int), "lengths": []}
     steps_played = [0] * len(games)
 
+    def is_learner(gi: int, player: int) -> bool:
+        return opponent is None or player == learner_seats[gi]
+
     for _ in range(rollout_steps):
         live = [i for i, g in enumerate(games) if not g.is_terminal()]
         if not live:
             break
-        pairs = [(games[i].state, games[i].current_player) for i in live]
-        actions, info = policy.act(pairs)
 
-        for slot, gi in enumerate(live):
+        mine = [i for i in live if is_learner(i, games[i].current_player)]
+        theirs = [i for i in live if i not in set(mine)]
+
+        actions_by_game: dict[int, Action] = {}
+        info = None
+        if mine:
+            pairs = [(games[i].state, games[i].current_player) for i in mine]
+            acts, info = policy.act(pairs)
+            actions_by_game.update(dict(zip(mine, acts)))
+        if theirs:
+            opp_pairs = [(games[i].state, games[i].current_player) for i in theirs]
+            opp_acts = opponent(opp_pairs)
+            actions_by_game.update(dict(zip(theirs, opp_acts)))
+
+        for slot, gi in enumerate(mine):
             game = games[gi]
             player = game.current_player
             key = (gi, player)
@@ -103,12 +128,13 @@ def collect(policy, n_games: int, rollout_steps: int, size: int = 9,
 
             last_idx[key] = idx
 
-        for slot, gi in enumerate(live):
+        for gi in live:
             game = games[gi]
-            game.step(actions[slot])
+            game.step(actions_by_game[gi])
             steps_played[gi] += 1
             if game.is_terminal() or game.state.turn >= max_turns:
-                _finish(game, gi, roll, last_idx, stats, steps_played[gi])
+                seat = learner_seats[gi] if opponent is not None else None
+                _finish(game, gi, roll, last_idx, stats, steps_played[gi], seat)
                 games[gi] = Game.new(size=size, seed=seed + 10_000 + gi * 7919
                                      + stats["episodes"])
                 steps_played[gi] = 0
@@ -127,12 +153,15 @@ def _applies(atype, head) -> torch.Tensor:
     return torch.tensor([int(atype) in sets[head]], dtype=torch.bool)
 
 
-def _finish(game, gi, roll, last_idx, stats, length):
-    """Credit terminal reward to each player's final transition."""
+def _finish(game, gi, roll, last_idx, stats, length, learner_seat=None):
+    """Credit terminal reward to each stored player's final transition."""
     winner = game.winner() if game.is_terminal() else _score_winner(game)
     stats["episodes"] += 1
     stats["wins"][winner] += 1
     stats["lengths"].append(length)
+    if learner_seat is not None:
+        stats.setdefault("learner_result", []).append(
+            1.0 if winner == learner_seat else (0.5 if winner < 0 else 0.0))
     for p in range(game.state.n_players):
         key = (gi, p)
         if key not in last_idx:

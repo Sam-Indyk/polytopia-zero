@@ -27,6 +27,7 @@ from polyengine.core.actions import Action
 from polyengine.core.game import Game
 from polyengine.core.rules import load_ruleset
 from polynet import ARPolicy, NetConfig, PolyNet
+from polytrain.pool import FrozenOpponent, SnapshotPool
 from polytrain.ppo import PPOConfig, PPOLearner
 from polytrain.rollout import collect
 
@@ -94,6 +95,11 @@ def main() -> None:
     ap.add_argument("--shaping", type=float, default=0.01)
     ap.add_argument("--shaping-anneal", type=int, default=60,
                     help="iterations over which shaping decays to zero")
+    ap.add_argument("--pool-every", type=int, default=10,
+                    help="snapshot the policy into the opponent pool every N iters (0=off)")
+    ap.add_argument("--pool-prob", type=float, default=0.35,
+                    help="fraction of iterations played against a frozen past self")
+    ap.add_argument("--pool-size", type=int, default=8)
     ap.add_argument("--eval-every", type=int, default=10)
     ap.add_argument("--eval-games", type=int, default=20)
     ap.add_argument("--max-turns", type=int, default=100)
@@ -108,11 +114,15 @@ def main() -> None:
     args = ap.parse_args()
 
     if args.smoke:
-        args.size, args.games, args.rollout = 6, 16, 64
-        args.iters = args.iters if args.iters != 200 else 40
-        args.small = True
-        args.eval_every, args.eval_games = 5, 12
-        args.max_turns = 40
+        # Fill in the tiny preset, but never override a flag the user passed
+        # explicitly (otherwise `--smoke --eval-games 24` silently does neither).
+        given = {a.lstrip("-").replace("-", "_")
+                 for a in __import__("sys").argv[1:] if a.startswith("--")}
+        preset = dict(size=6, games=16, rollout=64, iters=40, small=True,
+                      eval_every=5, eval_games=12, pool_every=5, max_turns=40)
+        for key, value in preset.items():
+            if key not in given:
+                setattr(args, key, value)
 
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
@@ -129,39 +139,75 @@ def main() -> None:
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    pool = SnapshotPool(capacity=args.pool_size)
+    snap_it = None
+    rng = np.random.default_rng(args.seed)
     games = None
+    pool_games = None
+    best_wr = -1.0
     t0 = time.perf_counter()
     for it in range(1, args.iters + 1):
         shaping = args.shaping * max(0.0, 1 - it / max(1, args.shaping_anneal))
-        roll, stats, games = collect(
-            policy, args.games, args.rollout, size=args.size,
-            seed=args.seed + it * 1000, shaping=shaping,
-            max_turns=args.max_turns, games=games)
+
+        # Play a fraction of iterations against a frozen past self so the policy
+        # has to stay good against old styles instead of cycling.
+        use_pool = len(pool) > 0 and rng.random() < args.pool_prob
+        if use_pool:
+            snap, snap_it = pool.sample(rng)
+            frozen = FrozenOpponent(policy.net, snap, device)
+            frozen_policy = ARPolicy(frozen.net, rules, device=device)
+
+            def opponent(pairs, _p=frozen_policy):
+                with torch.no_grad():
+                    acts, _ = _p.act(pairs)
+                return acts
+
+            roll, stats, pool_games = collect(
+                policy, args.games, args.rollout, size=args.size,
+                seed=args.seed + it * 1000, shaping=shaping,
+                max_turns=args.max_turns, games=pool_games, opponent=opponent)
+        else:
+            roll, stats, games = collect(
+                policy, args.games, args.rollout, size=args.size,
+                seed=args.seed + it * 1000, shaping=shaping,
+                max_turns=args.max_turns, games=games)
         if len(roll) == 0:
             continue
         batch = roll.stack(device)
         logs = learner.update(batch, stats["adv"], stats["ret"])
 
-        if it % 1 == 0:
-            ep = stats["episodes"]
-            avg_len = np.mean(stats["lengths"]) if stats["lengths"] else 0
-            print(f"it {it:4d} | steps {len(roll):5d} | eps {ep:3d} | "
-                  f"len {avg_len:5.1f} | pl {logs['policy_loss']:+.4f} | "
-                  f"vl {logs['value_loss']:.4f} | ent {logs['entropy']:.3f} | "
-                  f"kl {logs['approx_kl']:+.4f} | shape {shaping:.4f} | "
-                  f"{time.perf_counter()-t0:.0f}s")
+        ep = stats["episodes"]
+        avg_len = np.mean(stats["lengths"]) if stats["lengths"] else 0
+        vs = f"pool@{snap_it}" if use_pool else "self"
+        print(f"it {it:4d} | {vs:>10} | steps {len(roll):5d} | eps {ep:3d} | "
+              f"len {avg_len:5.1f} | pl {logs['policy_loss']:+.4f} | "
+              f"vl {logs['value_loss']:.4f} | ent {logs['entropy']:.3f} | "
+              f"kl {logs['approx_kl']:+.4f} | shape {shaping:.4f} | "
+              f"{time.perf_counter()-t0:.0f}s")
+
+        if args.pool_every and it % args.pool_every == 0:
+            pool.add(policy.net, it)
 
         if it % args.eval_every == 0 or it == args.iters:
             wr_rand = evaluate_vs(policy, lambda s: RandomAgent(seed=s),
                                   args.eval_games, args.size)
             msg = f"  eval@{it}: vs RandomLegal {wr_rand:.1%}"
+            wr_script = None
             if wr_rand > 0.8:
                 wr_script = evaluate_vs(policy, lambda s: ScriptedBot(seed=s),
                                         args.eval_games, args.size)
                 msg += f" | vs ScriptedBot {wr_script:.1%}"
+            blob = {"model": policy.net.state_dict(), "cfg": cfg.__dict__,
+                    "iter": it, "wr_random": wr_rand, "wr_scripted": wr_script}
+            torch.save(blob, out_dir / "latest.pt")
+            # Keep the best-by-ScriptedBot checkpoint: self-play win rate is not
+            # a monotone proxy for strength, so "latest" is often not "best".
+            score = wr_script if wr_script is not None else wr_rand - 1.0
+            if score > best_wr:
+                best_wr = score
+                torch.save(blob, out_dir / "best.pt")
+                msg += "  <- best"
             print(msg)
-            torch.save({"model": policy.net.state_dict(), "cfg": cfg.__dict__,
-                        "iter": it}, out_dir / "latest.pt")
 
     print(f"done in {time.perf_counter()-t0:.0f}s")
 

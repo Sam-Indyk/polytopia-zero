@@ -37,3 +37,4 @@ Thumbs.db
 # Training artifacts
 checkpoints/
 runs_*.log
+checkpoints_pool/
