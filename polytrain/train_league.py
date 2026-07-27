@@ -28,6 +28,7 @@ from polynet import ARPolicy
 from polytrain.evaluate import play_match
 from polytrain.league import League, MainExploiter
 from polytrain.pool import FrozenOpponent
+from polytrain import profiles
 from polytrain.ppo import PPOConfig, PPOLearner
 from polytrain.rollout import collect
 from polytrain.train import NetAgent, build_policy
@@ -70,10 +71,22 @@ def main() -> None:
     ap.add_argument("--max-turns", type=int, default=100)
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     ap.add_argument("--small", action="store_true")
+    ap.add_argument("--channels", type=int)
+    ap.add_argument("--blocks", type=int)
     ap.add_argument("--out", default="checkpoints_league")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--profile", default=None,
+                    help="hardware profile: smoke | laptop | workstation | auto")
+    ap.add_argument("--precision", default="fp32", choices=("fp32", "bf16"),
+                    help="autocast precision for the trunk")
     ap.add_argument("--smoke", action="store_true")
     args = ap.parse_args()
+
+    if args.profile:
+        name = profiles.autodetect() if args.profile == "auto" else args.profile
+        prof = profiles.get(name)
+        prof.apply(args)
+        print(profiles.describe(prof))
 
     if args.smoke:
         given = {a.lstrip("-").replace("-", "_")
@@ -88,7 +101,8 @@ def main() -> None:
     np.random.seed(args.seed)
     rules = load_ruleset()
     device = torch.device(args.device)
-    policy, cfg = build_policy(rules, device, args.small)
+    policy, cfg = build_policy(rules, device, args.small,
+                               getattr(args, 'channels', None), getattr(args, 'blocks', None))
     print(f"device={device} params={sum(p.numel() for p in policy.net.parameters())/1e6:.2f}M "
           f"size={args.size} league_size={args.league_size}")
 

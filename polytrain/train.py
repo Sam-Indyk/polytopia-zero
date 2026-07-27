@@ -29,6 +29,7 @@ from polyengine.core.rules import load_ruleset
 from polynet import ARPolicy, NetConfig, PolyNet
 from polytrain.parallel import ParallelCollector, to_device
 from polytrain.pool import FrozenOpponent, SnapshotPool
+from polytrain import profiles
 from polytrain.ppo import PPOConfig, PPOLearner
 from polytrain.rollout import collect
 
@@ -115,9 +116,19 @@ def main() -> None:
     ap.add_argument("--blocks", type=int)
     ap.add_argument("--out", default="checkpoints")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--profile", default=None,
+                    help="hardware profile: smoke | laptop | workstation | auto")
+    ap.add_argument("--precision", default="fp32", choices=("fp32", "bf16"),
+                    help="autocast precision for the trunk")
     ap.add_argument("--smoke", action="store_true",
                     help="tiny preset: 6x6, small net, quick RandomLegal gate")
     args = ap.parse_args()
+
+    if args.profile:
+        name = profiles.autodetect() if args.profile == "auto" else args.profile
+        prof = profiles.get(name)
+        prof.apply(args)
+        print(profiles.describe(prof))
 
     if args.smoke:
         # Fill in the tiny preset, but never override a flag the user passed

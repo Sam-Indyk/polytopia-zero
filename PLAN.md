@@ -101,6 +101,47 @@ Most load-bearing invariant: **`polyengine.core.state.GameState` + the ruleset d
 
 ≈ 6–8 months solo, ~4 with two people (engine and training parallelize after M0 freezes the state format).
 
+## Target hardware and how this workload actually scales
+
+Two machines: the dev laptop (RTX PRO 1000, 8 GB; 16-core hybrid CPU) and the
+training workstation (4× RTX PRO 6000 Blackwell, 96 GB each = 384 GB VRAM;
+Threadripper PRO up to 96 cores / 192 threads; up to 2 TB DDR5). `polytrain/profiles.py`
+holds both as named profiles (`--profile laptop|workstation|auto`) so no run-shape
+constants are scattered through the training code.
+
+**Standard large-language-model scaling advice does not transfer to this workload,
+and following it literally would waste effort.** The distinction that matters: an
+LLM is memory-bound on *parameters*; this is a reinforcement-learning agent that is
+compute-bound on *generating its own data*.
+
+| LLM guidance | Why it doesn't apply here | What we do instead |
+|---|---|---|
+| FSDP / DeepSpeed ZeRO-3 sharding | Exists to fit a model that won't fit on one GPU. Ours is 6.2M params (24.6 MB); even the scaled-up workstation net is 55.6M (222 MB) — **0.23% of one 96 GB card** | Plain data-parallel (DDP) *if* gradients ever dominate; today they don't |
+| NVIDIA Transformer Engine, FP8/FP4 | TE fuses transformer attention/linear kernels. Our trunk is convolutional (3×3 convs + squeeze-excitation), so those kernels don't apply | BF16 autocast as the default win. FP8 on convs is plausible on Blackwell but must be validated against a BF16 reference — RL value heads are numerically touchier than a language-model loss |
+| `num_workers`, `pin_memory` | Those are `DataLoader` settings for a *fixed dataset*. We have no dataset; every sample is produced by self-play as we train | `env_workers`: processes stepping the game engine |
+| Maximise global batch size | Partly right, but PPO is on-policy — a batch is only useful while it reflects the current policy. Huge batches mean stale data, not free speed | Scale parallel *environments* so a large batch is still fresh |
+
+**What actually unlocks the workstation, in order of value:**
+
+1. **96 CPU cores.** Rollout generation is CPU-bound (engine stepping, mask
+   building, observation encoding) — measured at 93% CPU / 7% GPU. This is the
+   present bottleneck and it scales close to linearly with cores.
+2. **4 GPUs for concurrent league seats.** The league wants a main learner plus
+   exploiters (Phase 3). One GPU per seat is simpler and more useful than
+   sharding one small model four ways.
+3. **384 GB VRAM to grow the network ~50×.** Only pays off *alongside* far more
+   parallel environments; otherwise a bigger net just makes each rollout step
+   slower and starves the learner.
+
+**Known gap to close before that box arrives:** the current multiprocess rollout
+puts a whole policy copy in each worker, which measured *worse* than
+single-process GPU for large nets (CPU inference collapses; several processes
+sharing one GPU merely contend). The architecture that scales to 96 cores + 4 GPUs
+is workers doing env/encode/mask over shared memory while a dedicated inference
+process batches GPU forwards. That is the one piece of engineering the workstation
+genuinely requires — see the table in `polytrain/parallel.py` for the measurements
+that justify it.
+
 ## Deferred: map-generation fidelity (M4)
 
 Current `mapgen.py` produces *plausible* maps, not Polytopia's. It is good enough for
