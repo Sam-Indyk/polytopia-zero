@@ -35,6 +35,8 @@ class Action(NamedTuple):
         if self.atype == C.A_TRAIN:
             unit = rules.unit_names[self.subtype] if rules else self.subtype
             return f"{name}(city={self.src}, {unit})"
+        if self.atype == C.A_CAPTURE:
+            return f"{name}(tile={self.src})"
         return f"{name}({self.src}->{self.dst})"
 
 
@@ -72,11 +74,36 @@ def _player_units(state, player: int) -> list[int]:
             if state.unit_owner[t] == player and state.unit_type[t] != C.U_NONE]
 
 
+def can_capture(state, tile: int, rules: Ruleset) -> bool:
+    """Can the unit standing on `tile` capture the city there right now?
+
+    Capture is a distinct action: the unit must be on an enemy/neutral city and
+    (by default) must not have already moved or attacked this turn, so moving
+    onto a village and taking it are two separate turns.
+    """
+    player = int(state.unit_owner[tile])
+    if state.unit_type[tile] == C.U_NONE:
+        return False
+    if state.city_level[tile] <= 0 or state.city_owner[tile] == player:
+        return False
+    if rules.capture_requires_fresh_unit:
+        if state.unit_moved[tile] or state.unit_attacked[tile]:
+            return False
+    return True
+
+
+def capture_targets(state, player: int, rules: Ruleset) -> list[int]:
+    """Tiles where one of `player`'s units can capture a city this turn."""
+    return [t for t in _player_units(state, player) if can_capture(state, t, rules)]
+
+
 # --- enumeration (basis for both the random agent and the action masks) -------
 def enumerate_actions(state, player: int, rules: Ruleset) -> list[Action]:
     actions: list[Action] = [Action(C.A_END_TURN)]
 
     for src in _player_units(state, player):
+        if can_capture(state, src, rules):
+            actions.append(Action(C.A_CAPTURE, src, src))
         for dst in attack_targets(state, src, rules):
             actions.append(Action(C.A_ATTACK, src, dst))
         for dst in reachable(state, src, rules):
@@ -123,6 +150,8 @@ def apply_action(state, action: Action, rules: Ruleset) -> dict:
     if at == C.A_ATTACK:
         res = resolve_attack(state, action.src, action.dst, rules)
         return {"type": "attack", "result": res}
+    if at == C.A_CAPTURE:
+        return _apply_capture(state, player, action, rules)
     if at == C.A_TRAIN:
         return _apply_train(state, player, action, rules)
     if at == C.A_RESEARCH:
@@ -142,11 +171,10 @@ def _apply_move(state, player: int, action: Action, rules: Ruleset) -> dict:
     state.unit_moved[dst] = 1
     _clear_unit(state, src)
 
-    captured = False
-    if state.city_level[dst] > 0 and state.city_owner[dst] != player:
-        _capture_city(state, player, dst)
-        captured = True
-    return {"type": "move", "src": src, "dst": dst, "captured": captured}
+    # NB: moving onto a city does NOT capture it. Capture is its own action
+    # (see A_CAPTURE / capture_targets), which is why taking a village costs a
+    # turn of standing on it.
+    return {"type": "move", "src": src, "dst": dst}
 
 
 def _apply_train(state, player: int, action: Action, rules: Ruleset) -> dict:
@@ -160,6 +188,18 @@ def _apply_train(state, player: int, action: Action, rules: Ruleset) -> dict:
     state.unit_moved[city] = 1     # freshly trained: cannot act this turn
     state.unit_attacked[city] = 1
     return {"type": "train", "city": city, "unit": uid}
+
+
+def _apply_capture(state, player: int, action: Action, rules: Ruleset) -> dict:
+    tile = action.src
+    if not can_capture(state, tile, rules):
+        raise ValueError(f"illegal capture at tile {tile}")
+    previous = int(state.city_owner[tile])
+    _capture_city(state, player, tile)
+    if rules.capture_ends_unit_turn:
+        state.unit_moved[tile] = 1
+        state.unit_attacked[tile] = 1
+    return {"type": "capture", "tile": tile, "from": previous}
 
 
 def _capture_city(state, player: int, tile: int) -> None:

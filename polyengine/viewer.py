@@ -2,9 +2,15 @@
 
 `render_html(replay_dict)` returns a single HTML document with the replay JSON
 embedded, so the output opens straight from the filesystem — no server, no CORS,
-nothing to install. Canvas 2D, keyboard scrubbing, and a fog toggle that dims
-tiles a chosen player has never explored (rendered from the recorded
-`fog_explored` masks, the same memory contract the observation encoder uses).
+nothing to install.
+
+Design rule: **nothing the engine knows is hidden.** The board renders terrain,
+resources, territory, cities (level / population / walls / capital) and units
+(type / HP / veteran / whether they've acted). Side panels show every player's
+stars and full tech tree with live research costs, a click-anywhere tile
+inspector, and the complete action log. A fog selector re-renders the board as a
+chosen player actually saw it, from the recorded explored masks. Mechanics the
+engine does not simulate yet are listed explicitly rather than silently absent.
 """
 from __future__ import annotations
 
@@ -14,33 +20,48 @@ _HTML = """<!doctype html>
 <html><head><meta charset="utf-8"><title>PolyZero replay</title>
 <style>
  :root{color-scheme:dark}
- body{margin:0;background:#12151c;color:#e6e9ef;font:14px/1.5 ui-sans-serif,system-ui,sans-serif}
- header{padding:10px 16px;border-bottom:1px solid #2a3040;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
- h1{font-size:15px;margin:0;font-weight:600}
+ *{box-sizing:border-box}
+ body{margin:0;background:#12151c;color:#e6e9ef;font:13px/1.5 ui-sans-serif,system-ui,sans-serif}
+ header{padding:9px 16px;border-bottom:1px solid #2a3040;display:flex;gap:14px;align-items:baseline;flex-wrap:wrap}
+ h1{font-size:14px;margin:0;font-weight:600}
+ h2{font-size:11px;margin:0 0 6px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:#8b93a7}
  .muted{color:#8b93a7}
- main{display:flex;gap:16px;padding:16px;flex-wrap:wrap}
- canvas{background:#0c0e13;border:1px solid #2a3040;border-radius:6px;image-rendering:pixelated}
- aside{min-width:260px;flex:1}
- .row{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
- button{background:#232838;color:#e6e9ef;border:1px solid #39415a;border-radius:5px;padding:5px 11px;cursor:pointer;font:inherit}
+ main{display:flex;gap:14px;padding:14px;align-items:flex-start;flex-wrap:wrap}
+ canvas{background:#0c0e13;border:1px solid #2a3040;border-radius:6px;cursor:crosshair;max-width:100%}
+ .col{display:flex;flex-direction:column;gap:12px}
+ .side{min-width:290px;max-width:420px;flex:1}
+ .card{border:1px solid #232838;border-radius:6px;padding:10px;background:#161a23}
+ .row{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+ button{background:#232838;color:#e6e9ef;border:1px solid #39415a;border-radius:5px;padding:5px 10px;cursor:pointer;font:inherit}
  button:hover{background:#2c3346}
- input[type=range]{flex:1;min-width:200px}
- table{border-collapse:collapse;width:100%;margin-top:8px}
- td,th{padding:3px 8px;border-bottom:1px solid #232838;text-align:left}
- .log{max-height:300px;overflow:auto;font-family:ui-monospace,monospace;font-size:12px;margin-top:8px;
-      border:1px solid #232838;border-radius:5px}
- .log div{padding:2px 8px;white-space:nowrap}
+ select{background:#232838;color:#e6e9ef;border:1px solid #39415a;border-radius:5px;padding:4px 7px;font:inherit}
+ input[type=range]{flex:1;min-width:180px}
+ table{border-collapse:collapse;width:100%}
+ td,th{padding:3px 7px;border-bottom:1px solid #232838;text-align:left;vertical-align:top}
+ th{color:#8b93a7;font-weight:600}
+ .log{max-height:260px;overflow:auto;font-family:ui-monospace,monospace;font-size:11.5px}
+ .log div{padding:2px 7px;white-space:nowrap;border-radius:3px;cursor:pointer}
+ .log div:hover{background:#1e2431}
  .log div.cur{background:#2a3552}
- .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+ .sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:0}
+ .tech{display:flex;flex-wrap:wrap;gap:3px;margin-top:3px}
+ .t{font-size:10.5px;padding:1px 6px;border-radius:9px;border:1px solid #39415a;color:#b9c2d6}
+ .t.done{background:#1f4a2e;border-color:#2f7a49;color:#c9f0d6}
+ .t.avail{border-color:#5a6a8c;color:#e6e9ef}
+ .t.lock{opacity:.38}
+ code{font-family:ui-monospace,monospace;font-size:11.5px;color:#b9c2d6}
+ .warn{border-color:#4a3a1e;background:#1e1a12}
+ .warn li{margin:1px 0}
+ ul{margin:4px 0 0;padding-left:17px}
 </style></head><body>
 <header>
   <h1>PolyZero replay</h1>
   <span class="muted" id="meta"></span>
 </header>
 <main>
- <div>
-  <canvas id="cv" width="640" height="640"></canvas>
-  <div class="row" style="margin-top:10px">
+ <div class="col">
+  <canvas id="cv" width="660" height="660"></canvas>
+  <div class="row">
    <button id="first">&#124;&#9664;</button><button id="prev">&#9664;</button>
    <button id="play">&#9654; play</button>
    <button id="next">&#9654;</button><button id="last">&#9654;&#124;</button>
@@ -48,104 +69,204 @@ _HTML = """<!doctype html>
   </div>
   <div class="row"><input type="range" id="scrub" min="0" value="0"></div>
   <div class="row">
-   <label>fog of</label>
-   <select id="fog"><option value="-1">off (ground truth)</option></select>
-   <span class="muted">&#8592; &#8594; step &nbsp; space play</span>
+   <label class="muted">view as</label>
+   <select id="fog"><option value="-1">god's-eye (all)</option></select>
+   <label class="muted">speed</label>
+   <select id="speed">
+     <option value="220">slow</option><option value="90" selected>normal</option>
+     <option value="25">fast</option>
+   </select>
+   <span class="muted">&#8592;&#8594; step &middot; space play &middot; click a tile</span>
   </div>
  </div>
- <aside>
-  <div id="players"></div>
-  <div class="log" id="log"></div>
- </aside>
+ <div class="col side">
+  <div class="card"><h2>players</h2><div id="players"></div></div>
+  <div class="card"><h2>tile inspector</h2><div id="tile" class="muted">click any tile</div></div>
+  <div class="card"><h2>action log</h2><div class="log" id="log"></div></div>
+ </div>
+ <div class="col side">
+  <div class="card"><h2>tech tree</h2><div id="techs"></div></div>
+  <div class="card warn"><h2>not simulated yet</h2>
+    <div class="muted">These mechanics are not in the engine, so they never appear
+    in the log &mdash; nothing is being hidden from you.</div>
+    <ul id="missing" class="muted"></ul></div>
+ </div>
 </main>
 <script>
 const R = __REPLAY__;
 const S = R.size, N = S*S, F = R.frames;
 const cv = document.getElementById('cv'), cx = cv.getContext('2d');
 const CELL = Math.floor(cv.width / S);
-const PC = ['#4da3ff','#ff6b6b','#5fd68a','#ffd166'];       // player colours
-const TERR = {ocean:'#12335c',water:'#1d5c96',field:'#2f4a2c',forest:'#1d3a20',mountain:'#4a4a52'};
-let i = 0, timer = null, fogOf = -1;
+const PC = ['#4da3ff','#ff6b6b','#5fd68a','#ffd166'];
+const TERR = {ocean:'#0f2b4d',water:'#1a5286',field:'#33512f',forest:'#1e3d22',mountain:'#4d4d56'};
+const RES  = {fruit:['#ff8fb1','\\u25cf'],crop:['#ffd166','\\u25b2'],game:['#c58b5a','\\u25c6'],
+              metal:['#c9ccd6','\\u25a0'],fish:['#7fe3e3','\\u25cf'],whale:['#8fb8ff','\\u25c6']};
+let i = 0, timer = null, fogOf = -1, sel = -1, speed = 90;
 
 document.getElementById('meta').textContent =
-  `${S}x${S} · seed ${R.map_seed} · rules ${R.ruleset_version} · ${F.length} frames · ` +
+  `${S}\\u00d7${S} \\u00b7 seed ${R.map_seed} \\u00b7 rules ${R.ruleset_version} \\u00b7 `+
+  `${F.length} frames \\u00b7 ` +
   R.tribes.map((t,p)=>`P${p} ${t} (${R.agents[p]||'?'})`).join(' vs ') +
-  (R.terminal ? ` · winner: ${R.winner>=0?'P'+R.winner:'draw'}` : ' · unfinished');
+  (R.terminal ? ` \\u00b7 winner: ${R.winner>=0?'P'+R.winner:'draw'}` : ' \\u00b7 unfinished');
+document.getElementById('missing').innerHTML =
+  (R.not_simulated||[]).map(m=>`<li>${m}</li>`).join('');
 
-const fogSel = document.getElementById('fog');
-R.tribes.forEach((t,p)=>{const o=document.createElement('option');o.value=p;o.textContent=`P${p} (${t})`;fogSel.appendChild(o);});
-fogSel.onchange = e => { fogOf = +e.target.value; draw(); };
+const fogSel=document.getElementById('fog');
+R.tribes.forEach((t,p)=>{const o=document.createElement('option');
+  o.value=p;o.textContent=`P${p} (${t}) fog`;fogSel.appendChild(o);});
+fogSel.onchange=e=>{fogOf=+e.target.value;draw();};
+document.getElementById('speed').onchange=e=>{
+  speed=+e.target.value; if(timer){toggle();toggle();}};
 
-function terrColor(t){ return TERR[R.terrain_names[t]] || '#333'; }
+const hasTech=(mask,t)=>((mask>>>t)&1)===1;
+const cityCount=(f,p)=>{let c=0;for(let k=0;k<N;k++)if(f.city_owner[k]===p&&f.city_level[k]>0)c++;return c;};
+function researchCost(f,p,t){
+  const base=R.tech_tier[t]*Math.max(1,cityCount(f,p))+4;
+  const phil=R.tech_names.indexOf('philosophy');
+  return (phil>=0&&hasTech(f.tech[p],phil)) ? Math.ceil(base*2/3) : base;
+}
 
 function draw(){
-  const f = F[i];
+  const f=F[i];
   cx.clearRect(0,0,cv.width,cv.height);
   for(let k=0;k<N;k++){
     const x=(k%S)*CELL, y=Math.floor(k/S)*CELL;
-    const hidden = fogOf>=0 && !f.explored[fogOf][k];
-    cx.fillStyle = terrColor(R.terrain[k]);
+    cx.fillStyle=TERR[R.terrain_names[R.terrain[k]]]||'#333';
     cx.fillRect(x,y,CELL,CELL);
-    if(f.owner[k]>=0){                                       // territory tint
-      cx.globalAlpha=0.22; cx.fillStyle=PC[f.owner[k]%4];
-      cx.fillRect(x,y,CELL,CELL); cx.globalAlpha=1;
-    }
-    cx.strokeStyle='rgba(0,0,0,.35)'; cx.strokeRect(x+.5,y+.5,CELL-1,CELL-1);
-    if(hidden){ cx.fillStyle='rgba(6,8,12,.86)'; cx.fillRect(x,y,CELL,CELL); continue; }
-    if(f.city_level[k]>0){                                   // city
-      cx.fillStyle = f.city_owner[k]>=0 ? PC[f.city_owner[k]%4] : '#9aa3b8';
-      const s=CELL*0.5, o=(CELL-s)/2;
+    if(f.owner[k]>=0){cx.globalAlpha=.24;cx.fillStyle=PC[f.owner[k]%4];
+      cx.fillRect(x,y,CELL,CELL);cx.globalAlpha=1;}
+    cx.strokeStyle='rgba(0,0,0,.35)';cx.strokeRect(x+.5,y+.5,CELL-1,CELL-1);
+    if(fogOf>=0 && !f.explored[fogOf][k]){
+      cx.fillStyle='rgba(6,8,12,.88)';cx.fillRect(x,y,CELL,CELL);continue;}
+    // resource
+    const rn=R.resource_names[f.resource[k]], rv=RES[rn];
+    if(rv){cx.fillStyle=rv[0];cx.font=`${Math.floor(CELL*.3)}px serif`;
+      cx.textAlign='left';cx.textBaseline='top';cx.fillText(rv[1],x+2,y+1);}
+    // city
+    if(f.city_level[k]>0){
+      const s=CELL*.52,o=(CELL-s)/2;
+      cx.fillStyle=f.city_owner[k]>=0?PC[f.city_owner[k]%4]:'#9aa3b8';
       cx.fillRect(x+o,y+o,s,s);
-      cx.strokeStyle = f.city_capital[k] ? '#fff' : 'rgba(0,0,0,.6)';
-      cx.lineWidth = f.city_capital[k] ? 2 : 1;
-      cx.strokeRect(x+o,y+o,s,s); cx.lineWidth=1;
-      cx.fillStyle='#0c0e13'; cx.font=`bold ${Math.floor(CELL*0.3)}px monospace`;
-      cx.textAlign='center'; cx.textBaseline='middle';
-      cx.fillText(f.city_level[k], x+CELL/2, y+CELL/2+1);
+      if(f.city_walls[k]){cx.strokeStyle='#fff';cx.lineWidth=2;
+        cx.strokeRect(x+o-2,y+o-2,s+4,s+4);cx.lineWidth=1;}
+      cx.strokeStyle=f.city_capital[k]?'#ffd166':'rgba(0,0,0,.6)';
+      cx.lineWidth=f.city_capital[k]?2:1;cx.strokeRect(x+o,y+o,s,s);cx.lineWidth=1;
+      cx.fillStyle='#0c0e13';cx.font=`bold ${Math.floor(CELL*.3)}px monospace`;
+      cx.textAlign='center';cx.textBaseline='middle';
+      cx.fillText(f.city_level[k],x+CELL/2,y+CELL/2+1);
     }
-    if(f.unit_type[k]>=0){                                   // unit
-      cx.beginPath(); cx.arc(x+CELL/2,y+CELL/2,CELL*0.29,0,7);
-      cx.fillStyle=PC[f.unit_owner[k]%4]; cx.fill();
-      cx.strokeStyle='rgba(0,0,0,.7)'; cx.stroke();
-      cx.fillStyle='#0c0e13'; cx.font=`bold ${Math.floor(CELL*0.32)}px monospace`;
-      cx.textAlign='center'; cx.textBaseline='middle';
-      cx.fillText(R.unit_names[f.unit_type[k]][0].toUpperCase(), x+CELL/2, y+CELL/2+1);
+    // unit
+    if(f.unit_type[k]>=0){
+      const spent=f.unit_moved[k]&&f.unit_attacked[k];
+      cx.globalAlpha=spent?.55:1;
+      cx.beginPath();cx.arc(x+CELL/2,y+CELL*.62,CELL*.27,0,7);
+      cx.fillStyle=PC[f.unit_owner[k]%4];cx.fill();
+      cx.strokeStyle=f.unit_veteran[k]?'#ffd166':'rgba(0,0,0,.7)';
+      cx.lineWidth=f.unit_veteran[k]?2:1;cx.stroke();cx.lineWidth=1;
+      cx.fillStyle='#0c0e13';cx.font=`bold ${Math.floor(CELL*.28)}px monospace`;
+      cx.textAlign='center';cx.textBaseline='middle';
+      cx.fillText(R.unit_names[f.unit_type[k]][0].toUpperCase(),x+CELL/2,y+CELL*.62+1);
+      cx.globalAlpha=1;
+      // hp bar
+      const mx=R.unit_max_hp[f.unit_type[k]], frac=Math.max(0,f.unit_hp[k]/mx);
+      cx.fillStyle='rgba(0,0,0,.65)';cx.fillRect(x+3,y+CELL-6,CELL-6,3);
+      cx.fillStyle=frac>.5?'#5fd68a':frac>.25?'#ffd166':'#ff6b6b';
+      cx.fillRect(x+3,y+CELL-6,(CELL-6)*frac,3);
     }
   }
-  if(f.action && f.action.src>=0){                           // highlight last action
-    const hl=(k,c)=>{const x=(k%S)*CELL,y=Math.floor(k/S)*CELL;
-      cx.strokeStyle=c;cx.lineWidth=2;cx.strokeRect(x+1,y+1,CELL-2,CELL-2);cx.lineWidth=1;};
-    hl(f.action.src,'#ffd166');
-    if(f.action.dst>=0) hl(f.action.dst, f.action.name==='ATTACK'?'#ff6b6b':'#5fd68a');
+  const a=f.action;
+  if(a&&a.src>=0){
+    const hl=(k,c,w)=>{const x=(k%S)*CELL,y=Math.floor(k/S)*CELL;
+      cx.strokeStyle=c;cx.lineWidth=w;cx.strokeRect(x+1.5,y+1.5,CELL-3,CELL-3);cx.lineWidth=1;};
+    hl(a.src,'#ffd166',2);
+    if(a.dst>=0&&a.dst!==a.src) hl(a.dst,a.name==='ATTACK'?'#ff6b6b':'#5fd68a',2);
+    if(a.name==='CAPTURE') hl(a.src,'#5fd68a',3);
   }
-  let ph='<table><tr><th>player</th><th>stars</th><th>cities</th><th>units</th></tr>';
+  if(sel>=0){const x=(sel%S)*CELL,y=Math.floor(sel/S)*CELL;
+    cx.strokeStyle='#fff';cx.lineWidth=2;cx.strokeRect(x+1,y+1,CELL-2,CELL-2);cx.lineWidth=1;}
+  renderPlayers();renderTechs();renderTile();renderLog();
+  document.getElementById('pos').textContent=
+    `frame ${i}/${F.length-1} \\u00b7 turn ${f.turn} \\u00b7 to move P${f.cur}`;
+  document.getElementById('scrub').value=i;
+}
+
+function renderPlayers(){
+  const f=F[i];
+  let h='<table><tr><th>player</th><th>stars</th><th>cities</th><th>units</th><th>techs</th></tr>';
   for(let p=0;p<R.n_players;p++){
-    let c=0,u=0;
-    for(let k=0;k<N;k++){ if(f.city_owner[k]===p&&f.city_level[k]>0)c++; if(f.unit_owner[k]===p&&f.unit_type[k]>=0)u++; }
-    ph+=`<tr><td><span class="sw" style="background:${PC[p%4]}"></span>P${p} ${R.tribes[p]}${f.alive[p]?'':' &#9760;'}</td>`+
-        `<td>${f.stars[p]}</td><td>${c}</td><td>${u}</td></tr>`;
+    let u=0;for(let k=0;k<N;k++)if(f.unit_owner[k]===p&&f.unit_type[k]>=0)u++;
+    let nt=0;for(let t=0;t<R.tech_names.length;t++)if(hasTech(f.tech[p],t))nt++;
+    h+=`<tr><td><span class="sw" style="background:${PC[p%4]}"></span>P${p} ${R.tribes[p]}`+
+       `${f.alive[p]?'':' <span class="muted">(out)</span>'}${f.cur===p?' \\u25c0':''}</td>`+
+       `<td>${f.stars[p]}</td><td>${cityCount(f,p)}</td><td>${u}</td><td>${nt}</td></tr>`;
   }
-  document.getElementById('players').innerHTML = ph+'</table>';
-  document.getElementById('pos').textContent =
-    `frame ${i}/${F.length-1} · turn ${f.turn} · to move P${f.cur}`;
-  document.getElementById('scrub').value = i;
-  renderLog();
+  document.getElementById('players').innerHTML=h+'</table>';
+}
+
+function renderTechs(){
+  const f=F[i];let h='';
+  for(let p=0;p<R.n_players;p++){
+    h+=`<div style="margin-bottom:7px"><span class="sw" style="background:${PC[p%4]}"></span>`+
+       `<b>P${p}</b> <span class="muted">${R.tribes[p]} \\u00b7 ${f.stars[p]}\\u2605</span><div class="tech">`;
+    for(let t=0;t<R.tech_names.length;t++){
+      const done=hasTech(f.tech[p],t), req=R.tech_requires[t];
+      const open=req<0||hasTech(f.tech[p],req);
+      const cost=researchCost(f,p,t);
+      const cls=done?'done':(open?'avail':'lock');
+      const tip=done?'researched':(open?`costs ${cost}\\u2605 (T${R.tech_tier[t]})`
+                 :`needs ${R.tech_names[req]}`);
+      const badge=done?'':' <span class="muted">'+(open?cost+'\\u2605':'locked')+'</span>';
+      h+=`<span class="t ${cls}" title="${tip}">${R.tech_names[t]}${badge}</span>`;
+    }
+    h+='</div></div>';
+  }
+  document.getElementById('techs').innerHTML=h;
+}
+
+function renderTile(){
+  const el=document.getElementById('tile');
+  if(sel<0){el.className='muted';el.textContent='click any tile';return;}
+  const f=F[i],k=sel;el.className='';
+  let h=`<table><tr><th>tile</th><td>${k} (x=${k%S}, y=${Math.floor(k/S)})</td></tr>`+
+        `<tr><th>terrain</th><td>${R.terrain_names[R.terrain[k]]}</td></tr>`+
+        `<tr><th>resource</th><td>${R.resource_names[f.resource[k]]}</td></tr>`+
+        `<tr><th>territory</th><td>${f.owner[k]<0?'neutral':'P'+f.owner[k]}</td></tr>`;
+  if(f.city_level[k]>0)
+    h+=`<tr><th>city</th><td>${f.city_owner[k]<0?'neutral':'P'+f.city_owner[k]}`+
+       ` \\u00b7 level ${f.city_level[k]} \\u00b7 pop ${f.city_pop[k]}`+
+       `${f.city_walls[k]?' \\u00b7 walls':''}${f.city_capital[k]?' \\u00b7 capital':''}</td></tr>`;
+  if(f.unit_type[k]>=0){
+    const ut=f.unit_type[k];
+    h+=`<tr><th>unit</th><td>P${f.unit_owner[k]} ${R.unit_names[ut]}`+
+       ` \\u00b7 ${f.unit_hp[k]}/${R.unit_max_hp[ut]} hp`+
+       `${f.unit_veteran[k]?' \\u00b7 veteran':''}${f.unit_kills[k]?' \\u00b7 '+f.unit_kills[k]+' kills':''}`+
+       `<br><span class="muted">${f.unit_moved[k]?'moved':'can move'} \\u00b7 `+
+       `${f.unit_attacked[k]?'acted':'can act'}</span></td></tr>`;
+  }
+  const seen=R.tribes.map((t,p)=>f.explored[p][k]?`P${p}`:null).filter(Boolean);
+  h+=`<tr><th>explored by</th><td>${seen.length?seen.join(', '):'nobody'}</td></tr>`;
+  el.innerHTML=h+'</table>';
 }
 
 function renderLog(){
-  const lo=Math.max(0,i-40), hi=Math.min(F.length,i+8);
-  let h='';
+  const lo=Math.max(0,i-45),hi=Math.min(F.length,i+10);let h='';
   for(let k=lo;k<hi;k++){
     const a=F[k].action;
     h+=`<div class="${k===i?'cur':''}" data-i="${k}">${String(k).padStart(4)} `+
-       (a?`P${a.player} ${a.desc}`:'<span class="muted">initial state</span>')+`</div>`;
+       (a?`<span style="color:${PC[a.player%4]}">P${a.player}</span> ${a.desc}`
+         :'<span class="muted">initial state</span>')+`</div>`;
   }
-  const el=document.getElementById('log'); el.innerHTML=h;
-  const cur=el.querySelector('.cur'); if(cur) cur.scrollIntoView({block:'nearest'});
-  el.querySelectorAll('div').forEach(d=>d.onclick=()=>{i=+d.dataset.i;draw();});
+  const el=document.getElementById('log');el.innerHTML=h;
+  const c=el.querySelector('.cur');if(c)c.scrollIntoView({block:'nearest'});
+  el.querySelectorAll('div').forEach(d=>d.onclick=()=>go(+d.dataset.i));
 }
 
-function go(n){ i=Math.max(0,Math.min(F.length-1,n)); draw(); }
+cv.onclick=e=>{const r=cv.getBoundingClientRect();
+  const sx=cv.width/r.width, sy=cv.height/r.height;
+  const x=Math.floor((e.clientX-r.left)*sx/CELL), y=Math.floor((e.clientY-r.top)*sy/CELL);
+  sel=(x>=0&&x<S&&y>=0&&y<S)?y*S+x:-1;draw();};
+
+function go(n){i=Math.max(0,Math.min(F.length-1,n));draw();}
 document.getElementById('scrub').max=F.length-1;
 document.getElementById('scrub').oninput=e=>go(+e.target.value);
 document.getElementById('first').onclick=()=>go(0);
@@ -156,15 +277,14 @@ const playBtn=document.getElementById('play');
 function toggle(){
   if(timer){clearInterval(timer);timer=null;playBtn.innerHTML='&#9654; play';}
   else{if(i>=F.length-1)i=0;
-       timer=setInterval(()=>{ if(i>=F.length-1){toggle();return;} go(i+1); },90);
-       playBtn.innerHTML='&#10074;&#10074; pause';}
+    timer=setInterval(()=>{if(i>=F.length-1){toggle();return;}go(i+1);},speed);
+    playBtn.innerHTML='&#10074;&#10074; pause';}
 }
 playBtn.onclick=toggle;
 addEventListener('keydown',e=>{
-  if(e.key==='ArrowRight')go(i+1); else if(e.key==='ArrowLeft')go(i-1);
+  if(e.key==='ArrowRight')go(i+1);else if(e.key==='ArrowLeft')go(i-1);
   else if(e.key===' '){e.preventDefault();toggle();}
-  else if(e.key==='Home')go(0); else if(e.key==='End')go(F.length-1);
-});
+  else if(e.key==='Home')go(0);else if(e.key==='End')go(F.length-1);});
 draw();
 </script></body></html>
 """

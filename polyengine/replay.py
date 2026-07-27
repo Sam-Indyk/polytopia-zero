@@ -21,18 +21,32 @@ from polyengine.core.actions import Action
 
 
 def _board(state) -> dict:
-    """Mutable per-frame board data (terrain lives in the static header)."""
+    """Mutable per-frame board data (terrain lives in the static header).
+
+    This is deliberately *everything* mutable the engine tracks, so the viewer
+    can show the full state with nothing hidden: city level/pop/walls, unit
+    hp/veteran/spent flags, per-player stars and the researched-tech bitmask,
+    and the resource layer (which becomes mutable once harvesting lands).
+    """
     return {
         "turn": int(state.turn),
         "cur": int(state.current_player),
         "owner": state.owner.tolist(),
+        "resource": state.resource.tolist(),
         "city_owner": state.city_owner.tolist(),
         "city_level": state.city_level.tolist(),
+        "city_pop": state.city_pop.tolist(),
+        "city_walls": state.city_walls.tolist(),
         "city_capital": state.city_capital.tolist(),
         "unit_type": state.unit_type.tolist(),
         "unit_owner": state.unit_owner.tolist(),
         "unit_hp": state.unit_hp.tolist(),
+        "unit_moved": state.unit_moved.tolist(),
+        "unit_attacked": state.unit_attacked.tolist(),
+        "unit_veteran": state.unit_veteran.tolist(),
+        "unit_kills": state.unit_kills.tolist(),
         "stars": state.stars.tolist(),
+        "tech": [int(t) for t in state.tech],       # bitmask per player
         "alive": state.alive.tolist(),
         "explored": [row.tolist() for row in state.fog_explored],
     }
@@ -57,13 +71,27 @@ class ReplayRecorder:
             "map_seed": int(s.map_seed),
             "ruleset_version": r.version,
             "terrain": s.terrain.tolist(),
-            "resource": s.resource.tolist(),
             "tribes": [tribe_names[t] if 0 <= t < len(tribe_names) else str(t)
                        for t in s.tribe.tolist()],
             "unit_names": list(r.unit_names),
+            "unit_cost": [int(c) for c in r.unit_cost],
+            "unit_max_hp": [int(h) for h in r.unit_max_hp],
             "terrain_names": list(r.terrain_names),
+            "resource_names": list(r.resource_names),
             "tech_names": list(r.tech_names),
+            "tech_tier": [int(t) for t in r.tech_tier],
+            "tech_requires": [int(t) for t in r.tech_requires],
             "agents": list(self.agent_names),
+            # Mechanics the engine does not simulate yet, surfaced in the viewer
+            # so an empty panel never reads as "nothing happened".
+            "not_simulated": [
+                "buildings (lumber hut, farm, mine, port, temple, market)",
+                "resource harvesting (fruit, game, fish, crop, metal)",
+                "city level-up rewards (workshop / explorer / walls / giant)",
+                "roads and trade routes",
+                "naval embarking via ports",
+                "cloak infiltration and diplomacy relations",
+            ],
         }
 
     def capture(self, action: Action | None = None) -> None:

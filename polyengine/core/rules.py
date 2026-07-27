@@ -63,6 +63,10 @@ class Ruleset:
     accuracy: float
     defense_bonus_map: dict[str, float]
 
+    # capture rules
+    capture_requires_fresh_unit: bool
+    capture_ends_unit_turn: bool
+
     @property
     def n_terrain(self) -> int:
         return len(self.terrain_names)
@@ -199,6 +203,10 @@ def load_ruleset(name: str = "current") -> Ruleset:
         tribes=tribes["tribe"],
         accuracy=float(combat["constants"]["accuracy"]),
         defense_bonus_map=dict(dbmap),
+        capture_requires_fresh_unit=bool(
+            combat["constants"].get("capture_requires_fresh_unit", True)),
+        capture_ends_unit_turn=bool(
+            combat["constants"].get("capture_ends_unit_turn", True)),
     )
 
 

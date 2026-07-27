@@ -31,10 +31,24 @@ py -3.12 -m venv .venv
 ### Watching games
 
 `scripts/record_replay.py` writes a `.json` replay plus a **self-contained `.html` viewer**
-(no server, no dependencies — open it from disk). Canvas board with territory tints, cities,
-units and HP; scrub with the slider or ← / → / space; click any entry in the action log to jump;
-and a **fog dropdown** that re-renders the board as a chosen player actually saw it, straight
-from the recorded per-player explored masks.
+(no server, no dependencies — open it from disk).
+
+The viewer's rule is that **nothing the engine knows is hidden**:
+
+- **Board** — terrain, resources (fruit / crop / game / metal / fish / whale), territory tints,
+  cities (level, walls, capital ring) and units (type, HP bar, veteran ring, dimmed once spent).
+- **Tech tree** — every tech for every player, marked researched / available / locked, with the
+  *live* star cost recomputed per frame from that player's city count and Literacy discount.
+- **Tile inspector** — click any tile for its terrain, resource, territory, city (level/pop/
+  walls/capital), unit (HP, veteran, kills, whether it can still move or act), and which players
+  have explored it.
+- **Action log** — every micro-action, colour-coded by player, click to jump.
+- **Fog selector** — re-renders the board as a chosen player actually saw it, from the recorded
+  per-player explored masks.
+- **"Not simulated yet" panel** — lists the mechanics the engine does not model, so an empty
+  log never reads as "nothing happened".
+
+Scrub with the slider or ← / → / space.
 
 ### What's landed (M1)
 
@@ -73,6 +87,18 @@ Still simplified pending later milestones: the resource/building economy, the fu
 logic, and special tribes (scheduled M2–M4 in [PLAN.md](PLAN.md)). Naval and Cloak/Dagger
 **stats and tech gating are current data**, but their *mechanics* (ports, embarking,
 infiltration) are wired up in M4 — those units are flagged non-trainable until then.
+
+Concretely **not yet simulated** (the viewer lists these too): buildings (lumber hut, farm,
+mine, port, temple, market), resource harvesting, city level-up rewards (workshop / explorer /
+walls / giant), roads and trade routes, naval embarking, and diplomacy relations. Cities
+currently grow through a placeholder economy rather than the real population/level loop.
+
+### Capture takes a turn
+
+Moving a unit onto a village or city does **not** take it. Capture is a separate action
+(`A_CAPTURE`) that requires the unit to still be standing there at the start of a later turn,
+and it consumes that unit's turn. This is governed by `capture_requires_fresh_unit` /
+`capture_ends_unit_turn` in `data/combat.toml` and pinned by `tests/test_capture.py`.
 
 ### Ruleset fidelity
 

@@ -17,6 +17,14 @@ ruleset_version = "current-2026.07"
 accuracy = 4.5            # the "* 4.5" multiplier in the damage formula
 round_mode = "half_up"    # round-half-up (Math.round semantics), not banker's rounding
 
+# Capturing a city/village is its own action, not a side effect of moving onto
+# the tile. `capture_requires_fresh_unit` = true means the unit must begin its
+# turn standing on the city (i.e. moving on and capturing are two turns), which
+# is the behaviour the current game shows. Kept as data so the M3 Steam replay
+# fixtures can settle it rather than a hand-entered guess.
+capture_requires_fresh_unit = true
+capture_ends_unit_turn = true
+
 [defense_bonus]
 # Multipliers applied to defense_force based on the tile the defender stands on / its state.
 none = 1.0

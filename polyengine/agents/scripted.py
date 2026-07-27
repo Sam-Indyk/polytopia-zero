@@ -1,7 +1,7 @@
 """ScriptedBot — a hand-written Midjiwan-style heuristic policy.
 
 Fast, rule-based (no full-state eval), with a fixed priority order:
-  1. Capture an enemy/neutral city if a unit can move onto it.
+  1. Capture a city the unit is standing on; else step onto one to capture next turn.
   2. Make a favourable attack (lethal, or deal >= damage taken).
   3. Train a unit when stars allow and the army is small.
   4. Research a cheap useful tech when flush with stars.
@@ -36,11 +36,15 @@ class ScriptedBot:
         for a in actions:
             by_type.setdefault(a.atype, []).append(a)
 
-        # 1. Capture: a MOVE landing on a city this player doesn't own.
-        captures = [a for a in by_type.get(C.A_MOVE, [])
+        # 1a. Capture a city we are already standing on — always the best move.
+        if by_type.get(C.A_CAPTURE):
+            return self._pick(by_type[C.A_CAPTURE])
+
+        # 1b. Otherwise step onto an enemy/neutral city so we can capture next turn.
+        approach = [a for a in by_type.get(C.A_MOVE, [])
                     if s.city_level[a.dst] > 0 and s.city_owner[a.dst] != player]
-        if captures:
-            return self._pick(captures)
+        if approach:
+            return self._pick(approach)
 
         # 2. Favourable attack.
         best_atk, best_score = None, 0.0

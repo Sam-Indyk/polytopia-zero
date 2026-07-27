@@ -42,6 +42,39 @@ def test_replay_records_every_action():
     assert len(actions_of(rec.to_dict())) == len(rec.frames) - 1
 
 
+def test_replay_frames_expose_full_mutable_state():
+    """The viewer must be able to show everything the engine tracks."""
+    rep = a_replay()
+    frame = rep["frames"][-1]
+    for field in ("owner", "resource", "city_owner", "city_level", "city_pop",
+                  "city_walls", "city_capital", "unit_type", "unit_owner",
+                  "unit_hp", "unit_moved", "unit_attacked", "unit_veteran",
+                  "unit_kills"):
+        assert len(frame[field]) == rep["size"] ** 2, f"{field} missing/short"
+    for field in ("stars", "tech", "alive"):
+        assert len(frame[field]) == rep["n_players"], f"{field} missing/short"
+
+
+def test_replay_header_carries_tech_tree_for_the_viewer():
+    rep = a_replay()
+    n = len(rep["tech_names"])
+    assert len(rep["tech_tier"]) == n and len(rep["tech_requires"]) == n
+    assert len(rep["unit_cost"]) == len(rep["unit_names"])
+    assert len(rep["unit_max_hp"]) == len(rep["unit_names"])
+    assert rep["resource_names"][0] == "none"
+    assert rep["not_simulated"], "unimplemented mechanics must be declared"
+
+
+def test_researched_techs_are_visible_and_grow():
+    """Tech is recorded as a per-player bitmask so the viewer can show the tree."""
+    rep = a_replay()
+    first = rep["frames"][0]["tech"]
+    last = rep["frames"][-1]["tech"]
+    popcount = lambda m: bin(m).count("1")
+    assert sum(map(popcount, last)) >= sum(map(popcount, first))
+    assert any(popcount(m) > 0 for m in last), "nobody researched anything"
+
+
 def test_replay_fog_masks_are_per_player():
     rep = a_replay()
     explored = rep["frames"][-1]["explored"]
@@ -96,3 +129,18 @@ def test_viewer_html_is_self_contained():
     assert "polyzero-replay/1" in html
     assert "</script>" not in html.split("<script>")[1].rsplit("</script>", 1)[0]
     assert "src=\"http" not in html and "href=\"http" not in html
+
+
+def test_viewer_renders_the_panels_that_prevent_hidden_state():
+    html = render_html(a_replay())
+    for marker in ("tile inspector", "tech tree", "action log",
+                   "not simulated yet", "renderTechs", "renderTile"):
+        assert marker in html, f"viewer is missing {marker!r}"
+
+
+def test_viewer_css_colours_are_well_formed():
+    import re
+    html = render_html(a_replay())
+    css = html.split("<style>")[1].split("</style>")[0]
+    for colour in re.findall(r"#[0-9a-zA-Z]+", css):
+        assert re.fullmatch(r"#[0-9a-fA-F]{3,8}", colour), f"bad colour {colour}"
