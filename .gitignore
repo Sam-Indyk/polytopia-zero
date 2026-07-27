@@ -33,3 +33,7 @@ Thumbs.db
 
 # Wiki reference cache (fetch with scripts/fetch_wiki.py --all)
 .wikicache/
+
+# Training artifacts
+checkpoints/
+runs_*.log

@@ -2,7 +2,7 @@
 
 Training a bot to play *The Battle of Polytopia* better than any human.
 
-**Status: M1 complete — current-ruleset data, Numba kernels, vector env, baseline ladder, and a replay viewer.** The full research + architecture plan lives in [PLAN.md](PLAN.md).
+**Status: M2 in progress — the PPO self-play stack (observation encoder, masked auto-regressive heads, network, trainer) is built and training runs end to end on GPU.** The full research + architecture plan lives in [PLAN.md](PLAN.md).
 
 ## Quickstart
 
@@ -49,6 +49,38 @@ The viewer's rule is that **nothing the engine knows is hidden**:
   log never reads as "nothing happened".
 
 Scrub with the slider or ← / → / space.
+
+### What's landed (M2 so far)
+
+```bash
+# Install the training extras (cu128+ is required for Blackwell GPUs)
+.venv\Scripts\python -m pip install torch --index-url https://download.pytorch.org/whl/cu128
+
+# Tiny-map smoke run: should climb against RandomLegal within minutes
+.venv\Scripts\python -u -m polytrain.train --smoke
+
+# A small real run
+.venv\Scripts\python -u -m polytrain.train --size 9 --games 32 --rollout 128 --iters 200
+```
+
+- **Observation encoder** (`polyengine/obs.py`) — 51 spatial planes + a global vector,
+  Numba-compiled. Unit and city planes render from the player's **fog memory**, never ground
+  truth, and opponent stars are not observable — the same information a human sees on screen,
+  which is what makes the M5 vision layer able to produce identical tensors. Pads to a fixed
+  size with an off-board mask plane for size-bucketed batching.
+- **Action masks** (`polyengine/masks.py`) — `legal_types / legal_sources / legal_targets /
+  legal_subtypes` for the four auto-regressive heads. Cross-checked against `enumerate_actions`
+  on every decision point of random games, so the policy provably cannot emit an illegal action.
+- **Network** (`polynet/`) — fully-convolutional ResNet trunk with squeeze-excitation and FiLM
+  injection of the global vector; pointer heads (1×1 conv, one logit per tile) for source and
+  target; PopArt value head; auxiliary final-score and opponent-tech heads. One set of weights
+  serves every map size.
+- **PPO trainer** (`polytrain/`) — self-play rollouts with GAE chained **per (game, player)**,
+  since a player's own decisions are not contiguous in a turn-based game; clipped surrogate loss,
+  summed per-head entropy, annealed material shaping on top of terminal ±1.
+
+Still to come in M2: the win-rate gates (>90% vs ScriptedBot, >60% vs MCTS-1k), the Elo curve,
+and a scaled-up run.
 
 ### What's landed (M1)
 

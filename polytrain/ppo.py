@@ -1,0 +1,108 @@
+"""PPO learner for the auto-regressive masked policy.
+
+Standard clipped-surrogate PPO with a few things this problem needs:
+
+* **PopArt value targets.** Returns are normalised by a running estimate before
+  the value loss, and the head's weights are rescaled so its de-normalised
+  output is preserved. Reward scale changes (shaping annealing, tougher
+  opponents) then don't destabilise the trunk.
+* **Summed head entropy.** Entropy is the sum over the heads that actually
+  applied to each action, so END_TURN (one head) and MOVE (three heads) are not
+  penalised on different scales.
+* **Auxiliary losses.** Final-score regression and opponent-tech prediction at
+  0.25 weight — free representation shaping, and the tech head doubles as a
+  probe of what the net infers through fog.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+import numpy as np
+import torch
+import torch.nn.functional as F
+
+
+@dataclass
+class PPOConfig:
+    lr: float = 3e-4
+    clip: float = 0.2
+    epochs: int = 3
+    minibatch: int = 1024
+    value_coef: float = 0.5
+    entropy_coef: float = 0.01
+    aux_coef: float = 0.25
+    max_grad_norm: float = 0.5
+    normalise_adv: bool = True
+
+
+class PPOLearner:
+    def __init__(self, policy, cfg: PPOConfig | None = None):
+        self.policy = policy
+        self.net = policy.net
+        self.cfg = cfg or PPOConfig()
+        self.opt = torch.optim.Adam(self.net.parameters(), lr=self.cfg.lr)
+
+    def update(self, batch: dict, advantages: np.ndarray, returns: np.ndarray,
+               aux_targets: dict | None = None) -> dict:
+        cfg = self.cfg
+        device = next(self.net.parameters()).device
+        adv = torch.as_tensor(advantages, dtype=torch.float32, device=device)
+        ret = torch.as_tensor(returns, dtype=torch.float32, device=device)
+
+        self.net.value.update_stats(ret)
+        ret_norm = self.net.value.normalise(ret)
+
+        n = adv.shape[0]
+        idx_all = np.arange(n)
+        logs = {"policy_loss": [], "value_loss": [], "entropy": [],
+                "clip_frac": [], "approx_kl": []}
+
+        for _ in range(cfg.epochs):
+            np.random.shuffle(idx_all)
+            for start in range(0, n, cfg.minibatch):
+                mb = idx_all[start:start + cfg.minibatch]
+                if len(mb) < 2:
+                    continue
+                mb_t = torch.as_tensor(mb, device=device)
+                sub = {k: (v[mb_t] if torch.is_tensor(v) else v)
+                       for k, v in batch.items()}
+                out = self.policy.evaluate(sub)
+
+                mb_adv = adv[mb_t]
+                if cfg.normalise_adv:
+                    mb_adv = (mb_adv - mb_adv.mean()) / (mb_adv.std() + 1e-8)
+
+                ratio = (out["logp"] - sub["old_logp"]).exp()
+                unclipped = ratio * mb_adv
+                clipped = ratio.clamp(1 - cfg.clip, 1 + cfg.clip) * mb_adv
+                policy_loss = -torch.min(unclipped, clipped).mean()
+
+                value_loss = F.mse_loss(out["value"], ret_norm[mb_t])
+                entropy = out["entropy"].mean()
+
+                loss = (policy_loss
+                        + cfg.value_coef * value_loss
+                        - cfg.entropy_coef * entropy)
+
+                if aux_targets is not None:
+                    score_t = aux_targets["score"][mb_t]
+                    tech_t = aux_targets["tech"][mb_t]
+                    loss = loss + cfg.aux_coef * (
+                        F.mse_loss(out["aux_score"], score_t)
+                        + F.binary_cross_entropy_with_logits(out["aux_tech"], tech_t))
+
+                self.opt.zero_grad(set_to_none=True)
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.net.parameters(),
+                                               cfg.max_grad_norm)
+                self.opt.step()
+
+                with torch.no_grad():
+                    logs["policy_loss"].append(float(policy_loss))
+                    logs["value_loss"].append(float(value_loss))
+                    logs["entropy"].append(float(entropy))
+                    logs["clip_frac"].append(
+                        float(((ratio - 1).abs() > cfg.clip).float().mean()))
+                    logs["approx_kl"].append(float((sub["old_logp"] - out["logp"]).mean()))
+
+        return {k: float(np.mean(v)) if v else 0.0 for k, v in logs.items()}
