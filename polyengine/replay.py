@@ -48,6 +48,8 @@ class ReplayRecorder:
 
     def __post_init__(self):
         s, r = self.game.state, self.game.rules
+        tribe_names = [name for name, _ in
+                       sorted(r.tribes.items(), key=lambda kv: kv[1]["id"])]
         self.header = {
             "format": "polyzero-replay/1",
             "size": int(s.size),
@@ -56,7 +58,8 @@ class ReplayRecorder:
             "ruleset_version": r.version,
             "terrain": s.terrain.tolist(),
             "resource": s.resource.tolist(),
-            "tribes": [r.tribe_names[t] for t in s.tribe.tolist()],
+            "tribes": [tribe_names[t] if 0 <= t < len(tribe_names) else str(t)
+                       for t in s.tribe.tolist()],
             "unit_names": list(r.unit_names),
             "terrain_names": list(r.terrain_names),
             "tech_names": list(r.tech_names),

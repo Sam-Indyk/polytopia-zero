@@ -36,6 +36,7 @@ class Ruleset:
 
     # units (indexed by unit id)
     unit_names: tuple[str, ...]
+    unit_id: dict[str, int]
     unit_symbol: tuple[str, ...]
     unit_cost: np.ndarray                # int16[U]
     unit_max_hp: np.ndarray              # int16[U]
@@ -150,6 +151,7 @@ def load_ruleset(name: str = "current") -> Ruleset:
     n_units = len(unit_entries)
     _assert_dense_ids((e["id"] for e in unit_entries.values()), n_units, "units")
     unit_names = tuple(sorted(unit_entries, key=lambda k: unit_entries[k]["id"]))
+    unit_id = {name: e["id"] for name, e in unit_entries.items()}
     unit_symbol = _symbols(unit_entries, n_units)
     unit_cost = _fill_by_id(unit_entries, n_units, "cost", np.int16)
     unit_max_hp = _fill_by_id(unit_entries, n_units, "max_hp", np.int16)
@@ -177,6 +179,7 @@ def load_ruleset(name: str = "current") -> Ruleset:
         resource_names=resource_names,
         resource_symbol=resource_symbol,
         unit_names=unit_names,
+        unit_id=unit_id,
         unit_symbol=unit_symbol,
         unit_cost=unit_cost,
         unit_max_hp=unit_max_hp,

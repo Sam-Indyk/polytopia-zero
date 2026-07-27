@@ -22,6 +22,7 @@ runs/
 checkpoints/
 *.pt
 replays/*.json
+replays/*.html
 !replays/.gitkeep
 
 # OS / editor

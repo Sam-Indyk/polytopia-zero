@@ -175,7 +175,7 @@ unlocks_unit = ["bomber"]
 
 [tech.aquatism]
 id = 22
-tier = 3
+tier = 2                        # sibling of Sailing on the Fishing branch
 requires = "fishing"
 unlocks = ["water_temple", "ocean_defense"]
 unlocks_unit = []

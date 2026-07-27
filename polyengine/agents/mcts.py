@@ -35,8 +35,10 @@ class _Node:
 
 
 class MCTSAgent:
-    def __init__(self, n_sims: int = 200, c_puct: float = 1.4,
-                 rollout_steps: int = 240, eval_scale: float = 40.0,
+    # Rollouts are truncated and heuristic-scored, so a short horizon buys most
+    # of the signal: 240 steps costs ~2.4 s/move, 60 costs ~0.16 s at 30 sims.
+    def __init__(self, n_sims: int = 100, c_puct: float = 1.4,
+                 rollout_steps: int = 60, eval_scale: float = 40.0,
                  end_turn_bias: float = 0.2, seed: int = 0):
         self.n_sims = n_sims
         self.c = c_puct
