@@ -28,14 +28,27 @@ AGENTS = {
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--p0", default="scripted", choices=AGENTS)
-    ap.add_argument("--p1", default="random", choices=AGENTS)
+    ap.add_argument("--p0", default="scripted")
+    ap.add_argument("--p1", default="random")
     ap.add_argument("--size", type=int, default=11)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--max-steps", type=int, default=4000)
     ap.add_argument("--out", default="replays/game")
     ap.add_argument("--open", action="store_true", help="open the viewer in a browser")
+    ap.add_argument("--net", help="path to a checkpoint (.pt) to play as agent 'net'")
+    ap.add_argument("--net-greedy", action="store_true")
     args = ap.parse_args()
+
+    if args.net:
+        from polytrain.checkpoint import CheckpointAgent
+        agent = CheckpointAgent(args.net, greedy=args.net_greedy)
+        AGENTS["net"] = lambda seed, _a=agent: _a
+        print(f"loaded checkpoint {args.net} (iter {agent.iter})")
+
+    for name in (args.p0, args.p1):
+        if name not in AGENTS:
+            ap.error(f"unknown agent {name!r}; choose from {sorted(AGENTS)}"
+                     + ("" if args.net else " (pass --net PATH to enable 'net')"))
 
     game = Game.new(size=args.size, seed=args.seed)
     names = [args.p0, args.p1]

@@ -46,13 +46,25 @@ def play_one(a_name: str, b_name: str, seed: int, size: int, max_steps: int) -> 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--agents", nargs="+", default=["random", "scripted", "osla"],
-                    choices=list(AGENTS))
+    ap.add_argument("--agents", nargs="+", default=["random", "scripted", "osla"])
     ap.add_argument("--games", type=int, default=20, help="games per ordered pair")
     ap.add_argument("--size", type=int, default=9)
     ap.add_argument("--max-steps", type=int, default=1500)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--net", help="path to a checkpoint (.pt) to play as agent 'net'")
+    ap.add_argument("--net-greedy", action="store_true")
     args = ap.parse_args()
+
+    if args.net:
+        from polytrain.checkpoint import CheckpointAgent
+        agent = CheckpointAgent(args.net, greedy=args.net_greedy)
+        AGENTS["net"] = lambda seed, _a=agent: _a
+        print(f"loaded checkpoint {args.net} (iter {agent.iter})")
+
+    for name in args.agents:
+        if name not in AGENTS:
+            ap.error(f"unknown agent {name!r}; choose from {sorted(AGENTS)}"
+                     + ("" if args.net else " (pass --net PATH to enable 'net')"))
 
     names = args.agents
     score: dict[tuple[str, str], float] = {}

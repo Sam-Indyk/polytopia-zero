@@ -2,7 +2,7 @@
 
 Training a bot to play *The Battle of Polytopia* better than any human.
 
-**Status: M1 complete — current-ruleset data, Numba kernels, vector env, baseline ladder, and a replay viewer.** The full research + architecture plan lives in [PLAN.md](PLAN.md).
+**Status: M2 in progress — the PPO self-play stack (observation encoder, masked auto-regressive heads, network, trainer) is built and training runs end to end on GPU.** The full research + architecture plan lives in [PLAN.md](PLAN.md).
 
 ## Quickstart
 
@@ -49,6 +49,58 @@ The viewer's rule is that **nothing the engine knows is hidden**:
   log never reads as "nothing happened".
 
 Scrub with the slider or ← / → / space.
+
+### What's landed (M2 so far)
+
+```bash
+# Install the training extras (cu128+ is required for Blackwell GPUs)
+.venv\Scripts\python -m pip install torch --index-url https://download.pytorch.org/whl/cu128
+
+# Tiny-map smoke run: should climb against RandomLegal within minutes
+.venv\Scripts\python -u -m polytrain.train --smoke
+
+# A small real run
+.venv\Scripts\python -u -m polytrain.train --size 9 --games 32 --rollout 128 --iters 200
+```
+
+- **Observation encoder** (`polyengine/obs.py`) — 51 spatial planes + a global vector,
+  Numba-compiled. Unit and city planes render from the player's **fog memory**, never ground
+  truth, and opponent stars are not observable — the same information a human sees on screen,
+  which is what makes the M5 vision layer able to produce identical tensors. Pads to a fixed
+  size with an off-board mask plane for size-bucketed batching.
+- **Action masks** (`polyengine/masks.py`) — `legal_types / legal_sources / legal_targets /
+  legal_subtypes` for the four auto-regressive heads. Cross-checked against `enumerate_actions`
+  on every decision point of random games, so the policy provably cannot emit an illegal action.
+- **Network** (`polynet/`) — fully-convolutional ResNet trunk with squeeze-excitation and FiLM
+  injection of the global vector; pointer heads (1×1 conv, one logit per tile) for source and
+  target; PopArt value head; auxiliary final-score and opponent-tech heads. One set of weights
+  serves every map size.
+- **PPO trainer** (`polytrain/`) — self-play rollouts with GAE chained **per (game, player)**,
+  since a player's own decisions are not contiguous in a turn-based game; clipped surrogate loss,
+  summed per-head entropy, annealed material shaping on top of terminal ±1.
+
+- **Snapshot opponent pool** (`polytrain/pool.py`) — a fraction of iterations are played against
+  frozen past selves, so the policy has to stay good against old styles instead of cycling.
+
+#### Results so far (6×6 smoke config, 0.25M-param net, ~14 min on an RTX PRO 1000)
+
+| run | vs RandomLegal | vs ScriptedBot (100 games) |
+|---|---|---|
+| mirror self-play, final (iter 150) | 100% | **47%** |
+| + snapshot pool, final (iter 300) | 100% | **69%** |
+| + snapshot pool, best (iter 160) | 100% | **88%** |
+
+The first run reached 91.7% against ScriptedBot at iteration 100 and fell back to 47% by 150 —
+confirmed with a 100-game eval, so drift, not noise. That is textbook self-play strategy cycling:
+mirror self-play only optimises against the *current* opponent, so nothing stops the policy
+unlearning how to beat an earlier style. The snapshot pool is the standard fix and roughly
+doubled sustained strength. A best-by-win-rate checkpoint is now saved alongside `latest.pt`,
+because self-play win rate is not a monotone proxy for strength.
+
+**The M2 gate (>90% vs ScriptedBot, >60% vs MCTS-1k) is not met yet** — 88% at best on the toy
+config. Remaining M2 work: a scaled-up run at the real config (`--size 9`, full 160×12 net), the
+MCTS-1k gate, and the Elo curve. The residual best-vs-final gap (88% → 69%) is exactly what the
+full PFSP league in M3 is designed to close.
 
 ### What's landed (M1)
 
