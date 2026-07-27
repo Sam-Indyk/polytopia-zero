@@ -3,15 +3,17 @@
 Owns turn flow (income, city growth, per-turn unit reset, fog refresh), the
 legality surface the agents/masks consume, and the Domination win condition.
 
-M0 economy is intentionally simplified so games self-progress and terminate:
-each owned city yields `level` stars/turn and gains +1 population/turn, leveling
-up when population reaches `level + 1`. The full resource/building economy is
-scheduled work, not part of freezing the state+action contract.
+Economy (see core/economy.py): each owned city yields `level` stars per turn,
++1 if it is the capital and +1 with a Workshop. Cities do NOT grow on their own
+— population is bought through harvests and buildings, and city level caps how
+many units a city can support (`level + 1`). That scarcity is what stops star
+income turning directly into an unbounded army.
 """
 from __future__ import annotations
 
 from polyengine.core import constants as C
 from polyengine.core.actions import Action, apply_action, enumerate_actions
+from polyengine.core.economy import city_income, player_income
 from polyengine.core.fog import recompute_fog
 from polyengine.core.mapgen import new_game
 from polyengine.core.rules import Ruleset, load_ruleset
@@ -70,6 +72,7 @@ class Game:
         s = self.state
         owned = (s.city_owner == player) & (s.city_level > 0)
         city_score = int(s.city_level[owned].sum()) * 100
+        city_score += int(s.city_park[owned].sum()) * 250
         n_units = int(((s.unit_owner == player) & (s.unit_type != C.U_NONE)).sum())
         tech_score = bin(int(s.tech[player])).count("1") * 20
         return city_score + n_units * 5 + tech_score + int(s.stars[player])
@@ -107,28 +110,15 @@ class Game:
         for p in range(s.n_players):
             if not self.owns_city(p):
                 s.alive[p] = 0
-        # Income + city growth.
-        income = 0
-        for t in range(s.n_tiles):
-            if s.city_owner[t] == player and s.city_level[t] > 0:
-                income += int(s.city_level[t])
-                self._grow_city(t)
-        s.stars[player] += income
+        # Income only. Cities no longer grow for free: population is bought via
+        # harvests and buildings, which is what makes unit capacity scarce.
+        s.stars[player] += player_income(s, player)
         # Reset this player's units for the new turn.
         mine = (s.unit_owner == player) & (s.unit_type != C.U_NONE)
         s.unit_moved[mine] = 0
         s.unit_attacked[mine] = 0
         recompute_fog(s, player)
 
-    def _grow_city(self, tile: int) -> None:
-        s = self.state
-        s.city_pop[tile] += 1
-        while (s.city_level[tile] < C.CITY_MAX_LEVEL and
-               s.city_pop[tile] >= s.city_level[tile] + 1):
-            s.city_pop[tile] -= (s.city_level[tile] + 1)
-            s.city_level[tile] += 1
-            if s.city_level[tile] >= 3:
-                s.city_walls[tile] = 1
 
     def _alive_count(self) -> int:
         return sum(1 for p in range(self.state.n_players) if self.owns_city(p))

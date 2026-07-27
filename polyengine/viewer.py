@@ -101,6 +101,9 @@ const PC = ['#4da3ff','#ff6b6b','#5fd68a','#ffd166'];
 const TERR = {ocean:'#0f2b4d',water:'#1a5286',field:'#33512f',forest:'#1e3d22',mountain:'#4d4d56'};
 const RES  = {fruit:['#ff8fb1','\\u25cf'],crop:['#ffd166','\\u25b2'],game:['#c58b5a','\\u25c6'],
               metal:['#c9ccd6','\\u25a0'],fish:['#7fe3e3','\\u25cf'],whale:['#8fb8ff','\\u25c6']};
+// Buildings the player paid for; population is what these buy.
+const IMP  = {lumber_hut:'L',farm:'F',mine:'M',port:'P',temple:'T',
+              sawmill:'S',windmill:'W',forge:'G'};
 let i = 0, timer = null, fogOf = -1, sel = -1, speed = 90;
 
 document.getElementById('meta').textContent =
@@ -142,6 +145,13 @@ function draw(){
     const rn=R.resource_names[f.resource[k]], rv=RES[rn];
     if(rv){cx.fillStyle=rv[0];cx.font=`${Math.floor(CELL*.3)}px serif`;
       cx.textAlign='left';cx.textBaseline='top';cx.fillText(rv[1],x+2,y+1);}
+    // improvement (building) marker
+    const imp=f.improvement[k];
+    if(imp>=0){
+      const ch=IMP[R.improvement_names[imp]];
+      if(ch){cx.fillStyle='#e9d8a6';cx.font=`bold ${Math.floor(CELL*.26)}px monospace`;
+        cx.textAlign='right';cx.textBaseline='top';cx.fillText(ch,x+CELL-2,y+1);}
+    }
     // city
     if(f.city_level[k]>0){
       const s=CELL*.52,o=(CELL-s)/2;
@@ -149,6 +159,9 @@ function draw(){
       cx.fillRect(x+o,y+o,s,s);
       if(f.city_walls[k]){cx.strokeStyle='#fff';cx.lineWidth=2;
         cx.strokeRect(x+o-2,y+o-2,s+4,s+4);cx.lineWidth=1;}
+      if(f.city_pending_reward[k]>0){       // owes a level-up choice
+        cx.strokeStyle='#ffd166';cx.lineWidth=3;
+        cx.strokeRect(x+o-4,y+o-4,s+8,s+8);cx.lineWidth=1;}
       cx.strokeStyle=f.city_capital[k]?'#ffd166':'rgba(0,0,0,.6)';
       cx.lineWidth=f.city_capital[k]?2:1;cx.strokeRect(x+o,y+o,s,s);cx.lineWidth=1;
       cx.fillStyle='#0c0e13';cx.font=`bold ${Math.floor(CELL*.3)}px monospace`;
@@ -192,13 +205,18 @@ function draw(){
 
 function renderPlayers(){
   const f=F[i];
-  let h='<table><tr><th>player</th><th>stars</th><th>cities</th><th>units</th><th>techs</th></tr>';
+  let h='<table><tr><th>player</th><th>stars</th><th>cities</th><th>units</th><th>cap</th><th>techs</th></tr>';
   for(let p=0;p<R.n_players;p++){
-    let u=0;for(let k=0;k<N;k++)if(f.unit_owner[k]===p&&f.unit_type[k]>=0)u++;
+    let u=0,cap=0;
+    for(let k=0;k<N;k++){
+      if(f.unit_owner[k]===p&&f.unit_type[k]>=0)u++;
+      if(f.city_owner[k]===p&&f.city_level[k]>0)cap+=f.city_level[k]+1;
+    }
     let nt=0;for(let t=0;t<R.tech_names.length;t++)if(hasTech(f.tech[p],t))nt++;
     h+=`<tr><td><span class="sw" style="background:${PC[p%4]}"></span>P${p} ${R.tribes[p]}`+
        `${f.alive[p]?'':' <span class="muted">(out)</span>'}${f.cur===p?' \\u25c0':''}</td>`+
-       `<td>${f.stars[p]}</td><td>${cityCount(f,p)}</td><td>${u}</td><td>${nt}</td></tr>`;
+       `<td>${f.stars[p]}</td><td>${cityCount(f,p)}</td><td>${u}</td>`+
+       `<td>${cap}</td><td>${nt}</td></tr>`;
   }
   document.getElementById('players').innerHTML=h+'</table>';
 }
@@ -230,6 +248,8 @@ function renderTile(){
   let h=`<table><tr><th>tile</th><td>${k} (x=${k%S}, y=${Math.floor(k/S)})</td></tr>`+
         `<tr><th>terrain</th><td>${R.terrain_names[R.terrain[k]]}</td></tr>`+
         `<tr><th>resource</th><td>${R.resource_names[f.resource[k]]}</td></tr>`+
+        (f.improvement[k]>=0
+          ? `<tr><th>building</th><td>${R.improvement_names[f.improvement[k]]}</td></tr>` : '')+
         `<tr><th>territory</th><td>${f.owner[k]<0?'neutral':'P'+f.owner[k]}</td></tr>`;
   if(f.city_level[k]>0)
     h+=`<tr><th>city</th><td>${f.city_owner[k]<0?'neutral':'P'+f.city_owner[k]}`+
@@ -237,7 +257,9 @@ function renderTile(){
        `${f.city_walls[k]?' \\u00b7 walls':''}${f.city_capital[k]?' \\u00b7 capital':''}</td></tr>`;
   if(f.unit_type[k]>=0){
     const ut=f.unit_type[k];
+    const home=f.unit_home[k];
     h+=`<tr><th>unit</th><td>P${f.unit_owner[k]} ${R.unit_names[ut]}`+
+       `${home>=0?` \u00b7 from city ${home}`:' \u00b7 unsupported'}`+
        ` \\u00b7 ${f.unit_hp[k]}/${R.unit_max_hp[ut]} hp`+
        `${f.unit_veteran[k]?' \\u00b7 veteran':''}${f.unit_kills[k]?' \\u00b7 '+f.unit_kills[k]+' kills':''}`+
        `<br><span class="muted">${f.unit_moved[k]?'moved':'can move'} \\u00b7 `+

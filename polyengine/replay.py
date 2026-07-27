@@ -33,11 +33,15 @@ def _board(state) -> dict:
         "cur": int(state.current_player),
         "owner": state.owner.tolist(),
         "resource": state.resource.tolist(),
+        "improvement": state.improvement.tolist(),
         "city_owner": state.city_owner.tolist(),
         "city_level": state.city_level.tolist(),
         "city_pop": state.city_pop.tolist(),
         "city_walls": state.city_walls.tolist(),
         "city_capital": state.city_capital.tolist(),
+        "city_workshop": state.city_workshop.tolist(),
+        "city_park": state.city_park.tolist(),
+        "city_pending_reward": state.city_pending_reward.tolist(),
         "unit_type": state.unit_type.tolist(),
         "unit_owner": state.unit_owner.tolist(),
         "unit_hp": state.unit_hp.tolist(),
@@ -45,6 +49,7 @@ def _board(state) -> dict:
         "unit_attacked": state.unit_attacked.tolist(),
         "unit_veteran": state.unit_veteran.tolist(),
         "unit_kills": state.unit_kills.tolist(),
+        "unit_home": state.unit_home.tolist(),
         "stars": state.stars.tolist(),
         "tech": [int(t) for t in state.tech],       # bitmask per player
         "alive": state.alive.tolist(),
@@ -78,6 +83,8 @@ class ReplayRecorder:
             "unit_max_hp": [int(h) for h in r.unit_max_hp],
             "terrain_names": list(r.terrain_names),
             "resource_names": list(r.resource_names),
+            "improvement_names": list(r.imp_names),
+            "reward_names": list(r.reward_names),
             "tech_names": list(r.tech_names),
             "tech_tier": [int(t) for t in r.tech_tier],
             "tech_requires": [int(t) for t in r.tech_requires],
@@ -85,12 +92,11 @@ class ReplayRecorder:
             # Mechanics the engine does not simulate yet, surfaced in the viewer
             # so an empty panel never reads as "nothing happened".
             "not_simulated": [
-                "buildings (lumber hut, farm, mine, port, temple, market)",
-                "resource harvesting (fruit, game, fish, crop, metal)",
-                "city level-up rewards (workshop / explorer / walls / giant)",
-                "roads and trade routes",
-                "naval embarking via ports",
+                "markets, trade routes and city connections",
+                "roads",
+                "naval embarking via ports (the Port building exists; boarding does not)",
                 "cloak infiltration and diplomacy relations",
+                "special tribes",
             ],
         }
 

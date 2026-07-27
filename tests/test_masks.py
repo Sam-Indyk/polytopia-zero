@@ -36,9 +36,9 @@ def actions_from_masks(state, player, rules) -> set[tuple]:
             continue
         for src in np.flatnonzero(M.legal_sources(state, player, rules, atype)):
             src = int(src)
-            if atype == C.A_TRAIN:
+            if atype in M.NEEDS_SUBTYPE:
                 for sub in np.flatnonzero(
-                        M.legal_subtypes(state, player, rules, atype)):
+                        M.legal_subtypes(state, player, rules, atype, src)):
                     out.add((atype, src, -1, int(sub)))
             else:
                 for dst in np.flatnonzero(

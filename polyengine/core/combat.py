@@ -94,6 +94,8 @@ def _clear_unit(state, tile: int) -> None:
     state.unit_hp[tile] = 0
     state.unit_moved[tile] = 0
     state.unit_attacked[tile] = 0
+    # Free the supporting city's slot — a dead unit stops taking up space.
+    state.unit_home[tile] = -1
     state.unit_veteran[tile] = 0
     state.unit_kills[tile] = 0
 

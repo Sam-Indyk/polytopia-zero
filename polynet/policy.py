@@ -156,7 +156,11 @@ class ARPolicy:
         for i in range(b):
             at = int(atype_np[i])
             if at in M.NEEDS_SUBTYPE:
-                sub_mask[i] = batch["masks"][i].subtypes(at)
+                # BUILD/REWARD sub-types depend on which source tile was picked.
+                eng_src = (self.enc.to_engine_tile(int(src_np[i]), sizes[i], pad,
+                                                   uniform)
+                           if at in M.NEEDS_SOURCE else -1)
+                sub_mask[i] = batch["masks"][i].subtypes(at, eng_src)
         sub_mask_t = _t(sub_mask, self.device, torch.bool)
         src_for_sub = torch.where(src_applies, src_idx, torch.full_like(src_idx, -1))
         sub_idx, lp_sub, _ = sample_masked(
