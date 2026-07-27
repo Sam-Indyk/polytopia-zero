@@ -46,9 +46,11 @@ def research_cost(state, player: int, tech_id: int, rules: Ruleset) -> int:
     if override >= 0:
         base = override
     else:
+        # Wiki "Technology Costs" table: tier * cities + 4, with no clamp — at
+        # zero cities every tier costs 4.
         n_cities = int(_count_cities(state, player))
         tier = int(rules.tech_tier[tech_id])
-        base = tier * max(1, n_cities) + 4
+        base = tier * n_cities + 4
     # Literacy (from Philosophy) discounts research by 33%, rounded up.
     if _has_literacy(state, player, rules):
         base = -(-base * 2 // 3)  # ceil(base * 2/3)

@@ -1,181 +1,197 @@
-# Technology tree — current Steam ruleset (post "Path of the Ocean" naval rework
-# and the Diplomacy update). Special-tribe techs are intentionally excluded.
+# Technology tree — current Steam ruleset.
 #
-# Cost model (current game): cost = tier * num_cities + 4, i.e. at one city a
-# T1/T2/T3 tech costs 5/6/7 stars, and each additional city adds tier stars.
-# Philosophy's "Literacy" ability then discounts research by 33% (rounded up).
-# A tech may set an explicit `cost_override` to pin a non-formula price (the
-# mechanism the game uses when it hand-tunes a specific tech's cost); none are
-# overridden today because the formula matches the live values.
+# VERIFIED against the Polytopia wiki (fandom `api.php`, cached in .wikicache/)
+# by `scripts/check_ruleset.py`, which diffs every tier and prerequisite below
+# against the pages' Infobox Technology data. Regenerate the cache with
+# `python scripts/fetch_wiki.py --all` and re-run the checker after any edit.
 #
-# PROVENANCE / TODO: tiers, prerequisites and unlocks below are encoded from
-# current-rules knowledge (Jan 2026). The authoritative fidelity gate is the
-# Steam replay-fixture suite (see PLAN.md M1/M3); reconcile any tech that a
-# fixture flags. `unlocks` is descriptive metadata for now — only `unlocks_unit`
-# and terrain-access gating are consumed by the engine in M1.
+# 25 technologies: 5 tier-one roots, 10 tier-two, 10 tier-three. Special-tribe
+# replacements (Polaris' Polarism, Cymanti's Hydrology, ...) are out of scope.
+# Whaling and Engineering were removed from the game and are absent.
+#
+# Cost model (wiki "Technology Costs" table, confirmed row by row):
+#     cost = tier * num_cities + 4
+# so at 0 cities every tier costs 4, and at 1 city T1/T2/T3 cost 5/6/7.
+# Philosophy's Literacy ability then discounts by 33%, rounded up:
+#     cost = ceil(cost * 2/3)
+# A tech may set `cost_override` to pin a non-formula price; none do today.
 
 ruleset_version = "current-2026.07"
 
 # ---------------- Tier 1 (branch roots) ----------------
-[tech.riding]
+[tech.climbing]
 id = 0
 tier = 1
 requires = ""
-unlocks = ["rider"]
-unlocks_unit = ["rider"]
-
-[tech.organization]
-id = 1
-tier = 1
-requires = ""
-unlocks = ["harvest_fruit"]
-unlocks_unit = []
-
-[tech.climbing]
-id = 2
-tier = 1
-requires = ""
-unlocks = ["mountain_movement"]
+unlocks = ["mountain_movement", "mountain_defence", "see_metal"]
 unlocks_unit = []
 
 [tech.fishing]
-id = 3
+id = 1
 tier = 1
 requires = ""
-unlocks = ["port", "harvest_fish"]
-unlocks_unit = []
+unlocks = ["harvest_fish", "port", "raft", "water_movement", "see_starfish"]
+unlocks_unit = ["raft"]
 
 [tech.hunting]
-id = 4
+id = 2
 tier = 1
 requires = ""
 unlocks = ["harvest_game"]
 unlocks_unit = []
 
+[tech.organization]
+id = 3
+tier = 1
+requires = ""
+unlocks = ["harvest_fruit", "see_crop"]
+unlocks_unit = []
+
+[tech.riding]
+id = 4
+tier = 1
+requires = ""
+unlocks = ["rider"]
+unlocks_unit = ["rider"]
+
 # ---------------- Tier 2 ----------------
-[tech.roads]
+[tech.archery]
 id = 5
 tier = 2
-requires = "riding"
-unlocks = ["roads", "trade_route"]
-unlocks_unit = []
-
-[tech.free_spirit]
-id = 6
-tier = 2
-requires = "riding"
-unlocks = ["disband", "temple"]
-unlocks_unit = []
+requires = "hunting"
+unlocks = ["archer", "forest_defence"]
+unlocks_unit = ["archer"]
 
 [tech.farming]
-id = 7
+id = 6
 tier = 2
 requires = "organization"
 unlocks = ["farm"]
 unlocks_unit = []
 
-[tech.strategy]
-id = 8
-tier = 2
-requires = "organization"
-unlocks = ["defender", "city_walls"]
-unlocks_unit = ["defender"]
-
-[tech.mining]
-id = 9
-tier = 2
-requires = "climbing"
-unlocks = ["mine", "forge"]
-unlocks_unit = []
-
-[tech.meditation]
-id = 10
-tier = 2
-requires = "climbing"
-unlocks = ["mountain_temple", "peace_treaty"]
-unlocks_unit = []
-
-[tech.sailing]
-id = 11
-tier = 2
-requires = "fishing"
-unlocks = ["raft", "scout", "rammer", "explore_water"]
-unlocks_unit = ["scout", "rammer"]
-
-[tech.archery]
-id = 12
-tier = 2
-requires = "hunting"
-unlocks = ["archer"]
-unlocks_unit = ["archer"]
-
 [tech.forestry]
-id = 13
+id = 7
 tier = 2
 requires = "hunting"
 unlocks = ["lumber_hut", "clear_forest"]
 unlocks_unit = []
 
-# ---------------- Tier 3 ----------------
-[tech.chivalry]
-id = 14
-tier = 3
-requires = "free_spirit"
-unlocks = ["knight", "burn_forest"]
-unlocks_unit = ["knight"]
-
-[tech.trade]
-id = 15
-tier = 3
-requires = "roads"
-unlocks = ["market", "customs_house"]
+[tech.free_spirit]
+id = 8
+tier = 2
+requires = "riding"
+unlocks = ["temple", "disband"]
 unlocks_unit = []
 
-[tech.construction]
+[tech.meditation]
+id = 9
+tier = 2
+requires = "climbing"
+unlocks = ["mountain_temple", "pacifist_task"]
+unlocks_unit = []
+
+[tech.mining]
+id = 10
+tier = 2
+requires = "climbing"
+unlocks = ["mine"]
+unlocks_unit = []
+
+[tech.ramming]
+id = 11
+tier = 2
+requires = "fishing"
+unlocks = ["rammer"]
+unlocks_unit = ["rammer"]
+
+[tech.roads]
+id = 12
+tier = 2
+requires = "riding"
+unlocks = ["roads", "network_task"]
+unlocks_unit = []
+
+[tech.sailing]
+id = 13
+tier = 2
+requires = "fishing"          # infobox omits it; body: swapped places with Fishing
+unlocks = ["scout", "ocean_movement"]
+unlocks_unit = ["scout"]
+
+[tech.strategy]
+id = 14
+tier = 2
+requires = "organization"
+unlocks = ["defender", "peace_treaty"]
+unlocks_unit = ["defender"]
+
+# ---------------- Tier 3 ----------------
+[tech.aquatism]
+id = 15
+tier = 3
+requires = "ramming"
+unlocks = ["water_temple", "water_defence", "ocean_defence"]
+unlocks_unit = []
+
+[tech.chivalry]
 id = 16
 tier = 3
+requires = "free_spirit"
+unlocks = ["knight", "destroy"]
+unlocks_unit = ["knight"]
+
+[tech.construction]
+id = 17
+tier = 3
 requires = "farming"
-unlocks = ["windmill", "bridge"]
+unlocks = ["windmill", "burn_forest"]
 unlocks_unit = []
 
 [tech.diplomacy]
-id = 17
-tier = 3
-requires = "strategy"
-unlocks = ["cloak", "embassy", "relations"]
-unlocks_unit = ["cloak"]
-
-[tech.smithery]
 id = 18
 tier = 3
-requires = "mining"
-unlocks = ["swordsman", "forge_upgrade"]
-unlocks_unit = ["swordsman"]
-
-[tech.philosophy]
-id = 19
-tier = 3
-requires = "meditation"
-unlocks = ["mind_bender", "literacy"]
-unlocks_unit = ["mind_bender"]
+requires = "strategy"
+unlocks = ["cloak", "embassy", "capital_vision"]
+unlocks_unit = ["cloak"]
 
 [tech.mathematics]
-id = 20
+id = 19
 tier = 3
 requires = "forestry"
 unlocks = ["catapult", "sawmill"]
 unlocks_unit = ["catapult"]
 
 [tech.navigation]
-id = 21
+id = 20
 tier = 3
 requires = "sailing"
-unlocks = ["bomber", "ocean_travel", "explore_ocean"]
+unlocks = ["bomber", "starfish_harvesting"]
 unlocks_unit = ["bomber"]
 
-[tech.aquatism]
+[tech.philosophy]
+id = 21
+tier = 3
+requires = "meditation"
+unlocks = ["mind_bender", "literacy", "genius_task"]
+unlocks_unit = ["mind_bender"]
+
+[tech.smithery]
 id = 22
-tier = 2                        # sibling of Sailing on the Fishing branch
-requires = "fishing"
-unlocks = ["water_temple", "ocean_defense"]
+tier = 3
+requires = "mining"
+unlocks = ["forge", "swordsman"]
+unlocks_unit = ["swordsman"]
+
+[tech.spiritualism]
+id = 23
+tier = 3
+requires = "archery"
+unlocks = ["forest_temple", "grow_forest"]
+unlocks_unit = []
+
+[tech.trade]
+id = 24
+tier = 3
+requires = "roads"
+unlocks = ["market", "wealth_task"]
 unlocks_unit = []

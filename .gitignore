@@ -30,3 +30,6 @@ replays/*.html
 Thumbs.db
 .vscode/
 .idea/
+
+# Wiki reference cache (fetch with scripts/fetch_wiki.py --all)
+.wikicache/

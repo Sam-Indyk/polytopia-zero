@@ -1,17 +1,27 @@
-# Unit definitions — current Steam ruleset (naval "Path of the Ocean" roster +
-# Cloak/Dagger from the Diplomacy update). Special-tribe units excluded.
-# Source: current-rules knowledge (Jan 2026); numbers pinned by the M1 Steam
-# replay fixtures (see PLAN.md). Stats are shared across the base tribes.
+# Unit definitions — current Steam ruleset.
+#
+# VERIFIED against the Polytopia wiki (fandom `api.php`, cached in .wikicache/)
+# by `scripts/check_ruleset.py`, which diffs cost / hp / attack / defence /
+# movement / range / naval against each page's Infobox Unit. Skill names use the
+# wiki's own vocabulary so the two stay comparable.
+# Special-tribe units are out of scope.
 #
 # Fields:
 #   range == 1 -> melee (takes retaliation); range > 1 -> ranged (no retaliation)
-#   trainable  -> can be produced directly in a city THIS milestone. Naval units,
+#   trainable  -> can be produced directly in a city THIS milestone. Naval hulls,
 #                 Cloak/Dagger, Giant and Juggernaut are `false` because their
-#                 mechanics (ports/embark, infiltration, level-up super units)
-#                 land in later milestones; their stats live here now so the data
-#                 is already current and M4 only wires the mechanics.
-#   naval      -> true for water vessels (movement/attack apply on water tiles)
-#   skills     -> descriptive metadata; effects are implemented incrementally
+#                 mechanics (ports/embarking, infiltration, level-up rewards)
+#                 land in M4; their stats are current so M4 only wires mechanics.
+#   naval      -> a water hull. In current rules these are NOT trained: a land
+#                 unit entering a Port becomes a Raft, which is then upgraded
+#                 (Scout/Rammer/Bomber) for stars. See `hull_hp_varies` below.
+#   skills     -> descriptive metadata; effects are implemented incrementally.
+#
+# NAVAL HP MODEL: the wiki lists naval health as "Varies" because a hull keeps
+# the carried unit's HP (a Warrior in a Rammer has the Warrior's 10 HP). The
+# `max_hp` values on naval rows are therefore placeholders used only until M4
+# implements carriers properly; `hull_hp_varies = true` marks them so the
+# reconciliation checker reports rather than fails on them.
 
 ruleset_version = "current-2026.07"
 
@@ -69,7 +79,7 @@ movement = 1
 range = 1
 trainable = true
 naval = false
-requires_tech = "strategy"      # current: Defender comes from Strategy
+requires_tech = "strategy"
 skills = ["fortify"]
 
 [unit.swordsman]
@@ -84,7 +94,7 @@ range = 1
 trainable = true
 naval = false
 requires_tech = "smithery"
-skills = ["dash", "fortify"]
+skills = ["dash"]
 
 [unit.catapult]
 id = 5
@@ -126,7 +136,7 @@ range = 1
 trainable = true
 naval = false
 requires_tech = "philosophy"
-skills = ["heal", "convert", "detect"]
+skills = ["heal", "convert", "stiff"]
 
 [unit.giant]
 id = 8
@@ -140,22 +150,22 @@ range = 1
 trainable = false               # super unit from a city level-up reward
 naval = false
 requires_tech = ""
-skills = ["fortify"]
+skills = ["static"]
 
 # ---------------- Diplomacy update: stealth ----------------
 [unit.cloak]
 id = 9
 symbol = "L"
 cost = 8
-max_hp = 10
-attack = 0.0
+max_hp = 5
+attack = 2.0
 defense = 0.5
 movement = 2
 range = 1
 trainable = false               # infiltration/stealth mechanics land in M4
 naval = false
 requires_tech = "diplomacy"
-skills = ["hide", "infiltrate", "creep", "scout", "escape", "stiff"]
+skills = ["hide", "infiltrate", "dash", "scout", "creep", "stiff", "static"]
 
 [unit.dagger]
 id = 10
@@ -169,30 +179,31 @@ range = 1
 trainable = false               # spawned by a Cloak infiltrating a city
 naval = false
 requires_tech = "diplomacy"
-skills = ["dash", "surprise", "independent"]
+skills = ["dash", "surprise", "independent", "static"]
 
-# ---------------- Naval units (Path of the Ocean) ----------------
-# In current rules a land unit boards at a Port and adopts a vessel's combat
-# profile while keeping its own HP; these rows carry the vessel profiles.
+# ---------------- Naval hulls (Path of the Ocean) ----------------
+# Not trained: a land unit entering a Port becomes a Raft, upgraded from there.
 [unit.raft]
 id = 11
 symbol = "1"
-cost = 0                        # a Port converts a passenger into a Raft for free
+cost = 0                        # free: a Port converts the passenger
 max_hp = 10
+hull_hp_varies = true
 attack = 0.0
 defense = 1.0
 movement = 2
 range = 0
 trainable = false
 naval = true
-requires_tech = "sailing"
-skills = ["carry", "float"]
+requires_tech = "fishing"       # Fishing unlocks Port + Raft
+skills = ["water", "carry", "stiff", "static"]
 
 [unit.scout]
 id = 12
 symbol = "2"
-cost = 5
+cost = 5                        # stars to upgrade a Raft
 max_hp = 10
+hull_hp_varies = true
 attack = 2.0
 defense = 1.0
 movement = 3
@@ -200,27 +211,29 @@ range = 2
 trainable = false
 naval = true
 requires_tech = "sailing"
-skills = ["carry", "float", "scout", "dash"]
+skills = ["water", "dash", "carry", "scout", "static"]
 
 [unit.rammer]
 id = 13
 symbol = "3"
 cost = 5
 max_hp = 10
+hull_hp_varies = true
 attack = 3.0
 defense = 3.0
 movement = 3
 range = 1
 trainable = false
 naval = true
-requires_tech = "sailing"
-skills = ["carry", "float", "dash"]
+requires_tech = "ramming"
+skills = ["water", "dash", "carry", "static"]
 
 [unit.bomber]
 id = 14
 symbol = "4"
 cost = 15
 max_hp = 10
+hull_hp_varies = true
 attack = 3.0
 defense = 2.0
 movement = 2
@@ -228,18 +241,18 @@ range = 3
 trainable = false
 naval = true
 requires_tech = "navigation"
-skills = ["carry", "float", "splash", "stiff"]
+skills = ["water", "carry", "splash", "stiff", "static"]
 
 [unit.juggernaut]
 id = 15
 symbol = "5"
-cost = 0
+cost = 0                        # a Giant entering a Port becomes a Juggernaut
 max_hp = 40
 attack = 4.0
 defense = 4.0
-movement = 3
+movement = 2
 range = 1
-trainable = false               # naval super unit from a city level-up reward
+trainable = false
 naval = true
 requires_tech = "navigation"
-skills = ["carry", "float", "stomp", "stiff"]
+skills = ["water", "carry", "stiff", "stomp", "static"]

@@ -47,6 +47,7 @@ class Ruleset:
     unit_trainable: np.ndarray           # bool[U]
     unit_requires_tech: np.ndarray       # int8[U]  (tech id or -1)
     unit_naval: np.ndarray               # bool[U]
+    unit_hull_hp_varies: np.ndarray      # bool[U]  (HP comes from the passenger)
     unit_skills: tuple[frozenset, ...]   # frozenset[str] per unit
 
     # techs
@@ -86,9 +87,13 @@ def _load_toml(name: str) -> dict:
 
 
 def _fill_by_id(entries: dict[str, dict], n: int, key: str, dtype, default=0):
+    """Gather one field across entries into an id-indexed array.
+
+    Optional fields may be omitted by an entry, in which case `default` stands in.
+    """
     arr = np.full(n, default, dtype=dtype)
     for e in entries.values():
-        arr[e["id"]] = e[key]
+        arr[e["id"]] = e.get(key, default)
     return arr
 
 
@@ -165,6 +170,8 @@ def load_ruleset(name: str = "current") -> Ruleset:
     unit_range = _fill_by_id(unit_entries, n_units, "range", np.int8)
     unit_trainable = _fill_by_id(unit_entries, n_units, "trainable", bool, False)
     unit_naval = _fill_by_id(unit_entries, n_units, "naval", bool, False)
+    unit_hull_hp_varies = _fill_by_id(unit_entries, n_units, "hull_hp_varies",
+                                      bool, False)
     unit_requires_tech = np.full(n_units, -1, dtype=np.int8)
     skills_by_id: list[frozenset] = [frozenset()] * n_units
     for e in unit_entries.values():
@@ -194,6 +201,7 @@ def load_ruleset(name: str = "current") -> Ruleset:
         unit_trainable=unit_trainable,
         unit_requires_tech=unit_requires_tech,
         unit_naval=unit_naval,
+        unit_hull_hp_varies=unit_hull_hp_varies,
         unit_skills=unit_skills,
         tech_names=tech_names,
         tech_id=tech_id,
