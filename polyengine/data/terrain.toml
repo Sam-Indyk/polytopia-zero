@@ -1,0 +1,81 @@
+# Terrain and resource definitions for the current Steam ruleset.
+ruleset_version = "current-2026.07"
+
+# Movement cost is in movement points. `impassable_without` names a tech that is
+# required to enter/traverse (null = always passable to land units).
+# `defense_bonus` keys index into combat.toml [defense_bonus].
+
+[terrain.ocean]
+id = 0
+symbol = "~"
+land = false
+move_cost = 1
+requires_tech = "sailing"     # non-naval land units cannot enter
+defense_bonus = "water"
+
+[terrain.water]                # shallow water / coast
+id = 1
+symbol = "-"
+land = false
+move_cost = 1
+requires_tech = "fishing"
+defense_bonus = "water"
+
+[terrain.field]
+id = 2
+symbol = "."
+land = true
+move_cost = 1
+requires_tech = ""
+defense_bonus = "none"
+
+[terrain.forest]
+id = 3
+symbol = "f"
+land = true
+move_cost = 1
+requires_tech = ""
+defense_bonus = "forest"
+
+[terrain.mountain]
+id = 4
+symbol = "^"
+land = true
+move_cost = 2                  # halts movement; requires climbing to enter
+requires_tech = "climbing"
+defense_bonus = "mountain"
+
+# Resources sit on top of terrain and are harvested via improvements.
+[resource.none]
+id = 0
+symbol = " "
+
+[resource.fruit]
+id = 1
+symbol = "r"
+terrain = "field"
+
+[resource.crop]
+id = 2
+symbol = "c"
+terrain = "field"
+
+[resource.game]
+id = 3
+symbol = "g"
+terrain = "forest"
+
+[resource.metal]
+id = 4
+symbol = "m"
+terrain = "mountain"
+
+[resource.fish]
+id = 5
+symbol = "s"
+terrain = "water"
+
+[resource.whale]
+id = 6
+symbol = "w"
+terrain = "ocean"
