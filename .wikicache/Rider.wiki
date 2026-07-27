@@ -1,0 +1,53 @@
+{{Infobox Unit
+| name     = Rider
+| image    = RiderO.png
+| unlock   = Riding
+| type     = Land
+| cost     = 3 stars
+| attack   = 2
+| defence  = 1
+| movement = 2
+| range    = 1
+| health   = 10
+| veteran  = Yes
+| skills   = Dash, Escape, Fortify
+}}
+The '''Rider''' is a mounted melee [[Units|unit]] unlocked by the [[Riding]] [[technology]]. The Rider has more movement but lower defence than a [[Warrior]]. In addition, the Rider has the escape [[Unit Skills|skill]], which allows it to move after attacking. Therefore, the Rider can be used in hit-and-run warfare.
+
+The [[Oumaji]] [[tribe]] starts the game with a Rider. The [[Aquarion]] tribe has the [[Amphibian]] in place of the Rider, and [[Cymanti]] has the [[Hexapod]]. 
+
+==Strengths and Weaknesses ==
+
+Strengths:
+
+*'''Early-game expansion.''' Riders can traverse distances twice as fast as Warriors. When paired with [[Roads (Building)|Roads]], they can make claiming large swathes of land very quick compared to using Warriors.
+*'''Sniping enemy cities'''. Riders have the escape skill, allowing them to potentially move into empty enemy cities and siege them after killing any defending units nearby. An experienced Rider user can often accomplish multiple objectives, such as killing key units or moving into villages, with a single Rider every turn.
+
+Weaknesses: 
+
+*'''Exploring undiscovered lands.''' The Rider's increased movement is made useless when trying to explore and clear the clouds from the map, as you will still be limited to moving one tile per turn into the clouds. Furthermore, they are quite weak when defending, meaning it is easy for an exploring Rider to be destroyed by enemy forces with vision on your units. It is much more effective to use them as skirmishers to cycle in and out of combat in lands you already have vision in.
+*'''Fighting Giants.''' It takes 10 Rider attacks to kill a [[Giant]], which will almost always deal enough damage to kill your rider in retaliation. Using purely Riders to kill enemy Giants is usually not cost-effective, with a possible exception being if you wanted to [[Population|clear up unit space in your cities]].
+
+== Strategy ==
+
+* Riders are the most versatile unit, with the ability to move twice in one turn. With a large amount of Riders and the [[Roads (Technology)|Roads tech]], one can set up complex Rider sieges, ideally being able to not only siege the target, but block off any potential relieving forces.
+* Using Riders, you can cycle attacks on a single target. With other melee units, if a tile only had one other tile leading into it, you would only be able to attack it once in a turn. Riders can attack and move away from the point of attack, allowing you to deliver multiple attacks from even the narrowest of entry points.
+*Riders with roads have greater movement than boosted [[Hexapod]]s, which allows riders to pick off exposed Hexapods.
+
+==Gallery==
+{{Unit Gallery}}
+
+===Tribe Skins===
+{{Skin Unit Gallery}}
+
+== Amphibian ==
+
+''See the main article: [[Amphibian]]'' 
+
+This is the mermaid version of the Rider. 
+==Trivia==
+*In some tribes, other units are used in place of [[{{PAGENAME}}]]:
+::{{Replace Unit}}
+{{Navbox Units}}
+[[Category:Units]]
+[[ru:Всадник]]

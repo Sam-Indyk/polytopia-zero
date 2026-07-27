@@ -1,0 +1,23 @@
+{{Infobox Technology
+| image1       = Philosophy.PNG
+| caption1     = The Philosophy branch of the technology tree (before mountain defence bonus was moved to Climbing)
+| tier         = Two
+| unlocks      = [[Temples|Mountain Temple]], [[Altar of Peace|Pacifist task]]
+| starting     = [[Ai-Mo]]
+| preceded_by  = [[Climbing]]
+| leads_to     = [[Philosophy]]
+}}'''Meditation''' is a tier two [[technology]] that unlocks the [[Temples|Mountain Temple]] and the Pacifist task, which grants the [[Altar of Peace]] if no attacks are made for five consecutive turns.  
+
+The [[Ai-Mo]] [[Tribes|tribe]] starts with Meditation.
+
+== History ==
+In [[Update History|update 2.0.58]], the [[Defence Bonus|defence bonus]] in mountain tiles was moved from Meditation to [[Climbing]].
+
+==Gallery==
+<gallery widths="120">
+Mountain temple level 1.png|A level 1 Mountain Temple
+</gallery>
+
+{{Navbox Technology}}
+[[Category:Technology]]
+[[ru:Медитация]]

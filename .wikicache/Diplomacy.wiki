@@ -1,0 +1,27 @@
+{{Infobox Technology
+| image1       = Diplomacy Branch.png
+| caption1     = The Diplomacy branch of the technology tree 
+| tier         = Three
+| unlocks      = [[Cloak]], [[Embassy]], capital vision 
+| starting     = 
+| preceded_by  = [[Strategy]]
+}}
+
+'''Diplomacy''' is a tier three [[technology]] that unlocks the [[Cloak]], a stealth unit that infiltrates cities; the [[Embassy]], a [[building]] that can only be built in another tribe's capital and grants additional stars per turn; and Capital Vision, which allows the player to see the capitals of tribes they have discovered (including capitals that have been captured).
+
+Researching Diplomacy additionally allows you to see which players are at peace or at war with each other.
+
+[[File:Capital Vision.jpg|thumb|none|An example of capital vision.]]
+
+== Strategy ==
+
+{{Main|/Strategy}}
+
+== Trivia ==
+
+*The [[Engineering]] technology was to hold the same place in the technology tree as Diplomacy does, but it was never released.
+
+{{Navbox Technology}}
+[[Category:Technology]]
+[[ru:Дипломатия]]
+[[Category:Diplomacy]]

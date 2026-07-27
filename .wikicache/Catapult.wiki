@@ -1,0 +1,49 @@
+<!-- This is a good article! -->{{Infobox Unit
+| image    = CatapultB.png
+| type     = Land
+| unlock   = Mathematics
+| cost     = 8 stars
+| attack   = 4
+| defence  = 0
+| movement = 1
+| range    = 3
+| health   = 10
+| veteran  = Yes
+| skills   = [[Unit_Skills#stiff|Stiff]]
+}}
+
+The '''Catapult''' is a long-range [[unit]] with a powerful attack. It has the longest range of any unit and the most powerful attack of any regular unit; however, it is vulnerable to attack and cannot deal any retaliation damage. 
+
+The Catapult is unlocked by the [[Mathematics]] technology. For [[Cymanti]] and [[Aquarion]], the Catapult is replaced by the [[Exida]] and [[Puffer]], respectively. 
+
+== Strengths and Weaknesses ==
+
+Strengths:
+
+* '''Attacking super units.''' The Catapult can deal a large amount of damage to a [[super unit]] without receiving retaliation damage.
+* '''Defending against naval units.''' It is very difficult to mount a naval attack on a Catapult stationed outside the range of naval units.  The Catapult has a longer range than most naval units, so a Catapult stationed inland can deter enemy naval units from staying close to shore or landing on shore without being at risk of attack itself, unless dealing with a [[Bomber]] and its Splash. 
+* '''Sieging cities.''' Stationing multiple Catapults within range of an enemy city can effectively prevent the enemy from training any units there and attack any enemy units defending the city, allowing the city to be easily sieged. 
+
+Weaknesses:
+
+* '''Need for protection.''' The Catapult is very easily damaged and killed, and it cannot deal any retaliation damage.
+* '''Enemy Riders and Knights.''' Multiple enemy [[Rider]]s or a single enemy [[Knight]] or [[Hexapod]] can easily kill an unprotected Catapult.
+* '''Enemy 3-range units.''' Because the Catapult lacks the dash [[unit skill]], it cannot move into the range of an enemy Catapult, [[Bomber]], [[Exida]] or [[Puffer]] without putting itself at risk of being immediately killed by said unit. 
+
+== Strategy ==
+
+* The Catapult needs to be protected from enemy attack. The [[Defender]] is well suited for this purpose. Take advantage of [[Movement#Zone of Control|zone of control]] to stop enemy [[Rider]]s and [[Knight]]s. 
+* The best units for attacking an enemy Catapult are the [[Archer]], [[Rider]], and [[Knight]]. The Knight is particularly well-suited for this because it can kill a Catapult in one hit and it can kill multiple units in one turn.
+
+== Trivia ==
+
+* The Catapult is the only unit to use a rock projectile.
+* [[File:Pre-1.7 Catapult.png|thumb|A Catapult from before update 1.7.]] The Catapult received a comprehensive rework in [[Update History|Update 1.7]]. Its attack was reduced from 6 to 4 and its cost was increased from 5 stars to 8 stars. Also, its sprite was changed. 
+*In some tribes, other units are used in place of [[{{PAGENAME}}]]:
+::{{Replace Unit}}
+== Gallery ==
+{{Unit Gallery}}
+
+=== Tribe Skins ===
+{{Skin Unit Gallery}}
+{{Navbox Units}}

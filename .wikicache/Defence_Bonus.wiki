@@ -1,0 +1,105 @@
+'''Combat''' occurs when two enemy [[units]] attack each other. 
+
+Each unit has two damage stats: attack, which determines how much damage it deals when it attacks, and defence, which determines how much retaliation damage it deals. (The actual amount of damage dealt is usually much greater than the attack or defence stat; for example, a full-health [[Warrior]] can deal 5 or more damage even though its attack and defence stats are both 2.) The defence stat also affects how much damage the defending unit takes; for example, a [[Rider]], with a defence stat of 1, would take much more damage from the same attack than a [[Defender]], with a defence stat of 3. Note that the attacker’s defence stat and the defending unit’s attack stat are irrelevant. 
+
+Damaged units are weaker in all regards. They do less offensive and defensive damage, and they receive more damage when attacked.
+
+If a melee unit (like a [[Warrior]]) kills an adjacent enemy unit, it will take the place of the killed unit (barring movement restrictions imposed by terrain). This movement can move a unit onto a friendly port, where it will be carried by a [[Raft]]. Ranged units (like an [[Archer]]) will not move after a kill, even when killing at melee range. 
+
+== Battle Preview ==
+
+[[File:Battle Preview Example.png|thumb|An example of the battle preview]]
+
+The battle preview shows the result of an attack. To see how much damage will be dealt to either unit, hold on (mobile) or hover over (Steam) an enemy unit within range. Sweating indicates that the enemy unit will be killed by the attack, while a black and red ring indicates that the attacking unit will die from retaliation. 
+
+== Defence Bonus==
+
+Certain tiles provide a defence bonus to units on them. Tiles of certain [[terrain]] types provide a defence bonus once the corresponding [[technology]] is researched, and [[cities]] without a city wall (not including uncaptured villages) provide a defence bonus to friendly units (invading units besieging a city do not receive any defence bonus). Units with a defence bonus receive less damage and deal more retaliation damage. A single shield around the unit's HP indicates that the unit has a defence bonus. 
+
+The [[city wall]] provides a defence bonus much stronger than the standard defence bonus. A double shield around a unit's HP indicates that the unit is standing in a city with a city wall. 
+
+Cities will only provide a defence bonus (wall or no wall) to units with the fortify [[Unit Skills|skill]]. For example, a [[Giant]] will never receive a defence bonus in a city because it does not have the fortify skill, although it may receive a defence bonus on other tiles.
+
+{| class="article-table"
+|+
+!Icon
+!Terrain
+!Unlocked By
+|-
+|[[File:Forest defense.png|thumb|75px]]
+| Forest
+|[[Archery]]
+|-
+|[[File:Mountain defense.png|thumb|75px]]
+|Mountain
+|[[Climbing]]
+|-
+|[[File:Shallow water defense.png|thumb|75px]]
+|Shallow water
+|[[Aquatism]]
+|-
+|[[File:Deep water defense.png|thumb|75px]]
+|Ocean
+|Aquatism
+|}
+
+==Healing==
+
+A damaged unit can recover (heal) instead of moving and/or attacking on any given turn. Healing restores up to 4 HP in friendly territory and 2 HP in neutral or enemy territory. (A unit cannot have more than its maximum HP.) 
+
+The [[Mind Bender]] can heal all adjacent friendly units by 4 HP instead of moving, attacking, and/or healing itself on any given turn (if there is a damaged unit nearby).
+
+== Damage Formula ==
+
+Damage is calculated as follows. ''attackResult'' is the amount of damage dealt by the attacker, while ''defenceResult'' is the amount of retaliation damage dealt by the defender. ''defenceBonus'' is 1 when there is no defence bonus, 1.5 for the standard forest/mountain/ocean/city bonus, 4 for the city wall bonus. When a unit is poisoned, they are 0.5, 0.7, 2, respectively. Note that ''defenceBonus'' is applied to ''defenceForce'', not ''defenceResult'' ,so attacking a 2-defense unit with 1.5 defenceBouns deals the same damage as that on a 3-defense unit without defence bouns, but the retalitation damage does not equal to that a 3-attack unit deals on a 2-defence unit without defence bouns''.'' Rounding is done to the nearest whole number. 
+
+<pre>
+attackForce = attacker.attack * (attacker.health / attacker.maxHealth)
+defenseForce = defender.defense * (defender.health / defender.maxHealth) * defenseBonus 
+totalDamage = attackForce + defenseForce 
+attackResult = round((attackForce / totalDamage) * attacker.attack * 4.5) 
+defenseResult = round((defenseForce / totalDamage) * defender.defense * 4.5)
+</pre>
+
+
+Splash damage and explosion damage are calculated (individually) by taking the ''attackResult'', and then dividing it by 2 ''without rounding''.
+
+<pre>
+attackForce = attacker.attack * (attacker.health / attacker.maxHealth)
+defenseForce = defender.defense * (defender.health / defender.maxHealth) * defenseBonus 
+totalDamage = attackForce + defenseForce 
+attackResult = round((attackForce / totalDamage) * attacker.attack * 4.5) 
+attackSplash = attackResult / 2
+</pre>
+
+
+When ''attackResult'' is an odd number, this will cause the received splash damage to be a .5 decimal, which in turn will make the receiving unit's hp a .5 decimal. This is presumed to be a bug, in particular because it invokes another bug: the ''n''.5 hp is rounded up on the map display and rounded down in the unit info box, enabling units to seem to have 0 hp on the info box.
+
+== Vision ==
+
+No retaliation occurs if the unit being attacked is killed by the attacker, cannot reach or see the attacker (the attacker is outside the unit's range or hidden by [[Terrain|fog]]), deals 0 retalitation damage, has Stiff skill or defends from a unit with Surprise. 
+
+Mountains provide extra sight (a two tile radius instead of the normal one). 
+
+Units with the scout skill can see two tiles in every direction. 
+
+== Swarm ==
+
+The [[Shaman]], a unit unique to the [[Cymanti]] [[tribe]], can swarm friendly units. Swarmed units get +1 movement. This effect lasts until the boosted unit is attacked.
+
+== Poison ==
+[[File:Xin-Xi Warrior - Poisoned.png|thumb|249x249px|A poisoned Xin-xi Warrior]]
+Poison is applied by Cymanti [[units]] and [[Building|buildings]]. It reduces defence by 50% (but does not prevent the unit from receiving any defence bonus), reduces movement by 1 <ref>Poison does not affact Glide. Also, ''[[Roads (Building)|Roads]]'' costs 0.5 movement when moving from another ''Roads'', so a poisoned warrior can still move 2 tiles on ''Roads'', but a poisoned Rider moves 2 less tiles there</ref>(but cannot reduce to 0) , prevents the unit from being healed, and causes the unit to drop spores(anywhere but occupied resources, such as crops with Farm and metal with Mine) and [[Algae]] (in water) upon death. When healed through self-healing, a [[Mind Bender]], or a [[Mycelium]], the poison is removed but the unit does not get any health back.
+
+==Resources==
+
+*[https://polytopia-damage-calculator.firebaseapp.com/beta Polytopia Battle Calculator]
+*Drag and drop [https://polytopiacalculatorcomauu.github.io/ Polytopia Calculator]
+
+==See also==
+
+*[[Unit Skills|Unit skills]], which influence the behavior of units in battle
+
+{{Navbox Game Mechanics}}
+[[Category:Game Mechanics]]
+[[ru:Бой]]

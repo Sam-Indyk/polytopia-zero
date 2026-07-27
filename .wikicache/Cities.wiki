@@ -1,0 +1,100 @@
+[[File:IMPERIUS CITY.png|thumb|A level 8 [[Imperius]] capital.]]
+
+The '''city''' is the basic unit of a player's empire. Cities produce income and are worth 100 [[Score|points]] plus 50 points per level above level 1, and [[units]] can be trained in cities. Each player starts with one level 1 city, their '''capital''', and additional cities are acquired from capturing [[villages]] or enemy cities. A player is eliminated when they have lost all of their cities. 
+
+Cities produce one [[star]] per turn per level.  [[Workshop|Workshops]] and [[Park|Parks]] increase a city's income by one extra star per turn. Capitals of human players also produce an extra star, though bot capitals vary (see [[Cities#Capitals|below]]). Cities that are under siege by an enemy unit do not produce any income. 
+
+Units with the fortify [[unit skill]] receive a defence bonus in cities. Cities with a [[City Wall|city wall]] provide a significantly stronger defence bonus. 
+
+Cities are visually comprised of city buildings. Any [[Workshop]]s and/or [[Park]]s are also shown in the city buildings.
+
+Capitals can be [[City Connections|connected]] to other cities, primarily through [[Roads (Building)|roads]] and/or [[Port|Ports]], and each city connection adds one population to both the capital and the connected city. Connected cities have a road symbol next to their name. 
+
+The cost to research [[technology]] increases with the number of cities in the player's empire. For each additional city, research costs increase by one, two, or three stars for T1, T2, and T3 technologies, respectively.
+
+==Unit Capacity==
+
+[[File:Vengir City.jpg|thumb|Only 1 more unit can be trained in this level 2 city.  It has 1 population (blue bar) and can be upgraded to level 3 by adding 2 more. It is a capital and has a Workshop, so it produces 2+1+1=4 stars per turn.]]
+
+The maximum number of units a city can support is equal to the number of [[population]] bars (shown below the city's name) it has, which is one more than the city's level. Dots in population bars represent the units supported by the city; if every population bar has a dot in it, no more units can be trained there until space is cleared.
+
+If a unit captures a city or village, then it will be supported by that new city instead of the city it originally was supported by. Units that are removed by death or the [[Disband]] ability also no longer take up any space. 
+
+Units will show which city they belong to in their information box. Some units may not belong to any city, such as those with the independent [[unit skill]]. 
+
+==City Upgrades==
+
+Cities can be leveled up by gaining [[population]]. Upgrading a city to level ''n'' from the previous level requires ''n'' population. Upgrading a city increases the income it produces by one star per turn, its unit capacity by one, and its point value by 50 points.<ref group="note">See [[Score#Cities|Score]] for more details.</ref> Upgrading a city offers a choice of one of two rewards:
+
+{| class="article-table"
+|+
+!New Level
+! Rewards
+|-
+|2
+|
+*[[Workshop]]
+* [[Explorer]]
+|-
+|3
+| 
+*[[City Wall]]
+* Resources (five [[stars]])
+|-
+| 4
+|
+*Population Growth (+3 [[population]])
+*Border Growth
+|-
+|5+
+|
+* [[Park]]
+*[[Super unit|Super Unit]]
+|}
+
+<references group="note" />
+
+For strategies regarding city upgrades, see [[Strategies#Upgrading Cities]].
+
+==Capital==
+
+A player's '''capital''' is their starting city. In-game, capitals have a crown icon next to their name and have an underlined name. 
+
+The starting income of a capital varies by the type of player that controls it (human or bot). Capitals of easy bots produce one star per turn, those of human players and normal bots produce two, those of hard bots produce three, and those of crazy bots produce five. 
+
+===City Castle===
+
+The '''city castle''' is a decorative structure found in capitals. Every [[tribe]] has a unique city castle, but all are narrow square pyramids with a crown on top. If a capital is captured by another player, its city castle will remain. 
+
+<gallery>
+
+Xin-xi city castle.png|The Xin-xi city castle
+Imperius city castle.png|The Imperius city castle
+Bardur city castle.png|The Bardur city castle
+Oumaji city castle.png|The Oumaji city castle
+Kickoo city castle.png|The Kickoo city castle
+Hoodrick city castle.png|The Hoodrick city castle
+Luxidoor city castle.png|The Luxidoor city castle
+Vengir city castle.png|The Vengir city castle
+Zebasi city castle.png|The Zebasi city castle
+Ai-mo city castle.png|The Ai-Mo city castle
+Quetzali city castle.png|The Quetzali city castle
+Yadakk city castle.png|The Yădakk city castle
+Aquarion city castle.png|The Aquarion city castle
+Elyrion city castle.png|The ∑∫ỹriȱŋ city castle
+Polaris city castle.png|The Polaris city castle
+Cymanti city castle.png|The Cymanti city castle
+
+</gallery>
+
+== Village ==
+<!-- There are multiple redirects to this section. If you change the section's title, please update the redirects too (see what links here). -->
+[[File:Village.png|thumb|''"This is a village that doesn't belong to any tribe."'']]
+A '''village''' becomes a city when captured by a unit. Any unit can capture a village if it started the turn on the village, and capturing a village ends the unit’s turn. 
+
+The distribution of villages is randomly generated at the beginning of the game. Villages do not spawn on the edges of the map, and no more than one village will spawn in any 3x3 area.
+
+{{Navbox Game Mechanics}}
+{{Navbox City Upgrades}}
+[[Category:Game Mechanics]]
+[[ru:Города]]

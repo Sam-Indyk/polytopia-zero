@@ -1,0 +1,22 @@
+{{Infobox Technology
+| image1       = Mathematics Branch.png
+| caption1     = The Mathematics branch of the technology tree
+| tier         = Three
+| unlocks      = [[Catapult]], [[Sawmill]]
+| starting     = 
+| preceded_by  = [[Forestry]]
+| leads_to     =
+}}'''Mathematics''' is a tier three [[technology]] that unlocks the [[Catapult]], a long-ranged [[unit]] with a high attack but no defence, and the [[Sawmill]], a [[building]] that produces one [[population]] for every adjacent [[Lumber Hut]]. 
+
+For [[Cymanti]], Mathematics unlocks the [[Exida]], a special unit that replaces the Catapult and deals splash poison damage, and the Sawmill.
+
+<gallery>
+
+File:Catapult.png|The Catapult model
+File:Sawmill level 1.png|A level 1 Sawmill
+
+</gallery>
+
+{{Navbox Technology}}
+[[Category:Technology]]
+[[ru:Математика]]

@@ -1,0 +1,39 @@
+{{Infobox Technology
+| image1       = Climbing Branches.png
+| caption1     = Climbing and its branches in the technology tree
+| tier         = One
+| unlocks      = Defence bonus and movement in mountain tiles, reveals metal
+| starting     = [[Xin-xi]]
+| leads_to     = [[Meditation]], [[Mining]]
+}}'''Climbing''' is a tier one [[technology]] that unlocks [[movement]] and a [[defence bonus]] in mountain tiles and reveals metal, a resource used by the [[Mine]].
+
+The [[Xin-xi]] [[tribe]] starts with Climbing.
+
+== History ==
+In [[Update History|update 2.0.57]], the defence bonus in mountain tiles was moved from [[Meditation]] to Climbing. 
+
+== Gallery  ==
+<gallery widths="90">
+
+Xin-xi mountain.png|The Xin-xi mountain
+Imperius mountain.png|The Imperius mountain
+Bardur mountain.png|The Bardur mountain
+Oumaji mountain.png|The Oumaji mountain
+Kickoo mountain.png|The Kickoo mountain
+Hoodrick mountain.png|The Hoodrick mountain
+Luxidoor mountain.png|The Luxidoor mountain
+Vengir mountain.png|The Vengir mountain
+Zebasi mountain.png|The Zebasi mountain
+Ai-mo mountain.png|The Ai-Mo mountain
+Quetzali mountain.png|The Quetzali mountain
+Yadakk mountain.png|The Yădakk mountain
+Aquarion mountain.png|The Aquarion mountain
+Elyrion mountain.png|The ∑∫ỹriȱŋ mountain
+Polaris mountain.png|The Polaris mountain
+File:Cymanti mountain.png|The Cymanti mountain
+
+</gallery>
+
+{{Navbox Technology}}
+[[Category:Technology]]
+[[ru:Скалолазание]]

@@ -1,0 +1,44 @@
+{{Infobox Technology
+| image1       = Mathematics Branch.png
+| caption1     = The Mathematics branch of the technology tree
+| tier         = Two
+| unlocks      = [[Clear Forest]], [[Lumber Hut]]
+| starting     = 
+| preceded_by  = [[Hunting]]
+| leads_to     = [[Mathematics]]
+}}
+
+'''Forestry''' is a tier two [[technology]] that unlocks the [[Clear Forest]] ability, which removes a forest and gives the player one star, and the [[Lumber Hut]], a [[building]] that costs 3 stars and produces one [[population]]. 
+
+For the [[∑∫ỹriȱŋ]] tribe, Forestry unlocks the [[Sanctuary]], a building that produces one star for each adjacent wild animal, and the Lumber Hut.
+
+== Gallery  ==
+<gallery widths="100">
+
+Xin-xi forest.png|The Xin-xi forest
+Imperius forest.png|The Imperius forest
+Bardur forest.png|The Bardur forest
+Oumaji forest.png|The Oumaji forest
+Kickoo forest.png|The Kickoo forest
+Hoodrick forest.png|The Hoodrick forest
+Luxidoor forest.png|The Luxidoor forest
+Vengir forest.png|The Vengir forest
+Zebasi forest.png|The Zebasi forest
+Ai-mo forest.png|The Ai-Mo forest
+Quetzali forest.png|The Quetzali forest
+Yadakk forest.png|The Yădakk forest
+Aquarion forest.png|The Aquarion forest
+Elyrion forest.png|The ∑∫ỹriȱŋ forest
+Polaris forest.png|The Polaris forest
+File:Cymanti forest.png|The Cymanti forest
+
+</gallery>
+
+=== Tribe Skins ===
+<gallery>
+File:To-Li forest.png|The To-Lï (Ai-Mo) forest
+File:Forgotten forest.png|The Forgotten (Aquarion) forest
+File:Midnight forest.png|The ₼idŋighţ (∑∫ỹriȱŋ) forest
+</gallery>{{Navbox Technology}}
+[[Category:Technology]]
+[[ru:Лесное хозяйство]]

@@ -1,0 +1,28 @@
+{{Infobox Technology
+| image1       = Aquatism Branch.png
+| caption1     = The Aquatism branch of the technology tree
+| tier         = Three
+| unlocks      = [[Temples|Water Temple]], defence bonus on water and ocean tiles
+| starting     = 
+| preceded_by  = [[Ramming]]
+| leads_to     = 
+}}'''Aquatism''' is a tier three [[technology]] that unlocks the [[Temples|Water Temple]] and grants a [[Defence Bonus|defence bonus]] to friendly [[units]] on water and ocean tiles.
+
+
+
+==Polarism==
+[[Polaris]] has the '''Polarism''' technology instead of Aquatism. Polarism unlocks the [[Temples|Ice Temple]] and the Glide ability, which makes moving onto ice tiles cost half a move for all non-skating units, functionally similar to to how roads work. Moving from an ice tile to a onto a non-ice tile, even if it has a road, still costs one full [[Movement|move]]. 
+
+==Gallery==
+<gallery widths="125">
+File:Water temple level 1.png|A level 1 Water Temple
+File:Shallow water defense.png|The icon for the defence bonus in water
+File:Deep water defense.png|The icon for the defence bonus in ocean
+File:Ice temple level 1.png|A level 1 Ice Temple
+File:Glide.png|The Glide icon
+File:PolarisCloakMovement.jpg|A screenshot of the game showing the movement range of the Polaris Cloak on ice with Polarism researched. It can move a total distance of 4 tiles.
+</gallery>
+
+{{Navbox Technology}}
+[[Category:Technology]]
+[[ru:Акватизм]]

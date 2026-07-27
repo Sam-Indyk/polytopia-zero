@@ -1,0 +1,19 @@
+{{Infobox Technology
+| image1       = Chivalry Branch.png
+| caption1     = The Chivalry branch of the technology tree
+| tier         = Two
+| unlocks      = [[Temples|Temple]], [[Disband]]
+| starting     = 
+| preceded_by  = [[Riding]]
+| leads_to     = [[Chivalry]]
+}}
+
+'''Free Spirit''' is a tier two [[technology]] that unlocks the [[Temples|Temple]], an expensive [[building]] whose [[Score|point value]] increases over time, and the the [[Disband]] ability, which removes a [[unit]] and returns half of its cost, rounded down.  
+
+==Free Diving==
+
+[[Aquarion]] has the '''Free Diving''' technology instead of Free Spirit. Free Diving unlocks [[movement]] in ocean as well as the Temple and Disband.
+
+{{Navbox Technology}}
+[[Category:Technology]]
+[[ru:Свободный дух]]

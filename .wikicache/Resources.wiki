@@ -1,0 +1,64 @@
+{{Redirect|Resources|resource distributions|Map Generation}}
+{{Infobox Simple|image = Star.png}}
+
+The '''star''' is the in-game currency of Polytopia. It is used for training [[units]], buying [[Technology|technologies]], harvesting resources and constructing [[buildings]]. 
+
+Stars are produced every turn by [[cities]] and buildings like the [[Market]]. This income is measured in stars per turn (SPT) and is shown in brackets next to the current amount of stars. One-time sources of stars can also be obtained from various methods, outlined below.
+
+[[File:Hoodrick world.PNG|thumb|A 2016 screenshot in which the in-game currency is called "resources."]]
+
+Stars were originally called "'''resources'''." They still represent resources in the Polytopian world.<ref>{{Cite social media|author=Zoythrus|website=Discord|date=2 October 2019|link=https://discord.com/channels/283436219780825088/561211722296197120/629194653551427584}}</ref>
+
+==Income Sources==
+
+{| class="article-table"
+! Item
+!Income (stars per turn)
+|-
+|[[Cities]]
+| 1 per level<ref group="note">The income each city produces is shown to the right of the city's name. The [[Workshop]] and [[Park]] increase a city’s income by 1 SPT. Capital cities may produce more income; see [[Cities#Capitals|Cities]] for details. Cities under siege do not produce any income.</ref>
+|-
+|[[Clathrus]]
+|1 per adjacent [[Algae]]
+|-
+|[[Ice Bank]]
+|3 per every 20 frozen tiles in the world; max. 30 SPT
+|-
+|[[Market]]
+|2 per each level of adjacent [[Windmill]], [[Sawmill]], or [[Forge]], max. level 8
+|-
+|[[Sanctuary]]
+|1 per adjacent wild animal
+|}
+
+<references group="note" />
+
+==One-Time Star Sources ==
+
+{| class="article-table"
+!Item
+!Stars
+|-
+|[[Clear Forest]]
+| 1
+|-
+|[[Disband]]
+|1/2 of the unit's cost, rounded down
+|-
+|Meeting an enemy player
+|1 star plus 2 stars per 1000 points of the enemy's [[score]] rounded up to the next thousand; max. 11 stars
+|-
+|Resources [[city]] upgrade bonus
+|5
+|-
+|[[Starfish Harvesting]]
+|8
+|-
+|Resources [[Ruins|ruin]] reward
+|10
+|}
+
+== References ==
+<references />{{Navbox Game Mechanics}}
+[[Category:Game Mechanics]]
+[[ru:Звёзды]]

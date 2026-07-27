@@ -1,0 +1,46 @@
+{{Infobox Unit
+| image    = Archer-1.png
+| type     = Land
+| unlock   = Archery
+| cost     = 3 stars
+| attack   = 2
+| defence  = 1
+| movement = 1
+| range    = 2
+| health   = 10
+| veteran  = Yes
+| skills   = Dash, fortify
+}}
+
+The '''Archer''' is a ranged [[unit]] unlocked by the [[Archery]] technology. It is mobile, having the ''dash'' [[unit skill]], and flexible, having 1 defence point (compared to 0 for the [[Catapult]]). The [[Hoodrick]] tribe starts the game with an Archer. The [[Polaris]] and [[Cymanti]] tribes have the [[Ice Archer]] and the [[Phychi]], respectively, instead of the Archer.  
+
+==Strengths and Weaknesses==
+
+Archers are good for:
+* Back-end army support. The archer can be used to weaken enemy units while a melee unit comes in for the kill. This works great against warriors, and to a lesser extent, knights, riders, defenders, and swordsmen.
+* Killing catapults. Catapults that are protected by Giants, Defenders, and/or Swordsmen are usually very troublesome. However, the Archer takes care of that. Its long range and the dash ability means as long as you can pinpoint where the enemy Catapult is, the Archer can easily kill it, completely ignoring any units that could protect it.
+* Killing a [[Giant]]. Archers can repeatedly move backwards and snipe Giants from a tile away and the Giant, lacking [[Unit Skills|dash]], will be helpless to the onslaught.
+* Attacking masses of [[Defender|Defenders]] and [[Mind Bender|Mind Benders]]. Those units do not have the Dash skill. 
+* Being used alongside other units like [[Giant]]s or [[Swordsmen]] that can stay on the front line and push forward, protecting Archers that stay behind so they can hit enemy units with their ranged attack.
+
+Archers aren't good for:
+* Unsupported combat. They are fragile units, and are easily defeated by high-mobility units such as Knights or other units with ''dash''.
+* Naval units. Archers are a terrible troop to put in [[Raft|Rafts]], [[Scout|Scouts]], [[Rammer|Rammers]] and [[Bomber|Bombers]] as they have the same health, a lower defence, and cost 1 more star than a default warrior. This means that putting a warrior in a Bomber is in every way better than an archer in a Bomber.
+* Capturing cities. They have low HP and defence and will likely not survive a turn capturing a city. They are better used defending a city from a counterattack while a stronger unit takes the brunt of the damage.
+
+== Gallery ==
+
+{{Unit Gallery}}
+
+===Tribe Skins===
+
+{{Skin Unit Gallery}}
+
+== Mermaid Archer ==
+''See the main article: [[Mermaid Archer]]''
+
+This is the mermaid version of the [[Archer]].
+== Trivia==
+*In some tribes, other units are used in place of [[{{PAGENAME}}]]:
+::{{Replace Unit}}
+[[ru:Лучник]]

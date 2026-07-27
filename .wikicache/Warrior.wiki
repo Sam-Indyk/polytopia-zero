@@ -1,0 +1,47 @@
+{{Infobox Unit
+| name     = Warrior 
+| image    = WarriorX.png
+| type     = Land
+| cost     = 2 stars
+| attack   = 2
+| defence  = 2
+| movement = 1
+| range    = 1
+| health   = 10
+| veteran  = Yes
+| skills   = Dash, Fortify
+}}
+
+The '''Warrior''' is a cheap, primitive melee [[unit]] unlocked at the beginning of the game. More than half of all [[tribes]] start the game with a Warrior. 
+
+The Warrior is a general-purpose unit great for exploration and front-line [[combat]] in the early- to mid-game. However, it is outclassed by the [[Swordsman]], an all-around upgrade of the Warrior, and it is easily killed by stronger units like the [[Catapult]] ,the [[Knight]] and [[Super Unit|super units]]. 
+
+== Gallery ==
+
+{{Unit Gallery}}
+
+=== Tribe Skins ===
+
+{{Skin Unit Gallery}}
+
+== Trivia ==
+*Costing only 2 stars, the Warrior is tied with the [[Mermaid]] as the cheapest trainable unit in the entire game. Daggers also have a cost of 2 stars, but cannot be trained normally.
+*The Warrior and the Mermaid are the only units that do not require any [[technology]] to unlock.
+*Prior to the addition of the Mermaid in the Aquarion rework, the Warrior was one of the only units that can be trained by all tribes, the others being the Swordsman and the [[Cloak]]. After the [[Cymanti]] rework, which added the [[Mantis]] and the [[Moth]], the Warrior is the only unit that can be trained by all tribes except Aquarion.
+*Of the 16 tribes in the game, 7 of them do not start with a Warrior. They are:
+**[[Oumaji]], which starts with a [[Rider]].
+**[[Hoodrick]], which starts with an [[Archer]].
+**[[Vengir]], which starts with a [[Swordsman]].
+**[[Ai-Mo]], which starts with a [[Mind Bender]].
+**[[Quetzali]], which starts with a [[Defender]].
+**[[Aquarion]], which starts with an [[Amphibian]].
+**[[Polaris]], which starts with a [[Mooni]].
+**[[Cymanti]], which starts with a [[Shaman]].
+*In some tribes, other units are used in place of [[{{PAGENAME}}]]:
+::{{Replace Unit}}
+== Mermaid ==
+''See the main article: [[Mermaid]]''
+
+This is the mermaid version of the [[Warrior]].
+{{Navbox Units}}
+[[ru:Воин]]

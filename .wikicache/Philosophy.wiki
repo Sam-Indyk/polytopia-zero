@@ -1,0 +1,30 @@
+{{Infobox Technology
+| image1       = Philosophy.PNG
+| caption1     = The Philosophy technology
+| tier         = Three
+| unlocks      = [[Mind Bender]], Literacy, [[Tower of Wisdom|Genius task]]
+| starting     = 
+| preceded_by  = [[Meditation]]
+| leads_to     = 
+}}
+
+'''Philosophy''' is a tier three [[technology]] that unlocks the [[Mind Bender]], Literacy, and the [[Tower of Wisdom|Genius task]]. 
+
+[[File:Mind bender.png|thumb|The Mind Bender model]]
+The Mind Bender is a [[unit]] that can convert enemy units and heal friendly units. For the [[Cymanti]] tribe, Philosophy unlocks the [[Shaman]] special unit instead of the Mind Bender. 
+
+The Genius task is to research all technology; successful completion of the task grants the [[Tower of Wisdom]] monument. 
+
+Philosophy was introduced in [[Update History##1.7_.22Power.22_Mar_31.2C_2017|update 1.7]]. 
+
+== Literacy ==
+
+[[File:Literacy.png|thumb|The Literacy icon]]
+'''Literacy''' reduces the cost of all [[Technology|technologies]] by 33%.
+
+In beta, Philosophy unlocked the [[Library]], a building that decreased the costs of technologies. The Library was scrapped and replaced by Literacy before release. 
+
+Prior to update 2.0.44, the discount provided by Literacy was 20% instead of 33%. 
+
+{{Navbox Technology}}
+[[Category:Technology]]

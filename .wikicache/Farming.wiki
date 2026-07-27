@@ -1,0 +1,17 @@
+{{Infobox Technology
+| image1       = Construction Branch.png
+| caption1     = The Construction branch of the technology tree
+| tier         = Two
+| unlocks      = Farm
+| starting     = [[Zebasi]], [[Cymanti]] (modified)
+| preceded_by  = [[Organization]]
+| leads_to     = [[Construction]]
+}}'''Farming''' is a tier two [[technology]] that unlocks the [[Farm]], a [[building]] that costs five [[stars]], provides two [[population]], and can only be built on tiles with crop. 
+
+For the [[Cymanti]] [[tribe]], Farming unlocks the [[Fungi]], a building whose population produced grows over time, instead of the Farm. 
+
+[[Zebasi]] and [[Cymanti]] start with Farming.
+
+{{Navbox Technology}}
+[[Category:Technology]]
+[[ru:Земледелие]]

@@ -1,0 +1,82 @@
+{{Infobox Unit
+| name     = Cloak
+| image    = CloakI.png 
+| type     = Land
+| tribe    = 
+| unlock   = Diplomacy
+| cost     = 8 stars
+| skills   = Hide, Infiltrate, Dash, Scout, Creep, Stiff, Static
+| health   = 5
+| veteran  = No
+| attack   = 2
+| defence  = 0.5
+| movement = 2
+| range    = 1
+}}
+[[File:Cloak_in_Gameplay.png|thumb|An invisible [[Vengir]] Cloak approaching a [[Yădakk]] city.]] 
+[[File:Cloak detection eye symbols.jpeg|thumb|A Cloak is hiding in the empty green field tile, and three neighboring units have vibrating eye symbols indicating that there is a Cloak on an adjacent tile.]]
+{{Quote|Cloaks are infiltration specialists trained in the arts of subterfuge and clandestine operations with two new abilities – Stealth and Infiltrate. They are invisible to enemy units until they perform an action.|[https://polytopia.io/diplomacy Diplomacy website]}}
+
+The '''Cloak''' is a stealth [[unit]] designed to infiltrate enemy cities. It is unlocked by the [[Diplomacy]] technology. The Aquarion version is the [[Scuba]]. The Cymanti version is the [[Moth]].  
+
+The Cloak has the ''Hide'' skill, which makes it invisible to enemies after it moves. However, the cloak is visible to enemies upon being trained, capturing a village, exploring a ruin, or breaking ice. A Cloak is also revealed (to all players) when an enemy unit attempts to move onto a tile containing an invisible Cloak (the unit's movement is canceled and its action is not spent) or when an enemy unit attempts to break ice that a cloak is on (the ice will not break); this allows enemy units to attack the Cloak. Moreover, all units can detect Cloaks on adjacent tiles; a small eye symbol 👁 will appear on the unit's icon if an enemy cloak is next to the unit. Cloaks that belong to players with which the Cloak's owner has [[Peace Treaty|made peace]] are also always visible and do not create the 👁.  
+
+The cloak has the ''Scout'' skill, allowing it to reveal tiles in a 5x5 area. It also has the ''Creep'' skill, so it ignores any movement penalties as well as road bonuses, and also allows it to bypass enemy [[Movement#Zone of Control|zones of control]] and move through enemy units. This combination effectively makes it a replacement for the removed [[Scout (Removed)|Scout]] unit.  
+
+The Cloak cannot fight; because of its ''Infiltrate'' [[unit skill]], it can only target adjacent enemy cities with its attack. Also, because it has the ''Dash'' skill, it can move next to and attack a city on the same turn. However, ''Hide'' and ''Dash'' conflict and you can only move and attack if the cloak began the turn already invisible (While unlikely, a revealed cloak adjacent to an enemy city may still infiltrate it). When a Cloak infiltrates a city, it is consumed, and three things will happen:  
+
+*Any enemy unit in the city at the time will be damaged. This damage is equivalent to its attack statistic (2) at full health even if the cloak is damaged.
+*A group of [[Dagger]]s belonging to the Cloak's owner then spawn within the city's borders. The number of Daggers is equal to the city's level, with a maximum of 5. Daggers will prioritize spawning in the city (including if the Cloak's damage killed the enemy unit) and then on terrain where they can benefit from a defense bonus (which changes depending on if you have [[Climbing]], [[Archery]], or [[Aquatism]]). They will not be able to perform any actions until their owner's next turn. On water tiles, [[Pirate]]s spawn instead of Daggers. Cymanti cloaks will always spawn insect eggs instead of daggers.
+*The infiltrating player will immediately gain a number of stars equal to the income of the city. The city will produce zero stars on their opponent's next turn. This does not affect other methods of star production: the [[Market]], [[Ice Bank]] or [[Sanctuary]].
+
+Cloaks cannot infiltrate cities that another Cloak infiltrated (until the city's owner's next turn) or a city under siege. Infiltrating a city does not count as an attack for purposes of the [[Pacifist]] task.
+
+When a Cloak moves onto a [[Port]], instead of turning into a [[Raft]], it turns into a [[Dinghy]], a special naval unit which retains the stats and abilities (except ''creep'') of the Cloak but cannot be upgraded into other naval units. Like other units, a Cloak’s dash skill is cancelled after boarding a Dinghy and a Dinghy’s dash ability is cancelled after disembarking a Cloak. 
+
+Despite having the ''Creep'' skill, Polaris Cloaks can travel 3 tiles with Polarism; Aquarion Cloaks can travel 3 tiles while Bubbled, making them all more dangerous. 
+
+==Strengths and Weaknesses ==
+
+Cloaks are good at: 
+
+*'''Scouting.''' The Cloak's large sight range and ability to ignore terrain penalties makes it great for revealing unexplored terrain. Its invisibility makes it difficult for enemies to find the scouting unit.
+*'''Creating disruptions.''' Expending a cloak on an enemy city will not only steal its income for the turn but will also spawn several units that the enemy is forced to attack. This also disrupts the movement of enemy units in the area, and a Cloak trades very well if it successfully infiltrates.
+*'''Spamming units.''' A single cloak creates up to 5 (depending on your target city) units. If you have Climbing or Archery, those units cannot be easily swept away by a knight. Furthermore, Daggers are ''Independent'', so once you infiltrate your city can train another Cloak. This is particularly useful if you are in an endgame or stalemate and have maxed out the units your city can otherwise sustain.
+*'''Forcing defense.''' Even if an enemy knows a cloak is coming, a cloak can move up to 2 and then infiltrate, so a cloak anywhere within a 7x7 square centered on a city is capable of sneaking in to infiltrate it. Units must know the exact tile the cloak is on in order to kill it.
+
+Cloaks are poor at:
+
+*'''Combat.''' The Cloak is unable to attack and will die in one hit to most attacks. Its vulnerability when trained also makes it a risky choice to train on cities in range of enemy attacks. As such, it is advisable to train Cloaks in well-defended cities and maneuver them across enemy lines.
+
+==Gallery==
+
+{{Unit Gallery}}
+
+===Tribe Skins===
+
+<gallery>
+File:Sha-Po Cloak.png|The Xin-xi Sha-Po Cloak.
+File:Aumux Cloak.png|The Luxidoor Aumux Cloak
+File:Cultist Cloak.png|The Vengir Cultist Cloak
+File:Anzala Cloak.png|The Zebasi Anzala Cloak
+File:Midnight Cloak.png|The ∑∫ỹriȱŋ ₼idŋighţ Cloak
+File:Forgotten Cloak.png|The Aquarion Forgotten Cloak
+File:Solaris Cloak.png|The Polaris Solaris Cloak
+</gallery>
+
+== Scuba==
+
+''See the main article: [[Scuba]]''
+
+This is the mermaid version of the [[Cloak]].
+
+==Trivia==
+[[File:Cloak old.png|thumb|The old Cloak sprite.]]
+
+* The Cloak had a less detailed sprite during early beta versions.
+* The Cloak's name and ability to create Daggers is a reference to the expression "[[WP:cloak and dagger|cloak and dagger]]", used to describe acts of espionage and treachery.
+*In some tribes, other units are used in place of [[{{PAGENAME}}]]:
+::{{Replace Unit}}
+{{Navbox Units}}
+[[ru:Плащ]]
+__NOTOC__

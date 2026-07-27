@@ -1,0 +1,498 @@
+[[File:Science.png|thumb|100px|The technology tree icon.]]
+[[File:Technology Tree.png|thumb|The technology tree of a [[Xin-xi]] player with all technology researched.]]
+
+'''Technology''' is research that unlocks new resources, [[buildings]], [[units]], and/or [[:Category:Abilities|abilities]]. Technology can be researched using [[stars]] and discovered in [[ruins]]. Each [[Tribes|tribe]], except for [[Luxidoor]] and [[Aquarion]], has a unique starting technology that is unlocked at the start of the game.
+
+Technology is divided into three tiers. Tier one (T1) technology can immediately be researched at the start of the game, while tier two (T2) and tier three (T3) technology can be only researched after the previous technology in their branch is unlocked.
+
+The cost of a technology depends on its tier and the number of [[cities]] controlled by the player. Initially, tier one technology cost five [[stars]], tier two cost six, and tier three cost seven. For each additional city the player controls, research costs increase by one, two, or three stars for T1, T2, and T3 technology, respectively. In other words, the cost of a technology is calculated as follows: <code>(technology tier) × (number of cities) + 4</code>.
+
+[[File:Literacy.png|thumb|The Literacy icon]]
+
+Literacy, an ability unlocked by the [[Philosophy]] technology, reduces research costs by 33%. (Discounted costs are rounded up to the nearest star.)
+
+__TOC__
+
+== List of Technology ==
+
+{| class="article-table"
+!Technology
+!Unlocks
+!Starting technology of
+!Special tribe modifications
+|-
+! colspan="4" |Tier One
+|-
+|[[Climbing]]
+|[[Movement]] and [[defence bonus]] in mountain, allows players to see metal
+|[[Xin-xi]]
+|
+|-
+|[[Fishing]]
+|Fishing, [[Port]], [[Raft]], movement in water, allows players to see starfish
+|[[Kickoo]]
+|Polaris: Replaced with Frostwork, unlocks the [[Outpost]] and the [[Mooni]]
+Cymanti: Does not unlock ports or rafts
+|-
+|[[Hunting]]
+|Hunting
+|[[Bardur]], [[∑∫ỹriȱŋ]] (as Forest Magic)
+|[[∑∫ỹriȱŋ]]: Replaced with Forest Magic, unlocks the [[Polytaur]] through the Enchant Animal ability
+|-
+|[[Organization]]
+|Harvest fruit, allows players to see crop<ref group="note">Zebasi can see crop tiles without needing Organization, since they start with Farming. </ref>
+|[[Imperius]]
+|[[Cymanti]]: Does not allow player to see crop
+|-
+|[[Riding]]
+|[[Rider]]
+|[[Oumaji]]
+|[[Aquarion]]: Unlocks the [[Amphibian]] and movement in water
+[[Cymanti]]: Unlocks the [[Hexapod]]
+|-
+! colspan="4" |Tier Two
+|-
+|[[Archery]]
+|[[Archer]], defence bonus in forest
+|[[Hoodrick]]
+|Polaris: Unlocks the [[Ice Archer]] and defence bonus in forest
+Cymanti: Unlocks the [[Phychi]] and defence bonus in forest
+|-
+|[[Ramming]]
+|[[Rammer]]
+|
+|Polaris: Replaced with Ice Fishing, unlocks Fishing
+Cymanti: Replaced with Hydrology, unlocks [[Algae]]
+|-
+|[[Farming]]
+|[[Farm]]
+|[[Zebasi]], [[Cymanti]] (modified)
+|
+Cymanti: Unlocks the [[Fungi]]
+|-
+|[[Forestry]]
+|[[Lumber Hut]], [[Clear Forest]] ability
+|
+|∑∫ỹriȱŋ: Unlocks the [[Sanctuary]] and the Lumber Hut
+|-
+|[[Free Spirit]]
+|[[Temples|Temple]], [[Disband]] ability
+|
+|Aquarion: Replaced with Free Diving, unlocks the Temple, movement in ocean, and the Disband ability
+|-
+|[[Meditation]]
+|[[Temples|Mountain Temple]], [[Altar Of Peace|Pacifist]] task
+|
+|
+|-
+|[[Mining]]
+|[[Mine]]
+|
+|
+|-
+|[[Roads (Technology)|Roads]]
+|[[Roads]], [[Grand Bazaar|Network]] task
+|[[Yădakk]]
+|Cymanti: Unlocks the [[Mycelium]] and the Network task
+|-
+|[[Sailing]]
+|[[Scout]], movement in ocean
+|
+|Polaris: Replaced with Sledding, unlocks the [[Battle Sled]]
+Cymanti: Replaced with Pescetism, unlocks the [[Raychi]]
+|-
+|[[Strategy]]
+|[[Defender]], Peace Treaty
+|[[Quetzali]]
+|Cymanti: Unlocks the [[Kiton]] and Peace Treaty
+|-
+|[[Whaling]] (removed)
+|[[Whale Hunting]]
+|
+|
+|-
+! colspan="4" |Tier Three
+|-
+|[[Aquatism]]
+|[[Temples|Water Temple]], defence bonus on ocean and water tiles
+|
+|Polaris: Replaced with Polarism, unlocks the Ice Temple and [[Glide]]
+|-
+|[[Chivalry]]
+|[[Knight]], [[Destroy]] ability
+|
+|Aquarion: Replaced with Spearing, unlocks the [[Tridention]] and the Destroy ability
+Cymanti: Replaced with Shock Tactics, unlocks the [[Doomux]] and the Destroy ability
+|-
+|[[Construction]]
+|[[Windmill]], [[Burn Forest]] ability
+|
+|Cymanti: Replaced with Recycling, unlocks [[Decompose]]
+|-
+|[[Diplomacy]] 
+|[[Cloak]], [[Embassy]], Capital Vision
+|
+|
+|-
+|[[Engineering]] (removed)
+|[[Guard Tower]], Destroy ability
+|
+|
+|-
+|[[Mathematics]]
+|[[Catapult]], [[Sawmill]]
+|
+|Cymanti: Unlocks the [[Exida]] and the Sawmill
+|-
+|[[Navigation]]
+|[[Bomber]], [[Starfish Harvesting]]
+|
+|Polaris: Replaced with Polar Warfare, unlocks the [[Ice Fortress]] and [[Starfish Harvesting]]
+Cymanti: Replaced with Oceanology, unlocks [[Starfish Harvesting]]
+|-
+|[[Smithery]]
+|[[Forge]], [[Swordsman]]
+|[[Vengir]]
+|
+|-
+|[[Spiritualism]]
+|[[Temples|Forest Temple]], [[Grow Forest]] ability
+|
+|
+|-
+|[[Trade]]
+|[[Market]], [[Emperor's Tomb|Wealth]] task
+|
+|Polaris: Unlocks the [[Ice Bank]] and the Wealth task
+Cymanti: Unlocks the [[Clathrus]] and the Wealth task 
+|-
+|[[Philosophy]]
+|[[Mind Bender]], Literacy, [[Tower of Wisdom|Genius]] task
+|[[Ai-Mo]]
+|Cymanti: Unlocks the [[Shaman]], Literacy, and the Genius task
+|}
+
+==Technology Costs==
+
+{| class="fandom-table"
+! colspan="1" rowspan="2" |# of Cities
+! colspan="2" rowspan="1" |Tier 1
+! colspan="2" rowspan="1" |Tier 2
+! colspan="2" rowspan="1" |Tier 3
+|-
+!w/o Literacy
+!w/ Literacy
+!w/o Literacy
+!w/ Literacy
+!w/o Literacy
+!w/ Literacy
+|-
+!0
+|4
+|3
+|4
+|3
+|4
+|3
+|-
+!1
+|5
+|4
+|6
+|4
+|7
+|5
+|-
+!2
+|6
+|4
+|8
+|6
+|10
+|7
+|-
+!3
+|7
+|5
+|10
+|7
+|13
+|9
+|-
+!4
+|8
+|6
+|12
+|8
+|16
+|11
+|-
+!5
+|9
+|6
+|14
+|10
+|19
+|13
+|-
+!6
+|10
+|7
+|16
+|11
+|22
+|15
+|-
+!7
+|11
+|8
+|18
+|12
+|25
+|17
+|-
+!8
+|12
+|8
+|20
+|14
+|28
+|19
+|-
+!9
+|13
+|9
+|22
+|15
+|31
+|21
+|-
+!10
+|14
+|10
+|24
+|16
+|34
+|23
+|-
+!11
+|15
+|10
+|26
+|18
+|37
+|25
+|-
+!12
+|16
+|11
+|28
+|19
+|40
+|27
+|-
+!13
+|17
+|12
+|30
+|20
+|43
+|29
+|-
+!14
+|18
+|12
+|32
+|22
+|46
+|31
+|-
+!15
+|19
+|13
+|34
+|23
+|49
+|33
+|-
+!16
+|20
+|14
+|36
+|24
+|52
+|35
+|-
+!17
+|21
+|14
+|38
+|26
+|55
+|37
+|-
+!18
+|22
+|15
+|40
+|27
+|58
+|39
+|-
+!19
+|23
+|16
+|42
+|28
+|61
+|41
+|-
+!20
+|24
+|16
+|44
+|30
+|64
+|43
+|-
+!21
+|25
+|17
+|46
+|31
+|67
+|45
+|-
+!22
+|26
+|18
+|48
+|32
+|70
+|47
+|-
+!23
+|27
+|18
+|50
+|34
+|73
+|49
+|-
+!24
+|28
+|19
+|52
+|35
+|76
+|51
+|-
+!25
+|29
+|20
+|54
+|36
+|79
+|53
+|-
+!26
+|30
+|20
+|56
+|38
+|82
+|55
+|-
+!27
+|31
+|21
+|58
+|39
+|85
+|57
+|-
+!28
+|32
+|22
+|60
+|40
+|88
+|59
+|-
+!29
+|33
+|22
+|62
+|42
+|91
+|61
+|-
+!30
+|34
+|23
+|64
+|43
+|94
+|63
+|-
+!31
+|35
+|24
+|66
+|44
+|97
+|65
+|-
+!32
+|36
+|24
+|68
+|46
+|100
+|67
+|-
+!33
+|37
+|25
+|70
+|47
+|103
+|69
+|-
+!34
+|38
+|26
+|72
+|48
+|106
+|71
+|-
+!35
+|39
+|26
+|74
+|50
+|109
+|73
+|-
+!36
+|40
+|27
+|76
+|51
+|112
+|75
+|}
+
+== Notes ==
+
+<references group="note" />
+
+== Trivia ==
+
+* The tech tree is actually not on a different screen. It occupies the same space as the map, just placed very far away in the top-right. This means it is technically possible to access the tech tree by [https://www.reddit.com/r/Polytopia/comments/tqa4ju/found_the_tech_tree/ scrolling from the map], without pressing the tech tree button.
+{{Navbox Technology}}
+{{Navbox Game Mechanics}}
+[[Category:Technology]]
+[[Category:Game Mechanics]]
+[[ru:Технологии]]

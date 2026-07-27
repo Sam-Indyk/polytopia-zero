@@ -1,0 +1,121 @@
+The '''movement''' of a [[unit]] is determined by its movement [[Unit Stats|stat]], its [[Unit Skills|skills]], and the [[terrain]] it moves across. If not impacted by any other factors, a unit can move to tiles whose distance to the unit's starting tile is not more than its movement stat, as measured using [[Wikipedia:Chebyshev distance|Chebyshev distance]]. However, this is affected by the terrain the unit move across, the presence of [[Roads (Building)|roads]], as well as some other factors. A unit may only move once per turn (besides the use of the dash and escape skills), and each tile can only be occupied by one unit at a time. A forced unit spawn occurs when an unit is spawned on a tile that already has an unit on it. 
+
+A unit's movement stat determines how far it can move every turn. Moving from one tile to an adjacent tile incurs a cost of 1, but moving between tiles with roads has a cost of 0.5. 
+
+== Terrain ==
+Certain types of [[terrain]] impact movement. Rough terrain, including mountains and forests (without roads) block movement. Units cannot move through them (they can move onto them, but no further in the same turn). Also, units cannot move into clouds (the fog of war).
+
+Water and amphibious units are capable of moving through water and (if the [[Sailing|appropriate technology]] has been researched) ocean tiles. Water units can also move through flooded tiles and amphibians can also move through land tiles, but these will respectively slow them, as if moving through rough terrain.
+
+Most land units moving into a [[Port]] will be turned into [[Raft|Rafts]] and will be unable to perform actions for the rest of that turn, even if they had excess movement points or had not attacked. However, this does not apply to water, amphibious or flying units.
+
+==Zone of Control==
+All units exert a passive Zone of Control onto enemy units. This takes priority over movement bonuses conferred by [[Roads]] or [[Polarism]] (see [[#Glide]]). A unit that moves to a tile adjacent to an enemy unit cannot move any further, even if the unit had excess movement points. 
+
+The exception to this mechanic is units that have the [[Unit Skills#Creep|Creep skill]]. Units with the creep skill completely bypass zone of control restrictions for unit movement. 
+
+This also does not prevent units with the [[Unit Skills#Dash|Dash skill]] from attacking after moving, and the Zone of Control goes away when the enemy unit is destroyed.
+
+A unit that starts its turn within Zone of Control may be able to move out and then back into it, occasionally leading to seemingly impossible but valid movement destinations. 
+
+==Technology==
+
+==== Roads ====
+Movement between two tiles with [[Roads]] (or a Road and a [[Cities|city]]) requires only 0.5 moves, ignoring the movement penalty from Forests, but not Zone of Control (it is impossible to place Roads on Mountains). This only applies to Roads in friendly territory or in neutral territory, but not when moving onto Roads in enemy territory. [[Bridge|Bridges]] follow these same rules, but with the added benefit of allowing land units to cross one tile of water.
+
+In order to utilize bonus movement from roads, you need to place a road where your troop is standing and then on the following tile. City and village tiles function as road tiles.  
+
+When calculating movement cost of a tile, the game rounds up - meaning even if you have 0.5 movement points remaining, you can still move onto a tile costing 1 or even 3 movement points. The place the unit ends up is irrelevant - you don't need a road at the final tile and movement is not blocked if final tile is an obstacle.
+
+==== Glide ====
+As [[Polaris]], researching the unique [[Polarism]] technology unlocks the Glide skill, which gives +1 movement moving on ice tiles.
+
+==== Waterways ====
+As [[Aquarion]], researching the unique [[Roads (Technology)|Waterways]] technology unlocks the Bubbled skill, which allows Amphibious units to get ''Bubbled'' on flooded tiles that gives +1 movement.
+
+== Buff ==
+
+==== Frozen ====
+As [[Polaris]], freezing units with [[Mooni|Moonis]], [[Gaami|Gaamis]] or [[Ice Archer|Ice Archers]] can prevent them from moving entirely.
+
+==== Poisoned ====
+As [[Cymanti]], poisoning units with units with Poison or Explode skill can reduce their movement by 1, but can't be below 1.
+
+==== Bubbled ====
+As [[Aquarion]], researching the unique [[Roads (Technology)|Waterways]] technology unlocks the Bubbled skill. This gives any Aquarion unit a speed bubble whenever they movement onto a flooded tile, which increases their movement by 1 until they are attacked or move onto non-flooded land.
+
+==Forced Unit Spawns== 
+<!--There are redirects to this heading. If you re-name it, please also change the redirects.--><!-- Each unit has a direction value, which defaults to none. If the value is none (as is the case for newly spawned units), the unit will get pushed towards the center of the map.
+
+Every time a unit moves (including being pushed), it's direction value is set. Until the unit moves again and this value is overwritten, this is the direction your unit will move when pushed. So if you moved/got pushed north, and got pushed the next turn, you would get pushed north.
+
+If you move onto an enemy city and they giant push you, you will get pushed back - your direction value was set when moving in to siege the city, so you will be moved in an opposite direction to your direction value. So if you moved N to siege, you'd get pushed south. 
+
+If a ranged unit fires it's projectile at an enemy, this also sets the direction value.
+
+In every situation, if the unit cannot be pushed the direction it should be, it will try counterclockwise and then clockwise one tile at a time until it finds a free tile, or if there is no free tile, it will vanish. 
+
+https://discord.com/channels/283436219780825088/368485048493539329/794761644969558017 (PolyMain) -->A forced unit spawn occurs when an [[unit]] is spawned in a tile that already has a unit on it. The unit that is already on the tile is pushed in a specific direction. Forced unit spawns can happen when a [[super unit]] spawns in a city, a [[Ruins|Ruin]] spawns a unit, or [[∑∫ỹriȱŋ]] spawns a [[Polytaur]]. The forced spawn of super units are commonly used in besieged cities to push out the invader, and the forced spawn of Polytaurs are commonly used to "boost" the movement of friendly units.
+
+The push order for forced unit spawns determines the direction in which the unit already on the tile where the new unit is spawned will be pushed. The push order is as follows:
+
+*Friendly units that previously moved will be pushed in the same direction of their movement. 
+**Example: A friendly unit that previously moved north will be pushed north.
+*Enemy units that previously moved will be pushed in the opposite direction of their movement. 
+**Example: An enemy unit that previously moved north will be pushed south.
+* Ranged units get pushed in the direction of their last move or last attack. 
+*Units that were not previously moved will be pushed toward the center of the map.
+*If the city where the unit spawns is on the exact center of the map, the unit will be pushed south.
+*If the tile where the unit is supposed to go is occupied or impassable, it will try counterclockwise and then clockwise one tile at a time until it finds a free tile, or if there is no free tile, it will be removed from the game entirely. This does not count as a kill for the [[Gate of Power]], nor does it count as an attack for the [[Altar of Peace]]. 
+
+== Unit Skills ==
+The unit skills listed below indicates the cream mechanics of the movement. They are always listed on the title beside the name in unit info box.
+
+* Land:Units with Land skill can only move on land tiles.
+* Water:Units with Water skill can only move on water tiles. These units without Carry skill can move to city or village.
+* Air ([[Phychi]], [[Moth]], [[Baby Dragon|Baby]] and [[Fire Dragon]]): The Air skill allows a unit to move to any tile,ignoroing all movement barriers imposed by terrain and restrictions imposed by unknown technology. However, units with this skill cannot utilize roads.
+* Amphibious:The Amphibious skill allows a unit to move on both land and water, but slower on land.
+
+The unit skills listed below impact movement in some way.
+*Carry ([[Raft]], [[Scout]], [[Bomber]], [[Rammer]], [[Juggernaut]], [[Dinghy]] and [[Pirate]]): The Carry skill allows a unit to carry another unit inside and travel on water. (Navigation or Free Diving must be researched to travel on ocean tiles.) A unit with the carry skill can move to land tiles adjacent to water, but doing so turns it into the unit it was carrying and ends the unit's turn.
+*Skate ([[Mooni]], [[Battle Sled]], [[Ice Fortress]]): The Skate Skill gives +1 movement on ice but on land limits movement to one and bars units with it from using the Dash and Escape skills.
+*Creep: The Creep skill allows a unit to ignore movement penalties except mountains, but disabling bonuses from roads. However, movement restrictions from zone of control are not eliminated.
+*Sneak ([[Hexapod]], [[Moth]] ): The Sneak skill allows a unit to bypass barriers presented by tiles adjacent to enemies at no cost, but they can't move through enemies.
+*Hide ([[Cloak]], [[Scuba]]): The Hide skill allows a unit to bypass barriers presented by tiles adjacent to enemies as well as move through enemies.
+*Swarm ([[Shaman]]): The Swarm skill grants  Allied units around the Shaman by a 3x3 area to be Swarmed by the Shaman. Swarmed Units get a +1 movement and will be removed if said unit will be attacked.
+*Poison: The Poison skill allows a unit to poison enemies attacked by any means. Posioned units get -1 movement unless they just have 1 movement.
+
+==Examples==
+===Terrain and Zone of Control ===
+<gallery>
+File:Movement01.JPG|The [[Rider]] in above picture can't reach marked tiles because of an enemy [[archer]].
+File:Movement02.JPG|Here, the rider can’t reach the marked tiles because of forests.
+File:Unit in Fog.png|An enemy hidden by the fog is blocking movement.
+File:Cloak-Bypassing-Enemy-ZOC2.png|This [[Cloak]] can travel freely past the defending enemy [[Warrior]] because of its [[Units|Creep ability]], ignoring the warrior's zone of control. 
+</gallery>
+
+===Roads===
+<gallery>
+
+Movement03.JPG|Rider can reach mountain here.
+
+Movement04.JPG|Same goes for starting point - if you're standing on Forest or Mountain tiles, you’ll still be able to move 2 tiles with your rider and 3 with a [[knight]]. However, you won’t be able to reach maximum movement of 4/6 since you don’t start on a road.
+
+Movement05.JPG|Road on Forest tiles will neutralize movement restriction. However, Roads can't be placed on mountains.
+
+</gallery>
+
+===Polarism (outdated)===
+<gallery>
+Movement14.JPG|This [[Catapult]] only has 1 movement point, but due to Polarism gains an extra move when moving NE, resulting in it being able to cross 2 tiles. Alternatively if moving SW, the Road allows the catapult to move 2 tiles onto the Ice. However, since Polarism is unlocked, the Catapult then gains another movement point and is allowed to move an additional tile, resulting in a total displacement of 3 tiles - which is impossible to accomplish with any other tribe using direct movement.   
+Movement16.JPG|Here, the knight (3 movement) moves up to 7 tiles thanks to Polarism. 
+</gallery>
+
+==References==
+
+*[https://docs.google.com/document/d/1D5jMQVxpmyFtDlw-S_21uH1IsSWPY-4A7u9miuWeals/edit "Movement in Polytopia"] by QuasiStellar
+*[https://docs.google.com/document/d/1I82qRpIx1ynklrE8J8rHGYiKBc-8jdbX71hyqhtOGAs/edit "Movement Guide"] by Glouc3stershire
+*[https://docs.google.com/document/d/1C3nQm6SnRFc5pkWMy_WOj8LRosuj2XlINCmCoDfswn4/edit "Push Rules"] by Legorooj
+
+{{Navbox Game Mechanics}}
+[[Category:Game Mechanics]]

@@ -1,0 +1,27 @@
+{{Infobox Technology
+| image1       = Chivalry Branch.png
+| caption1     = The Chivalry branch of the technology tree
+| tier         = Three 
+| unlocks      = [[Knight]], [[Destroy]]
+| starting     = 
+| preceded_by  = [[Free Spirit]]
+| leads_to     = 
+}}'''Chivalry''' is a tier three [[technology]] that unlocks the [[Knight]], a powerful mounted unit that can travel far distances, and the Destroy ability, which removes a building and its benefits at no cost.
+
+== Spearing ==
+[[Aquarion]] has the '''Spearing''' technology instead of Chivalry. Spearing unlocks the [[Tridention]], a strong ranged swimming unit with the dash and persist skills, as well as the Destroy ability. 
+
+== Shock Tactics ==
+[[Cymanti]] has the '''Shock Tactics''' technology instead of Chivalry. Shock Tactics unlocks the [[Doomux]], a powerful and agile unit with a high attack and defence. Cymanti's replacement for the Destroy ability, called Decompose, is instead unlocked by [[Construction]].
+
+== Gallery ==
+<gallery widths="125">
+Knight.png|The Knight model
+File:Destroy.png|The Destroy icon
+</gallery>
+
+== Trivia ==
+
+* Prior to the [[Patch of the Ocean]] update, Chivalry unlocked the [[Burn Forest]] ability instead of Destroy.
+{{Navbox Technology}}
+[[Category:Technology]]

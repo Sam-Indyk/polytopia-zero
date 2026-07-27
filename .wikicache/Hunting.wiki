@@ -1,0 +1,59 @@
+{{Infobox Technology
+| image1       = Hunting.png
+| caption1     = Hunting and its branches in the technology tree
+| tier         = One
+| unlocks      = Hunting of wild animals
+| starting     = [[Bardur]], [[∑∫ỹriȱŋ]] (as Forest Magic)
+| preceded_by  =
+| leads_to     = [[Archery]], [[Forestry]]
+}}'''Hunting''' is a tier one [[technology]] that unlocks the hunting of wild animals (a.k.a. game). Hunting costs two [[stars]] and produces one [[population]]. 
+
+The [[Bardur]] [[tribe]] starts with Hunting.
+
+Hunting's branches in the technology tree are focused on forest management.<ref>{{Cite web|author=Midjiwan|title=DevBlog: Balance Pass 1|website=Steam|link=https://store.steampowered.com/news/app/874390/view/4855419242367147448|date=20 Apr 2021|quote=...the Hunting branch now leans more towards Forest Management (Forest Defence, Grow Forest, Lumber Huts and Sawmills).}}</ref>
+
+== Forest Magic ==
+[[∑∫ỹriȱŋ]] has the '''Forest Magic''' technology instead of Hunting. Forest Magic unlocks the enchantment of wild animals into special [[Polytaur]] units. 
+
+∑∫ỹriȱŋ starts with Forest Magic. 
+
+== Gallery  ==
+<gallery widths="100">
+
+Xin-xi game.png|The Xin-xi Xini-Kai
+Imperius game.png|The Imperius Mado Horse
+Bardur game.png|The Bardur Bærion
+Oumaji game.png|The Oumaji Shebron
+Kickoo game.png|The Kickoo Leoon
+Hoodrick game.png|The Hoodrick Hooxe
+Luxidoor game.png|The Luxidoor Phantrix
+Vengir game.png|The Vengir Rhino-Pig
+Zebasi game.png|The Zebasi Geroffy
+Ai-mo game.png|The Ai-Mo Llamo
+Quetzali game.png|The Quetzali Qui-Qui
+Yadakk game.png|The Yădakk Khamelk
+Aquarion game.png|The Aquarion Turmelon
+Elyrion game.png|The ∑∫ỹriȱŋ Unicorn
+Polaris game.png|The Polaris Mamoo
+File:Cymanti game.png|The Cymanti Lytheti
+
+</gallery>
+
+=== Tribe Skins ===
+<gallery widths="100">
+File:Lirepacci animal.png|The Lirepacci (Imperius) Chamica
+File:Khondor animal.png|The Khondor (Oumaji) Sphelix
+File:Cultist animal.png|The Cultist (Vengir) Skeleton Rhino-Pig
+File:Anzala animal.png|The Anzala (Zebasi) Simbaza
+File:To-Li animal.png|The To-Lï (Ai-Mo) Koïlï
+File:Iqaruz animal.png|The Iqaruz (Quetzali) Aetheni Bird
+File:Urkaz animal isometric.png|The Ürkaz (Yǎdakk) Orda Beast
+File:Forgotten animal.png|The Forgotten (Aquarion) Croca
+</gallery>
+
+== References ==
+<references />
+
+{{Navbox Technology}}
+[[Category:Technology]]
+[[ru:Охота]]

@@ -1,0 +1,36 @@
+{{Infobox Technology
+| image1   = Navigation.png
+| caption1 = The [[Navigation]] branch of the technology tree.
+| tier     = Two
+| unlocks  = [[Raft]], [[Port]], and movement on ocean.
+| starting = 
+| leads_to =[[Navigation]]
+}}
+
+'''Sailing''' is a tier two [[technology]] that unlocks the [[Scout]] and [[movement]] on [[Terrain|ocean]]. Sailing is an important technology for exploration and expansion, as movement on ocean makes naval units less vulnerable to attacks by land units.
+
+In the time between the [[Path of the Ocean]] update and its successor, the Patch of the Ocean update, Sailing was briefly a tier one technology, having swapped places with [[Fishing]]. 
+
+==Sledding==
+
+[[Polaris]] has the '''Sledding''' technology instead of Sailing. Sledding unlocks the [[Battle Sled]].   
+
+== Pescetism ==
+
+[[Cymanti]] has the '''Pescetism''' technology instead of Sailing. Pescetism unlocks the [[Raychi]].
+
+== Marine Life ==
+[[Aquarion]] has the '''Marine Life''' technology instead of Sailing. Marine Life unlocks the [[Shark]].
+
+==Gallery==
+
+<gallery widths="125">
+
+File:ScoutI.png|The [[Imperius]] Scout.
+File:Ocean.png|An ocean tile.
+
+</gallery>
+
+{{Navbox Technology}}
+[[Category:Technology]]
+[[ru:Мореходство]]

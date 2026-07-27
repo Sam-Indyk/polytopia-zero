@@ -1,0 +1,348 @@
+'''Unit skills''', also called '''unit abilities''', give [[units]] special characteristics in [[combat]] or [[movement]]. A unit may have one or multiple skills. 
+
+== List of Unit Skills ==
+
+: ''This table lists units by skill. For a list of skills by unit, see [[List of Units]].''
+
+{| class="article-table"
+!Skill
+!Description
+!Units
+|-
+|'''Air''' {{anchor|Fly}}{{anchor|fly}}
+|Allows a unit to ignore all movement barriers imposed by terrain but prohibits the unit from using roads.
+|
+*[[Baby Dragon]]
+*[[Fire Dragon]]
+* [[Phychi]]
+* [[Moth]]
+|-
+|'''Algae'''
+|Allows a unit to make algae at any tiles it travels.
+|
+* [[Living Island]]
+|-
+|'''Amphibious'''
+|Allows a unit to move on both land and water tiles but slows movement on land.
+|
+* [[Amphibian]]
+* [[Crab]] 
+* [[Mermaid]]
+* [[Mermaid Archer]]
+* [[Mermaid Dagger]]
+* [[Mermaid Defender]]
+* [[Swordsmaid]]
+* [[Scuba]]
+* [[Siren]]
+* [[Tridention]]
+* [[Boomchi]]
+|-
+|'''Auto Flood'''
+|Allows a unit to automatically flood any tile it moves onto.
+|
+* [[Crab]]
+|-
+|'''Auto Freeze''' {{anchor|Auto Freeze}}{{anchor|auto freeze}}
+|Allows a unit to automatically freeze adjacent enemy units and water tiles (turning them into ice tiles) as it moves.
+|
+*[[Mooni]]
+*[[Gaami]]
+|-
+|'''Carry''' {{anchor|Carry}}{{anchor|carry}}
+|Allows a unit to carry another unit inside. A unit with the carry skill can move to a land tile adjacent to water. Doing so releases the unit it was carrying and ends the unit's turn.
+|
+*[[Boat]]
+*[[Ship]]
+*[[Battleship]]
+*[[Raft]]
+*[[Dinghy]]
+*[[Scout]]
+*[[Rammer]]
+*[[Bomber]]
+*[[Pirate]]
+*[[Juggernaut]]
+|-
+|'''Convert'''''{{anchor|Convert}}{{anchor|convert}}''
+|Allows a unit to convert an enemy unit into a friendly unit by attacking it.
+Converted units take up population in the mind bender’s capital (except units with Independent skill). If no capital is owned, then a random city starting from the southernmost to northernmost city is chosen.
+
+Units of the Cymanti tribe instead have the identical skill “Parasite.”
+|
+*[[Mind Bender]]
+*[[Shaman]]
+|-
+|'''Creep''' {{anchor|Creep}}{{anchor|creep}}
+|Allows a unit to ignore movement barriers imposed by [[terrain]] except mountains. Note that [[Movement#Zone of Control|zone of control]] cannot be negated. 
+|
+*[[Hexapod]]
+*[[Doomux]]
+*[[Centipede]]
+*[[Centipede|Segment]]
+*[[Cloak]]
+*[[Swordsman|Mantis]]
+*[[Larva]]
+*[[Exida]]
+*[[Kiton]]
+|-
+|'''Dash''' {{anchor|Dash}}{{anchor|dash}}
+|Allows a unit to attack or break ice after moving in the same turn
+|
+*[[Warrior]]
+*[[Archer]]
+*[[Rider]]
+*[[Swordsman]]
+*[[Cloak]]
+*[[Dagger]]
+*[[Knight]]
+*[[Boat]] (removed)
+*[[Ship]] (removed)
+*[[Battleship]] (removed)
+*[[Amphibian]]
+*[[Tridention]]
+*[[Polytaur]]
+*[[Navalon]] (removed)
+*[[Baby Dragon]]
+*[[Fire Dragon]]
+*[[Ice Archer]]
+*[[Battle Sled]]
+*[[Hexapod]]
+*[[Phychi]]
+*[[Raychi]]
+*[[Boomchi]]
+*[[Doomux]]
+*[[Centipede]]
+*[[Centipede|Segment]]
+*[[Shark]]
+*[[Scout]]
+*[[Rammer]]
+*[[Pirate]]
+*[[Swordsman|Mantis]]
+*[[Larva]]
+*[[Moth]]
+|-
+|'''Double Attack'''
+|Allows a unit to attack twice in the same turn. After the first attack is performed, the unit can also still perform certain actions (such as draining or breaking ice, but not capturing cities or excavating ruins)
+|
+* [[Phychi]]
+|-
+|'''Drench'''
+|Allows a unit to flood any tile it attacks. Units with this skill can also attack tiles without an enemy unit present.
+|
+* [[Puffer]]
+|-
+|'''Eat''' {{anchor|Eat}}{{anchor|eat}}
+|Allows a unit to grow segments that move in tandem with the unit after killing units via attack (retaliation kills do not produce segments). A unit with segments attached is restricted to 1 movement and cannot enter ports (except those with algae; This is most likely due to a bug) until the segment attached to the unit is removed.
+|
+*[[Centipede]]
+|-
+|'''Escape''' {{anchor|Escape}}{{anchor|escape}}
+|Allows a unit to move after attacking in the same turn. The unit cannot attack again in the same turn if they have dash.
+|
+*[[Rider]]
+*[[Rider|Amphibian]]
+*[[Crab]]
+*[[Baby Dragon]]
+*[[Battle Sled]]
+*[[Hexapod]]
+*[[Ice Fortress]]
+|-
+|'''Explode''' {{anchor|Explode}}{{anchor|explode}}
+|Gives a unit the Explode unit action, which damages using the unit's attack value and [[Poison|poisons]] all adjacent enemy units, kills the unit itself, and leaves in its place spores (on land) or [[Algae]] (on water).
+|
+*[[Doomux]]
+*[[Boomchi]]
+* [[Centipede|Segment]]
+* [[Insect Egg]]
+|-
+|'''Fortify''' {{anchor|Fortify}}{{anchor|fortify}}
+|Allows a unit to receive a [[Defence Bonus|defence bonus]] in a [[city]].
+|
+*[[Warrior]]
+*[[Archer]]
+*[[Defender]]
+*[[Rider]]
+*[[Knight]]
+*[[Rider|Amphibian]]
+*[[Tridention]]
+*[[Polytaur]]
+*[[Ice Archer]]
+*[[Dragon Egg]]
+|-
+|'''Freeze''' {{anchor|Freeze}}{{anchor|freeze}}
+|Allows a unit to freeze enemy units it attacks.
+|
+*[[Ice Archer]]
+|-
+|'''Freeze Area''' {{anchor|Freeze Area}}{{anchor|freeze area}}
+| Gives a unit the Freeze Area unit action, which freezes adjacent enemy units, freezes adjacent water tiles into ice tiles, and converts adjacent land tiles to the style of the tribe the unit belongs to.
+|
+*[[Gaami]]
+|-
+|'''Grow''' {{anchor|Grow}}{{anchor|grow}}
+|Allows a unit to grow into a different unit after a given number of turns.
+|
+*[[Dragon Egg]]
+*[[Baby Dragon]]
+*[[Insect Egg]]
+*[[Larva]]
+|-
+|'''Heal''' {{anchor|Heal}}{{anchor|heal}}
+|Gives a unit the Heal Others [[Units#Unit_Actions|unit action]], which heals all adjacent friendly units by up to 4 HP.
+|
+*[[Mind Bender]]
+|-
+|'''Hide''' {{anchor|Hide}}{{anchor|hide}}
+|Allows a unit to hide itself and become invisible to enemies when it moves. Such units also ignore zone of control and can move through enemy units. 
+|
+*[[Cloak]]
+*[[Dinghy]]
+|-
+|'''Independent''' {{anchor|Independent}}{{anchor|independent}}
+|Units with this skill do not take up a [[population]] slot in or belong to any city.
+|
+*[[Dagger]]
+*[[Larva]]
+*[[Polytaur]]
+*[[Centipede|Segment]]
+*[[Bunny]]
+*[[Pirate]]
+|-
+|'''Infiltrate''' {{anchor|Infiltrate}}{{anchor|infiltrate}}
+| Allows a unit to incite a revolt and spawn units by entering an enemy city.
+|
+*[[Cloak]]
+*[[Dinghy]]
+*[[Moth]]
+|-
+|'''Navigate(removed)''' {{anchor|Navigate}}{{anchor|navigate}}
+|Allowed a unit to move in water or ocean even if no required technology is researched.
+|
+*[[Navalon]] (removed)
+|-
+|'''Persist''' {{anchor|Persist}}{{anchor|persist}}
+|Allows a unit to attack again immediately after killing an enemy unit. There is no limit on the number of kills in a single turn. 
+|
+*[[Knight]]
+*[[Navalon]] (removed)
+*[[Tridention]]
+|-
+|'''Poison''' {{anchor|Poison}}{{anchor|poison}}
+|Allows a unit to [[poison]] enemy units it attacks.
+|
+*[[Kiton]]
+*[[Boomchi]]
+*[[Phychi]]
+*[[Exida]]
+*[[Living Island]]
+|-
+|'''Scout''' {{anchor|Scout}}{{anchor|scout}}
+|Allows a unit to explore a 5x5 area instead of a 3x3 area.
+|
+*[[Battleship]]
+*[[Ice Fortress]]
+*[[Baby Dragon]]
+*[[Fire Dragon]]
+*[[Scout (Removed)|Scout]] (removed)
+*[[Scout]]
+*[[Cloak]]
+*[[Dinghy]]
+*[[Moth]]
+|-
+|'''Skate''' {{anchor|Skate}}{{anchor|skate}}
+|Allows extra movement on ice but limits movement to one and prohibits the use of the dash and escape skills on land.
+|
+*[[Mooni]]
+*[[Battle Sled]]
+*[[Ice Fortress]]
+|-
+|'''Sneak''' {{anchor|Sneak}}{{anchor|sneak}}
+|Allows a unit to ignore movement barriers (zone of control) imposed by enemy units. The units themselves still block movement ,so units with sneak still cannot travel through enemy units.
+|
+*[[Hexapod]]
+*[[Moth]]
+|-
+|'''Sneak (removed)''' {{anchor|Sneak}}{{anchor|sneak}}
+|Allowed a unit to ignore movement barriers imposed by [[terrain]]. Was removed and the Creep skill was later added to fulfill the same purpose. The skill was later re-added with a different mechanic.
+|
+* [[Scout (Removed)|Scout]] (removed)
+|-
+|'''Splash''' {{anchor|Splash}}{{anchor|splash}}
+|Allows a unit to damage or poison enemy units adjacent to the targeted unit.
+|
+*[[Bomber]]
+*[[Fire Dragon]]
+*[[Exida]]
+|-
+|'''Static'''
+|Prevents a unit from becoming a veteran.
+|
+* [[Jelly]]
+* [[Doomux]]
+* [[Ice Fortress]]
+* [[Cloak]]
+* [[Moth]]
+* All units that cannot be directly trained in cities using stars<ref group="note">These include Carry Naval units([[Raft]], [[Scout]], [[Rammer]], [[Bomber]], [[Juggernaut]], [[Dinghy]], [[Pirate|Pirates]]), [[Super Unit|Super Units]], [[Dagger|Daggers]], Larvas, Insect Eggs and [[Polytaur|Polytaurs]].</ref>
+|-
+|'''Stiff'''
+|Prevents a unit from being able to do retaliation attacks when attacked by an enemy unit.
+|
+* [[Bomber]]
+* [[Catapult]]
+* [[Juggernaut]]
+* [[Ice Archer]]
+* [[Dragon Egg]]
+* [[Cloak]]
+* [[Moth]]
+* [[Raft]]
+* [[Dinghy]]
+* [[Boomchi]]
+* [[Centipede|Segment]]
+* [[Insect Egg]]
+|-
+|'''Stomp'''
+|Causes a unit to deal damage to all adjacent enemy units when it moves.
+|
+* [[Juggernaut]]
+* [[Living Island]]
+|-
+|'''Surprise''' {{anchor|Surprise}}{{anchor|surprise}}
+|Prevents a unit from triggering retaliation attacks when attacking an enemy unit.
+|
+*[[Dagger]]
+*[[Phychi]]
+*[[Pirate]]
+*[[Larva]]
+*[[Shark]]
+|-
+|'''Swarm''' {{anchor|Boost}}{{anchor|boost}}
+|Gives a unit the Swarm unit action, which boosts all adjacent friendly units by increasing their movement by 1 until being attacked.
+|
+*[[Shaman]]
+|-
+|'''Tentacles'''
+|Allows a unit to damage any enemy that moves next to it, as well as when it moves next to an enemy or when it is trained.
+|
+* [[Jelly]]
+|-
+|'''Water'''
+|Restricts a unit to only being able to move on water tiles.
+|
+
+*[[Raft]]
+*[[Dinghy]]
+*[[Jelly]]
+*[[Raychi]]
+*[[Scout]]
+*[[Shark]]
+*[[Puffer]]
+*[[Rammer]]
+*[[Bomber]]
+*[[Pirate]]
+*[[Juggernaut]]
+*[[Living Island]]
+|}
+<references group="note" />
+{{Navbox Units}}
+{{Navbox Game Mechanics}}
+[[Category:Units]]
+[[Category:Game Mechanics]]

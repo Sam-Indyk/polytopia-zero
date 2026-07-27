@@ -1,0 +1,23 @@
+{{Infobox Technology
+| image1       = Riding branches.png
+| caption1     = Riding and its branches in the technology tree.
+| tier         = One
+| unlocks      = [[Rider]]
+| starting     = [[Oumaji]], [[Aquarion]]
+| preceded_by  =
+| leads_to     = [[Roads (Technology)|Roads]], [[Free Spirit]]
+}}
+
+'''Riding''' is a tier one [[technology]] that unlocks the [[Rider]], a [[unit]] with more movement but less defence than the [[Warrior]]. The [[Oumaji]] and [[Aquarion]] tribes start with Riding. 
+
+For [[Aquarion]], Riding unlocks the [[Amphibian]], a special unit that replaces the Rider, and movement on shallow water. 
+
+For [[Cymanti]], Riding unlocks the [[Hexapod]], an agile, high-attack, but low-health special unit that replaces the Rider. 
+
+Riding's branches in the technology tree are focused on "destructive aspects."<ref>{{cite web|author = Midjiwan|title = DevBlog: Balance Pass 1|website = Steam|date = 20 Apr 2021|link = https://store.steampowered.com/news/app/874390/view/4855419242367147448|quote = Thematically, Clear Forest fits well with the destructive aspects of the Riding branch (Disband ability, Clear Forest, Burn Forest)...}}</ref>
+
+== References ==
+<references />
+
+{{Navbox Technology}}
+[[Category:Technology]]

@@ -1,0 +1,184 @@
+[[File:24BA4806-9E15-4031-B21D-48F9A4FCB3A3.jpeg|thumb|A city that requires nine more population to upgrade]]
+
+The '''population''' of each [[Cities|city]] is used to determine city upgrades and the number of [[units]] the city can support. Every city has a set of '''population bars''' under its name representing how much population the city needs to upgrade. The amount of population required to upgrade a city is one more than the city's current level, e.g., it takes two population to upgrade a city from level 1 to level 2. How much population a city currently has is represented by the number of filled-in (blue) population bars. 
+
+Population can be gained by harvesting resources, constructing [[building]]s, or forming [[City Connections|city connections]]. If a building is [[Destroy|destroyed]] or a [[City Connections|city connection]] is lost, then the population it produces will also be lost.  
+A city may have negative population, shown as red population bars. (This typically occurs to a former capital that has lost the population produced from city connections.) Each negative population decreases the income the city produces by one star per turn up to the point where the city no longer produces any income. A city cannot produce negative income. However, negative population does not impact the number of units a city can support.
+
+The number of units supported by a city is indicated by dots inside population bars. A city may support as many units as its level, plus one. The unit which captures a village or a city will  migrate from their original origin city to the one they are currently on. Units gained from ruins will inherit the origin city of the exploring unit, but will not count towards the population supported by the city. Units converted by a mind bender take up the slots of the city where the latter belongs to, but the process can go over the limit, although the city won't be able to train any new units. Upon capture, units produced from the city will not disappear, but they will lose their origin city. If the city is captured back, the units will not count again towards the supported population. This effectively allows a potentially infinite number of units.
+
+It is theoretically possible (barring technical limitations) for tribes other than [[∑∫ỹriȱŋ]] to produce infinite population using captured [[Sanctuary|Sanctuaries]], which attract wild animals that can then be hunted. However, this produces population too slowly to be practically useful.
+
+{| class="article-table"
+!Item
+!Population 
+!Cost (stars)
+!Population per star
+!Stars per population
+!Unlocked by
+|-
+|Harvest fruit
+|1
+|2
+|0.5
+|2
+|[[Organization]]
+|-
+|Hunt animal
+|1
+|2
+|0.5
+|2
+|[[Hunting]]
+|-
+|Fishing
+|1
+|2
+|0.5
+|2
+|[[Fishing]]
+|-
+|[[Lumber Hut]]
+|1
+|3
+|0.333
+|3
+|[[Forestry]]
+|-
+|[[Grow Forest]] + [[Lumber Hut]]
+|1
+|8(5+3)
+|0.125
+|8
+|[[Forestry]] + [[Spiritualism]]
+|-
+|[[Sawmill]]
+|1 per friendly adjacent [[Lumber Hut]]
+|5
+|0.2*amount of friendly adjacent [[Lumber Hut|Lumber Huts]]
+|5/amount of friendly adjacent [[Lumber Hut|Lumber Huts]]
+|[[Mathematics]]
+|-
+|[[Farm]]/[[Aqua Farm]]
+|2
+|5
+|0.4
+|2.5
+|[[Farming]]/[[Ramming|Aquaculture]]
+|-
+|[[Burn Forest]] + [[Farm]]
+|2
+|8(3+5)
+|0.25
+|4
+|[[Construction]] + [[Farming]]
+|-
+|[[Grow Forest]] + [[Burn Forest]] + [[Farm]]
+|2
+|13(5+3+5)
+|0.154
+|6.5
+|[[Spiritualism]] + [[Construction]] + [[Farming]]
+|-
+|[[Windmill]]
+|1 per friendly adjacent [[Farm]]
+|5
+|0.2*amount of friendly adjacent [[Farm|Farms]]
+|5/amount of friendly adjacent [[Farm|Farms]]
+|[[Construction]]
+|-
+|[[Fungi]]
+|3(1 every turn, for 3 turns)
+|5
+|0.6
+|1.667
+|[[Farming]] (modified) + [[Construction|Recycle]](the third population requires)
+|-
+|[[Mine]]
+|2
+|5
+| 0.4
+|2.5
+|[[Mining]]
+|-
+|[[Forge]]
+|2 per friendly adjacent [[Mine]]
+|5
+|0.4*amount of friendly adjacent [[Mine|Mines]]
+|2.5/amount of friendly adjacent [[Mine|Mines]]
+|[[Smithery]]
+|-
+|[[Ports|Port]]
+|1
+|7
+|0.143
+|7
+|[[Sailing]]
+|-
+|[[Outpost]]
+|1
+|5
+|0.2
+|5
+|[[Sailing|Frostwork]]
+|-
+|[[Temples|Temple]]
+| rowspan="6" |1
+| rowspan="5" |20
+| rowspan="5" |0.05
+| rowspan="5" |20
+|[[Free Spirit]]
+|-
+|Water Temple
+|[[Aquatism]]
+|-
+| Mountain Temple
+|[[Meditation]]
+|-
+|Ice Temple
+|[[Aquatism|Polarism]]
+|-
+|[[Grow Forest]] + Forest Temple
+| rowspan="2" |[[Spiritualism]]
+|-
+|Forest Temple
+|15
+|0.067
+|15
+|-
+|[[City Connections|City connection]]
+|1 in both the capital and connected city
+|Varies
+|Varies
+|Varies
+|Varies<ref group="note>City connections may be formed using [[Ports]] or [[Outpost|Outposts]] only if one of them can be placed adjacent to the capital.</ref>
+|-
+|Population(by reward for upgrading city to level 4 or ruins)
+|3
+| style="text-align: center;" | 0
+| style="text-align: center;" | ∞
+| 0
+| style="text-align: center;" | -
+|-
+|[[Monuments]]
+|3
+| style="text-align: center;" | 0
+| style="text-align: center;" | ∞
+| 0
+|Varies
+|-
+|[[Lighthouse|Lighthouses]]
+|1
+|0
+|∞
+|0
+| -
+|}
+
+== Notes ==
+
+<references group="note" />
+
+{{Navbox Game Mechanics}}
+[[Category:Game Mechanics]]
+[[ru:Численность населения]]

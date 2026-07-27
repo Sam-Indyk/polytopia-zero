@@ -53,6 +53,20 @@ _HTML = """<!doctype html>
  .warn{border-color:#4a3a1e;background:#1e1a12}
  .warn li{margin:1px 0}
  ul{margin:4px 0 0;padding-left:17px}
+ details>summary{cursor:pointer;list-style:none;color:#8b93a7;font:600 11px/1 ui-monospace,monospace;
+   letter-spacing:.07em;text-transform:uppercase;margin-bottom:6px}
+ details>summary::-webkit-details-marker{display:none}
+ details>summary:before{content:"▸ ";display:inline-block;transition:transform .15s}
+ details[open]>summary:before{transform:rotate(90deg)}
+ .key{display:grid;grid-template-columns:auto 1fr;gap:4px 8px;align-items:center;font-size:12px}
+ .key .lbl{color:#b9c2d6}
+ .key .grp{grid-column:1/-1;color:#8b93a7;font:600 10px/1 ui-monospace,monospace;
+   letter-spacing:.08em;text-transform:uppercase;margin-top:7px}
+ .chip{display:inline-flex;align-items:center;justify-content:center;
+   width:22px;height:22px;border-radius:3px;border:1px solid rgba(0,0,0,.4);
+   font:bold 11px/1 ui-monospace,monospace}
+ .dot{display:inline-block;width:14px;height:14px;border-radius:50%;
+   border:1px solid rgba(0,0,0,.6);vertical-align:-2px}
 </style></head><body>
 <header>
   <h1>PolyZero replay</h1>
@@ -86,6 +100,8 @@ _HTML = """<!doctype html>
  </div>
  <div class="col side">
   <div class="card"><h2>tech tree</h2><div id="techs"></div></div>
+  <div class="card"><details open><summary>key &mdash; what am I looking at?</summary>
+    <div class="key" id="key"></div></details></div>
   <div class="card warn"><h2>not simulated yet</h2>
     <div class="muted">These mechanics are not in the engine, so they never appear
     in the log &mdash; nothing is being hidden from you.</div>
@@ -307,6 +323,69 @@ addEventListener('keydown',e=>{
   if(e.key==='ArrowRight')go(i+1);else if(e.key==='ArrowLeft')go(i-1);
   else if(e.key===' '){e.preventDefault();toggle();}
   else if(e.key==='Home')go(0);else if(e.key==='End')go(F.length-1);});
+function buildKey(){
+  const sw=(bg,txt,fg)=>`<span class="chip" style="background:${bg};color:${fg||'#0c0e13'}">${txt||''}</span>`;
+  const rows=[];
+  const add=(chip,label)=>rows.push(`<div>${chip}</div><div class="lbl">${label}</div>`);
+  const grp=t=>rows.push(`<div class="grp">${t}</div>`);
+
+  grp('players');
+  R.tribes.forEach((t,p)=>add(sw(PC[p%4],'P'+p),
+    `${t} <span class="muted">(${R.agents[p]||'?'})</span>`));
+  add(`<span class="chip" style="background:${PC[0]};opacity:.24"></span>`,
+      'faint tint = that player’s territory');
+
+  grp('terrain');
+  R.terrain_names.forEach(n=>{ if(TERR[n]) add(sw(TERR[n],''), n); });
+
+  grp('resources (top-left glyph)');
+  R.resource_names.forEach(n=>{const v=RES[n]; if(v)
+    add(`<span class="chip" style="background:#222a33;color:${v[0]}">${v[1]}</span>`, n);});
+
+  grp('buildings (top-right letter)');
+  (R.improvement_names||[]).forEach(n=>{const ch=IMP[n]; if(ch)
+    add(`<span class="chip" style="background:#222a33;color:#e9d8a6">${ch}</span>`, n);});
+  add('<span class="muted" style="font-size:11px">—</span>',
+      '<span class="muted">harvests (fruit/game/fish) consume the resource and leave no building</span>');
+
+  grp('cities (square, number = level)');
+  add(sw(PC[0],'2'), 'level 2 city, owner’s colour');
+  add(`<span class="chip" style="background:${PC[0]};box-shadow:0 0 0 2px #fff">1</span>`,
+      'white outline = city walls');
+  add(`<span class="chip" style="background:${PC[0]};box-shadow:0 0 0 2px #ffd166">1</span>`,
+      'gold outline = capital');
+  add(`<span class="chip" style="background:${PC[0]};box-shadow:0 0 0 3px #ffd166">3</span>`,
+      'thick gold ring = owes a level-up reward choice');
+  add(sw('#9aa3b8','1'), 'grey = neutral village (capturable)');
+
+  grp('units (circle, letter = type)');
+  add(`<span class="dot" style="background:${PC[0]}"></span>`,
+      'first letter of the unit name, e.g. W = warrior');
+  add(`<span class="dot" style="background:${PC[0]};border-color:#ffd166;border-width:2px"></span>`,
+      'gold ring = veteran');
+  add(`<span class="dot" style="background:${PC[0]};opacity:.55"></span>`,
+      'dimmed = already moved and acted this turn');
+  add('<span class="chip" style="background:linear-gradient(90deg,#5fd68a 60%,#000 60%)"></span>',
+      'bar under the unit = health (green &rarr; yellow &rarr; red)');
+
+  grp('last action highlight');
+  add('<span class="chip" style="box-shadow:inset 0 0 0 2px #ffd166"></span>', 'source tile');
+  add('<span class="chip" style="box-shadow:inset 0 0 0 2px #5fd68a"></span>', 'move / capture target');
+  add('<span class="chip" style="box-shadow:inset 0 0 0 2px #ff6b6b"></span>', 'attack target');
+
+  grp('fog (“view as” a player)');
+  add('<span class="chip" style="background:rgba(6,8,12,.88)"></span>',
+      'darkened = that player has never explored it');
+
+  grp('reading the panels');
+  add('<span class="muted" style="font-size:11px">cap</span>',
+      'total units the player’s cities can support (sum of level+1)');
+  add('<span class="muted" style="font-size:11px">tech</span>',
+      'green = researched, outlined = affordable now, faded = prerequisite missing');
+
+  document.getElementById('key').innerHTML = rows.join('');
+}
+buildKey();
 draw();
 </script></body></html>
 """
