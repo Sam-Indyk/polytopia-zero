@@ -81,26 +81,51 @@ Scrub with the slider or ← / → / space.
 
 - **Snapshot opponent pool** (`polytrain/pool.py`) — a fraction of iterations are played against
   frozen past selves, so the policy has to stay good against old styles instead of cycling.
+- **PFSP league** (`polytrain/league.py`, M3) — opponents sampled by how informative they are:
+  `p(1−p)` for contested ones, `(1−p)²` for the ones currently winning, per PLAN.md's 50/35/10/5
+  mixture. Anchored Elo, decayed win rates (so a snapshot you *used* to beat becomes eligible
+  again), Elo-spread-preserving eviction, and a main-exploiter seat.
+- **Evaluation protocol** (`polytrain/evaluate.py`) — mirrored seed pairs to cancel spawn luck,
+  reported with standard errors, plus SPRT (p=0.5 vs 0.55, α=β=0.05) for checkpoint promotion.
 
-#### Results so far (6×6 smoke config, 0.25M-param net, ~14 min on an RTX PRO 1000)
+```bash
+# league training (M3)
+.venv\Scripts\python -u -m polytrain.train_league --smoke --iters 300
+```
 
-| run | vs RandomLegal | vs ScriptedBot (100 games) |
+#### Results (6×6 smoke config, 0.25M-param net, ~15 min each on an RTX PRO 1000)
+
+All figures below use **mirrored seed pairs** (each map played twice with seats swapped), which
+is why they differ from earlier single-orientation numbers — the protocol is tighter, not the
+agent weaker.
+
+| run | vs ScriptedBot (100 g) | vs Greedy-OSLA (50 g, held out) |
 |---|---|---|
-| mirror self-play, final (iter 150) | 100% | **47%** |
-| + snapshot pool, final (iter 300) | 100% | **69%** |
-| + snapshot pool, best (iter 160) | 100% | **88%** |
+| mirror self-play, final | 47% ±5% | — |
+| snapshot pool, best (it 160) | 78.0% ±4.1% | 94.0% ±3.4% |
+| snapshot pool, final (it 300) | 73.0% ±4.4% | 94.0% ±3.4% |
+| **PFSP league, best (it 225)** | **94.0% ±2.4%** | 84.0% ±5.2% |
+| **PFSP league, final (it 300)** | **90.0% ±3.0%** | **96.0% ±2.8%** |
 
-The first run reached 91.7% against ScriptedBot at iteration 100 and fell back to 47% by 150 —
-confirmed with a 100-game eval, so drift, not noise. That is textbook self-play strategy cycling:
-mirror self-play only optimises against the *current* opponent, so nothing stops the policy
-unlearning how to beat an earlier style. The snapshot pool is the standard fix and roughly
-doubled sustained strength. A best-by-win-rate checkpoint is now saved alongside `latest.pt`,
-because self-play win rate is not a monotone proxy for strength.
+All four are 100% vs RandomLegal.
 
-**The M2 gate (>90% vs ScriptedBot, >60% vs MCTS-1k) is not met yet** — 88% at best on the toy
-config. Remaining M2 work: a scaled-up run at the real config (`--size 9`, full 160×12 net), the
-MCTS-1k gate, and the Elo curve. The residual best-vs-final gap (88% → 69%) is exactly what the
-full PFSP league in M3 is designed to close.
+The progression is the point. Mirror self-play **cycled**: 91.7% against ScriptedBot at iteration
+100, then 47% by 150 — re-measured with 100 games, so drift rather than noise. A uniformly-sampled
+snapshot pool fixed most of that. Prioritised fictitious self-play fixed the rest by spending games
+where they carry signal instead of on opponents the learner already crushes.
+
+**The M2 win-rate gate (>90% vs ScriptedBot) is met** by the league run, and it is no longer a
+lucky peak: the *final* checkpoint is the strongest on the held-out opponent (96% vs OSLA, never
+trained against). Still outstanding for M2/M3: the MCTS-1k gate, and a run at the real config
+(`--size 9`, full 160×12 net).
+
+#### A caveat worth stating: strength is not a single number
+
+Head-to-head, **league-final loses to pool-final** — 26.7% over 60 mirrored games, −176 Elo, SPRT
+rejects at p=0.5 vs 0.55 — even though it beats the scripted ladder far more decisively. Polytopia
+strategies are non-transitive, so "which checkpoint is stronger" depends on who is asking. This is
+exactly why the plan specifies an Elo *ladder* over many opponents rather than one benchmark, and
+why the league keeps a strength-spread pool instead of only recent snapshots.
 
 ### What's landed (M1)
 

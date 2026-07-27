@@ -42,6 +42,26 @@ class Rollout:
     def __len__(self):
         return len(self.logp)
 
+    def to_numpy(self) -> dict:
+        """Flatten to plain NumPy arrays — the form that crosses a process boundary.
+
+        Worker processes return this; the parent concatenates shards and uploads
+        once. Sending tensors instead would pickle CUDA handles or force
+        per-shard device transfers.
+        """
+        out = {}
+        for k in STORE_KEYS:
+            arr = self.data[k]
+            out[k] = np.concatenate([
+                a.detach().cpu().numpy() if isinstance(a, torch.Tensor) else np.asarray(a)
+                for a in arr])
+        for k in ("source", "target", "subtype"):
+            out[f"applies_{k}"] = np.concatenate(
+                [a.detach().cpu().numpy() for a in self.applies[k]])
+        out["old_logp"] = np.concatenate([v.detach().cpu().numpy() for v in self.logp])
+        out["old_value"] = np.concatenate([v.detach().cpu().numpy() for v in self.value])
+        return out
+
     def stack(self, device) -> dict:
         out = {}
         for k in STORE_KEYS:
@@ -66,9 +86,11 @@ def collect(policy, n_games: int, rollout_steps: int, size: int = 9,
     """Play `rollout_steps` micro-steps across `n_games` games.
 
     With `opponent=None` this is mirror self-play and *both* seats' transitions
-    are trained on. With a frozen `opponent` (a past snapshot), only the seat in
-    `learner_seats[i]` is stored — the opponent's moves shape the environment
-    but must not be treated as the learner's own decisions.
+    are trained on. With an `opponent` (a frozen snapshot or a scripted
+    baseline), only the seat in `learner_seats[i]` is stored — the opponent's
+    moves shape the environment but must not be treated as the learner's own
+    decisions. `opponent` is called with a list of Game objects and returns one
+    Action per game.
     """
     rules = policy.rules
     if games is None:
@@ -100,8 +122,9 @@ def collect(policy, n_games: int, rollout_steps: int, size: int = 9,
             acts, info = policy.act(pairs)
             actions_by_game.update(dict(zip(mine, acts)))
         if theirs:
-            opp_pairs = [(games[i].state, games[i].current_player) for i in theirs]
-            opp_acts = opponent(opp_pairs)
+            # Opponents receive Game objects, not (state, player) pairs, so a
+            # scripted baseline and a frozen network satisfy the same interface.
+            opp_acts = opponent([games[i] for i in theirs])
             actions_by_game.update(dict(zip(theirs, opp_acts)))
 
         for slot, gi in enumerate(mine):

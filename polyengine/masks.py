@@ -47,26 +47,37 @@ def legal_sources(state, player: int, rules: Ruleset, atype: int) -> np.ndarray:
     """Boolean mask over tiles that can be the source of `atype`."""
     mask = np.zeros(state.n_tiles, dtype=bool)
     if atype == C.A_TRAIN:
-        stars = int(state.stars[player])
-        cheapest = _cheapest_trainable(state, player, rules)
-        if cheapest is None or cheapest > stars:
-            return mask
-        for t in range(state.n_tiles):
-            if (state.city_owner[t] == player and state.city_level[t] > 0
-                    and state.unit_type[t] == C.U_NONE):
-                mask[t] = True
+        if not legal_subtypes(state, player, rules, C.A_TRAIN).any():
+            return mask                    # nothing affordable/unlocked anywhere
+        np.logical_and.reduce([
+            state.city_owner == player,
+            state.city_level > 0,
+            state.unit_type == C.U_NONE,
+        ], out=mask)
         return mask
     if atype not in NEEDS_SOURCE:
         return mask
-    for t in range(state.n_tiles):
-        if state.unit_owner[t] != player or state.unit_type[t] == C.U_NONE:
-            continue
-        if atype == C.A_MOVE and reachable(state, t, rules):
-            mask[t] = True
-        elif atype == C.A_ATTACK and attack_targets(state, t, rules):
-            mask[t] = True
-        elif atype == C.A_CAPTURE and can_capture(state, t, rules):
-            mask[t] = True
+    # Only the player's own occupied tiles can be a source; the per-unit checks
+    # below run Numba kernels, so narrowing the candidate set first matters.
+    own = np.flatnonzero((state.unit_owner == player)
+                         & (state.unit_type != C.U_NONE))
+    if atype == C.A_MOVE:
+        fresh = own[state.unit_moved[own] == 0]
+        for t in fresh:
+            if reachable(state, int(t), rules):
+                mask[t] = True
+    elif atype == C.A_ATTACK:
+        fresh = own[state.unit_attacked[own] == 0]
+        for t in fresh:
+            if attack_targets(state, int(t), rules):
+                mask[t] = True
+    elif atype == C.A_CAPTURE:
+        # Capture needs a city on the tile — cheap filter before the full check.
+        cand = own[(state.city_level[own] > 0)
+                   & (state.city_owner[own] != player)]
+        for t in cand:
+            if can_capture(state, int(t), rules):
+                mask[t] = True
     return mask
 
 
@@ -87,55 +98,44 @@ def legal_targets(state, player: int, rules: Ruleset, atype: int,
 
 def legal_subtypes(state, player: int, rules: Ruleset, atype: int,
                    src: int = -1) -> np.ndarray:
-    """Boolean mask over sub-types (unit id for TRAIN, tech id for RESEARCH)."""
+    """Boolean mask over sub-types (unit id for TRAIN, tech id for RESEARCH).
+
+    Fully vectorised: the scalar version called `has_tech` once per unit/tech and
+    `research_cost` once per tech (each of which rescanned the board to count
+    cities), which together dominated rollout cost.
+    """
     mask = np.zeros(subtype_dim(rules), dtype=bool)
     stars = int(state.stars[player])
+    known = state.known_techs(player, rules.n_techs)
+
     if atype == C.A_TRAIN:
-        for uid in range(rules.n_units):
-            if not rules.unit_trainable[uid]:
-                continue
-            if int(rules.unit_cost[uid]) > stars:
-                continue
-            if not state.has_tech(player, int(rules.unit_requires_tech[uid])):
-                continue
-            mask[uid] = True
+        req = rules.unit_requires_tech
+        have_req = np.where(req < 0, True, known[np.clip(req, 0, None)])
+        ok = rules.unit_trainable & (rules.unit_cost <= stars) & have_req
+        mask[:rules.n_units] = ok
     elif atype == C.A_RESEARCH:
-        for tid in range(rules.n_techs):
-            if state.has_tech(player, tid):
-                continue
-            if not state.has_tech(player, int(rules.tech_requires[tid])):
-                continue
-            if research_cost(state, player, tid, rules) <= stars:
-                mask[tid] = True
+        req = rules.tech_requires
+        have_req = np.where(req < 0, True, known[np.clip(req, 0, None)])
+        costs = tech_costs(state, player, rules)
+        mask[:rules.n_techs] = ~known & have_req & (costs <= stars)
     return mask
+
+
+def tech_costs(state, player: int, rules: Ruleset) -> np.ndarray:
+    """Research cost of every tech for `player` (city count counted once)."""
+    n_cities = int(((state.city_owner == player) & (state.city_level > 0)).sum())
+    costs = rules.tech_tier.astype(np.int32) * n_cities + 4
+    override = rules.tech_cost_override
+    costs = np.where(override >= 0, override, costs)
+    phil = rules.tech_id.get("philosophy", -1)
+    if phil >= 0 and state.has_tech(player, phil):
+        costs = -(-costs * 2 // 3)          # Literacy: ceil(cost * 2/3)
+    return costs
 
 
 def legal_types(state, player: int, rules: Ruleset) -> np.ndarray:
     """Boolean mask over action types. END_TURN is always legal."""
-    mask = np.zeros(C.N_ACTION_TYPES, dtype=bool)
-    mask[C.A_END_TURN] = True
-    for atype in (C.A_MOVE, C.A_ATTACK, C.A_CAPTURE):
-        if legal_sources(state, player, rules, atype).any():
-            mask[atype] = True
-    if (legal_sources(state, player, rules, C.A_TRAIN).any()
-            and legal_subtypes(state, player, rules, C.A_TRAIN).any()):
-        mask[C.A_TRAIN] = True
-    if legal_subtypes(state, player, rules, C.A_RESEARCH).any():
-        mask[C.A_RESEARCH] = True
-    return mask
-
-
-def _cheapest_trainable(state, player: int, rules: Ruleset) -> int | None:
-    best = None
-    for uid in range(rules.n_units):
-        if not rules.unit_trainable[uid]:
-            continue
-        if not state.has_tech(player, int(rules.unit_requires_tech[uid])):
-            continue
-        cost = int(rules.unit_cost[uid])
-        if best is None or cost < best:
-            best = cost
-    return best
+    return ActionMasks(state, player, rules).types()
 
 
 # --- bundled view for the rollout worker --------------------------------------
@@ -155,8 +155,22 @@ class ActionMasks:
         self._subtypes: dict[int, np.ndarray] = {}
 
     def types(self) -> np.ndarray:
+        """Legal action types, reusing (and populating) the per-head caches.
+
+        The free-function `legal_types` recomputes source masks internally; going
+        through the cache means `act()` doesn't pay for them a second time.
+        """
         if self._types is None:
-            self._types = legal_types(self.state, self.player, self.rules)
+            mask = np.zeros(C.N_ACTION_TYPES, dtype=bool)
+            mask[C.A_END_TURN] = True
+            for atype in (C.A_MOVE, C.A_ATTACK, C.A_CAPTURE):
+                if self.sources(atype).any():
+                    mask[atype] = True
+            if self.sources(C.A_TRAIN).any() and self.subtypes(C.A_TRAIN).any():
+                mask[C.A_TRAIN] = True
+            if self.subtypes(C.A_RESEARCH).any():
+                mask[C.A_RESEARCH] = True
+            self._types = mask
         return self._types
 
     def sources(self, atype: int) -> np.ndarray:
