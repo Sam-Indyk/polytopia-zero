@@ -243,8 +243,16 @@ class ARPolicy:
 
 
 def _score(logits, mask, index):
+    """Log-prob and entropy of a stored choice under the current policy.
+
+    `index` is clamped to the head's width: heads that didn't apply store -1,
+    and a stored index can never legally exceed the head, but an out-of-range
+    gather fails as an async CUDA assert far from its cause, so the clamp keeps
+    any such bug debuggable instead of fatal.
+    """
     logp = masked_log_softmax(logits, mask)
     probs = logp.exp()
-    chosen = logp.gather(-1, index.clamp(min=0)[:, None]).squeeze(-1)
+    safe = index.clamp(0, logits.shape[-1] - 1)
+    chosen = logp.gather(-1, safe[:, None]).squeeze(-1)
     entropy = -(probs * logp).sum(-1)
     return chosen, entropy

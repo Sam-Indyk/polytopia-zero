@@ -199,6 +199,7 @@ class PolyNet(nn.Module):
 
     def target_logits(self, feat, atype, src):
         b, c, h, w = feat.shape
+        src = src.clamp(0, h * w - 1)          # see _score: keep gathers in range
         src_feat = feat.flatten(2).gather(
             2, src.view(b, 1, 1).expand(b, c, 1)).squeeze(-1)       # (B, C)
         e = self.type_embed(atype)
@@ -207,7 +208,8 @@ class PolyNet(nn.Module):
 
     def subtype_logits(self, feat, ctx, atype, src):
         b, c = feat.shape[0], feat.shape[1]
-        safe_src = src.clamp(min=0)
+        n_tiles = feat.shape[2] * feat.shape[3]
+        safe_src = src.clamp(0, n_tiles - 1)
         src_feat = feat.flatten(2).gather(
             2, safe_src.view(b, 1, 1).expand(b, c, 1)).squeeze(-1)
         src_feat = torch.where((src < 0)[:, None], torch.zeros_like(src_feat), src_feat)
@@ -220,7 +222,14 @@ class PolyNet(nn.Module):
 
 
 def masked_log_softmax(logits, mask):
-    """Log-softmax restricted to `mask`; fully-masked rows fall back to uniform."""
+    """Log-softmax restricted to `mask`; fully-masked rows fall back to uniform.
+
+    Non-finite logits are scrubbed first. A single NaN would otherwise poison the
+    whole row, and `torch.multinomial` on a NaN row returns an *out-of-range*
+    index — which only surfaces later, as an async CUDA assert inside an
+    unrelated gather. Sanitising here keeps the failure local and legible.
+    """
+    logits = torch.nan_to_num(logits, nan=NEG_INF, posinf=0.0, neginf=NEG_INF)
     empty = ~mask.any(dim=-1, keepdim=True)
     safe = mask | empty
     return torch.log_softmax(logits.masked_fill(~safe, NEG_INF), dim=-1)
@@ -233,7 +242,14 @@ def sample_masked(logits, mask, generator=None, greedy=False):
     if greedy:
         idx = probs.argmax(dim=-1)
     else:
-        idx = torch.multinomial(probs, 1, generator=generator).squeeze(-1)
+        # Guard the sampler itself: a degenerate row (all-zero after exp) makes
+        # multinomial's result undefined, so fall back to the mask's first legal
+        # entry rather than emitting an index that indexes out of bounds.
+        total = probs.sum(dim=-1, keepdim=True)
+        ok = torch.isfinite(total) & (total > 0)
+        safe_probs = torch.where(ok, probs, torch.ones_like(probs))
+        idx = torch.multinomial(safe_probs, 1, generator=generator).squeeze(-1)
+    idx = idx.clamp(0, logits.shape[-1] - 1)
     chosen = logp.gather(-1, idx[:, None]).squeeze(-1)
     entropy = -(probs * logp.clamp(min=NEG_INF)).sum(-1)
     return idx, chosen, entropy
