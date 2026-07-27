@@ -38,3 +38,4 @@ Thumbs.db
 checkpoints/
 runs_*.log
 checkpoints_pool/
+checkpoints_league/

@@ -96,9 +96,9 @@ def test_collect_against_opponent_stores_only_learner_transitions():
     frozen = FrozenOpponent(policy.net, pool.snapshots[0], torch.device("cpu"))
     frozen_policy = ARPolicy(frozen.net, R, device="cpu")
 
-    def opponent(pairs):
+    def opponent(gs):
         with torch.no_grad():
-            acts, _ = frozen_policy.act(pairs)
+            acts, _ = frozen_policy.act([(g.state, g.current_player) for g in gs])
         return acts
 
     seats = [0, 1, 0, 1]
@@ -125,9 +125,9 @@ def test_opponent_rollout_reports_learner_results():
     frozen = FrozenOpponent(policy.net, pool.snapshots[0], torch.device("cpu"))
     frozen_policy = ARPolicy(frozen.net, R, device="cpu")
 
-    def opponent(pairs):
+    def opponent(gs):
         with torch.no_grad():
-            acts, _ = frozen_policy.act(pairs)
+            acts, _ = frozen_policy.act([(g.state, g.current_player) for g in gs])
         return acts
 
     _, stats, _ = collect(policy, n_games=4, rollout_steps=120, size=6, seed=5,

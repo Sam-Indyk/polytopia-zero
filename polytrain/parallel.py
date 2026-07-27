@@ -80,9 +80,9 @@ def _run_shard(job: dict) -> dict:
         from polynet import ARPolicy
         opp_policy = ARPolicy(_W["pool_net"], _W["rules"], device=dev)
 
-        def opponent(pairs, _p=opp_policy):
+        def opponent(gs, _p=opp_policy):
             with torch.no_grad():
-                acts, _ = _p.act(pairs)
+                acts, _ = _p.act([(g.state, g.current_player) for g in gs])
             return acts
 
     roll, stats, games = collect(

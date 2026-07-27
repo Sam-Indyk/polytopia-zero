@@ -183,9 +183,9 @@ def main() -> None:
                 frozen = FrozenOpponent(policy.net, snap, device)
                 frozen_policy = ARPolicy(frozen.net, rules, device=device)
 
-                def opponent(pairs, _p=frozen_policy):
+                def opponent(gs, _p=frozen_policy):
                     with torch.no_grad():
-                        acts, _ = _p.act(pairs)
+                        acts, _ = _p.act([(g.state, g.current_player) for g in gs])
                     return acts
 
                 roll, stats, pool_games = collect(
