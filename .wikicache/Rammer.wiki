@@ -1,0 +1,69 @@
+{{Infobox_Unit|name=Rammer
+| type     = Naval
+|unlock=Aquaculture|health=Varies|veteran=No|attack=3|defence=3|movement=3|range=1|skills=Water, Dash, Carry, Static|cost=5 stars to upgrade from a Raft|image=New RammerX.png}}
+
+The '''Rammer''' is a naval [[unit]] that is an upgrade from the [[Raft]]. The health of a Rammer is determined by the unit it carries.
+
+A Raft can be upgraded into a Rammer for five [[stars]], once Aquaculture is researched. Upgrading a naval unit does not heal it.
+
+Moving an upgraded naval unit onto land causes the unit to permanently lose its upgrade: if that unit is once again moved onto a [[Port]], it will become a Raft.
+
+The Rammer did not replace any specific naval unit which existed prior to the Path of the Ocean update. It is used for offence due to its high movement and attack.
+
+A water [[ruin]] may reward a veteran rammer carrying a [[warrior]].
+
+== Strengths and Weaknesses ==
+Rammers are good at:
+
+* '''Naval battles.''' A Rammer can one-shot a warrior in a [[Scout]] and take massive chunks of health off of [[Bomber|Bombers]] and [[Juggernaut|Juggernauts]]. With 3 movement, it can easily move through a unit's range and damage or kill it, and it has enough defense to survive if other units are around. However, a group of well-placed Scouts can kill a Rammer by coming in from the clouds or from past its movement range.
+* '''City sieging.''' A high-defense unit in a Rammer can use the Rammer's high attack to kill units in cities, then survive attempts to break the siege. This works especially well with [[Defender|Defenders]], as they are cheaper than [[Swordsmen]] but have the same attack as one when in a Rammer.
+* '''Starfish harvesting.''' Rammers' high defense and movement allow them to harvest Starfish in dangerous territory, as opposed to Scouts or Rafts which are easily destroyed.
+
+Rammers aren't good at:
+
+* '''Early-game exploration.''' The 3 movement of a Rammer becomes useless when going through fog, due to their lack of the scout skill.
+* '''Dealing with ranged units.''' A well-placed [[Archer]] or [[Catapult]] can attack a Rammer from inland, leaving it unable to fight back. 
+
+== Gallery ==
+
+<gallery>
+File:New RammerX.png|The Xin-xi Rammer
+File:New RammerI.png|The Imperius Rammer
+File:New RammerB.png|The Bardur Rammer
+File:New RammerO.png|The Oumaji Rammer
+File:New RammerK.png|The Kickoo Rammer
+File:New RammerH.png|The Hoodrick Rammer
+File:New RammerL.png|The Luxidoor Rammer
+File:New RammerV.png|The Vengir Rammer
+File:New RammerZ.png|The Zebasi Rammer
+File:New RammerA.png|The Ai-Mo Rammer
+File:New RammerQ.png|The Quetzali Rammer
+File:New RammerY.png|The Yădakk Rammer
+File:New RammerAq.png|The Aquarion Rammer
+File:New RammerE.png|The ∑∫ỹriȱŋ Rammer
+File:New RammerP.png|The Polaris Rammer
+File:New RammerC.png|The Cymanti Rammer
+</gallery>
+
+=== Tribe Skins ===
+<gallery>
+File:Ragoo New Rammer.png|The Kickoo Ragoo Rammer
+File:Aumux New Rammer.png|The Luxidoor Aumux Rammer
+File:Midnight New Rammer.png|The ∑∫ỹriȱŋ ₼idŋighţ Rammer
+File:Forgotten New Rammer.png|The Aquarion Forgotten Rammer
+</gallery>
+
+== Trivia ==
+
+* Before the version that added the Forgotten skin, Rammers appeared to have less shading. This change affected all Rammer sprites except for that of the ₼idŋighţ skin.
+* In the Path of the Ocean Beta, the Rammer had a different sprite.
+* Rammers use the same "pierce" attack animation as the [[Knight]].
+*In some tribes, other units are used in place of [[{{PAGENAME}}]]:
+::{{Replace Unit}}
+<gallery>
+File:RammerK.png|A Kickoo Rammer before the addition of the Forgotten skin
+File:Rammer old.png|A Vengir Rammer from the Path of the Ocean Beta
+File:Pierce.png|The "pierce" attack used by the Rammer
+</gallery>
+{{Navbox Units}}
+[[Category:Path of the Ocean]]

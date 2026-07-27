@@ -1,0 +1,27 @@
+{{Infobox Technology
+| image1       = Trade Branch.png 
+| caption1     = Trade in the technology tree.
+| tier         = Two
+| unlocks      = [[Roads (Building)|Roads]], [[Bridge]]
+| starting     = [[Yădakk]]
+| preceded_by  = [[Riding]]
+| leads_to     = [[Trade]]
+}}
+
+{{For|the building|Roads (Building)|the technology}}
+
+[[File:Road Icon.png|thumb|The road icon.]]
+
+'''Roads''' is a tier two [[technology]]. It unlocks the [[building]] [[Roads (Building)|of the same name]], which increases [[movement]] (see [[Movement#Roads]] for more details) and [[City Connections|connects cities]]. This technology also unlocks the [[bridge]], which functions the same, but on water. Lastly, it also unlocks the Network task, which awards the [[Grand Bazaar]] once five cities are connected to the capital. 
+
+The [[Yădakk]] [[tribe]] starts with Roads.
+
+For [[Cymanti]], Roads unlocks the [[Mycelium]] and the Network task.
+
+== Waterways ==
+
+The [[Aquarion]] tribe has the '''Waterways''' technology instead of Roads. Waterways unlocks the [[Atoll]] and grants the Bubbled ability, that gives units a speed bubble whenever they move onto flooded tiles which increases their movement by 1 until they are attacked or move onto non-flooded land.
+
+{{Navbox Technology}}
+[[Category:Technology]]
+[[ru:Дороги (технология)]]

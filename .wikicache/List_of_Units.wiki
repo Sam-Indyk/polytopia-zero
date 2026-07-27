@@ -1,0 +1,79 @@
+'''Units''' are troops used for expansion and [[combat]]. ''The Battle of Polytopia'' currently features a total of {{#expr: {{PAGESINCATEGORY:Units|R}} - 5 }} distinct units that players can command.
+
+== Land Units ==
+{{#dpl:
+| category = Land Units
+| namespace = 
+| suppresserrors=true
+| resultsheader = There are '''%PAGES%''' land units. <br> <span class="mw-customtoggle-unitTableLand wds-button wds-is-secondary">Toggle Table</span>\n 
+| oneresultsheader = There is '''%PAGES%''' land unit. <br> <span class="mw-customtoggle-unitTableLand wds-button wds-is-secondary">Toggle Table</span>\n
+| uses = Template:Infobox Unit
+| include = {Infobox Unit}:image:name:cost:health:attack:defence:movement:range:skills
+| table = id="mw-customcollapsible-unitTableLand" class="sortable fandom-table article-table mw-collapsible",-,Image, Name, Cost [[File:Star.png|15px]],Health, Attack, Defence, Movement, Range, Skills
+| tablerow = [[File:%%|150px|link=]],style="text-align:left"{{!}}[[%PAGE%]], %%,%%, %%, %%, %%, %%, %%, %%
+| tablesortcol = 2
+}}
+
+== Naval Units ==
+{{#dpl:
+| category = Naval Units
+| namespace = 
+| suppresserrors=true
+| resultsheader = There are '''%PAGES%''' naval units. <br> <span class="mw-customtoggle-unitTableNaval wds-button wds-is-secondary">Toggle Table</span>\n 
+| oneresultsheader = There is '''%PAGES%''' naval unit. <br> <span class="mw-customtoggle-unitTableNaval wds-button wds-is-secondary">Toggle Table</span>\n
+| uses = Template:Infobox Unit
+| include = {Infobox Unit}:image:name:cost:health:attack:defence:movement:range:skills
+| table = id="mw-customcollapsible-unitTableNaval" class="sortable fandom-table article-table mw-collapsible",-,Image, Name, Cost [[File:Star.png|15px]],Health, Attack, Defence, Movement, Range, Skills
+| tablerow = [[File:%%|150px|link=]],style="text-align:left"{{!}}[[%PAGE%]], %%,%%, %%, %%, %%, %%, %%, %%
+| tablesortcol = 2
+}}
+
+== Super Units ==
+{{#dpl:
+| category = Super Units
+| namespace = 
+| suppresserrors=true
+| resultsheader = There are '''%PAGES%''' super units. <br> <span class="mw-customtoggle-unitTableSuper wds-button wds-is-secondary">Toggle Table</span>\n 
+| oneresultsheader = There is '''%PAGES%''' super unit. <br> <span class="mw-customtoggle-unitTableSuper wds-button wds-is-secondary">Toggle Table</span>\n
+| uses = Template:Infobox Unit
+| include = {Infobox Unit}:image:name:health:attack:defence:movement:range:skills
+| table = id="mw-customcollapsible-unitTableSuper" class="sortable fandom-table article-table mw-collapsible",-,Image, Name,Health, Attack, Defence, Movement, Range, Skills
+| tablerow = [[File:%%|150px|link=]],style="text-align:left"{{!}}[[%PAGE%]], %%,%%, %%, %%, %%, %%, %%, %%
+| tablesortcol = 2
+}}
+
+== Special Units ==
+{{#dpl:
+| category = Special Units
+| namespace = 
+| suppresserrors=true
+| resultsheader = There are '''%PAGES%''' special units. <br> <span class="mw-customtoggle-unitTableSpecial wds-button wds-is-secondary">Toggle Table</span>\n 
+| oneresultsheader = There is '''%PAGES%''' special unit. <br> <span class="mw-customtoggle-unitTableSpecial wds-button wds-is-secondary">Toggle Table</span>\n
+| uses = Template:Infobox Unit
+| include = {Infobox Unit}:image:name:replace:cost:health:attack:defence:movement:range:skills
+| table = id="mw-customcollapsible-unitTableSpecial" class="sortable fandom-table article-table mw-collapsible",-,Image, Name, Replaces, Cost [[File:Star.png|15px]],Health, Attack, Defence, Movement, Range, Skills
+| tablerow = [[File:%%|150px|link=]],style="text-align:left"{{!}}[[%PAGE%]], %%,%%, %%, %%, %%, %%, %%, %%
+| tablesortcol = 2
+}}
+
+== Other Units ==
+{{#dpl:
+| category = Units
+| notcategory = Land Units
+| notcategory = Naval Units
+| notcategory = Super Units
+| notcategory = Special Units
+| namespace = 
+| suppresserrors=true
+| resultsheader = There are '''%PAGES%''' other units. <br> <span class="mw-customtoggle-unitTableOther wds-button wds-is-secondary">Toggle Table</span>\n 
+| oneresultsheader = There is '''%PAGES%''' other unit. <br> <span class="mw-customtoggle-unitTableOther wds-button wds-is-secondary">Toggle Table</span>\n
+| uses = Template:Infobox Unit
+| include = {Infobox Unit}:image:name:cost:health:attack:defence:movement:range:skills
+| table = id="mw-customcollapsible-unitTableOther" class="sortable fandom-table article-table mw-collapsible",-,Image, Name, Cost [[File:Star.png|15px]],Health, Attack, Defence, Movement, Range, Skills
+| tablerow = [[File:%%|150px|link=]],style="text-align:left"{{!}}[[%PAGE%]], %%,%%, %%, %%, %%, %%, %%, %%
+| tablesortcol = 2
+}}
+
+
+{{Navbox Units}}
+[[Category:Units]]

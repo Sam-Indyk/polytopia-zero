@@ -1,0 +1,12 @@
+{{Infobox Technology
+| image1       = Smithery Branch.png
+| caption1     = The Smithery branch of the technology tree
+| tier         = Two
+| unlocks      = [[Mine]]
+| starting     = 
+| preceded_by  = [[Climbing]]
+| leads_to     = [[Smithery]]
+}}'''Mining''' is a tier two [[technology]] that unlocks the [[Mine]], a [[building]] that costs five [[stars]], provides two [[population]], and can only be built on mountains with metal. 
+
+{{Navbox Technology}}
+[[Category:Technology]]

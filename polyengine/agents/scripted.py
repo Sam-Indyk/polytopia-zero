@@ -2,11 +2,14 @@
 
 Fast, rule-based (no full-state eval), with a fixed priority order:
   1. Capture a city the unit is standing on; else step onto one to capture next turn.
-  2. Make a favourable attack (lethal, or deal >= damage taken).
+  2. Make a favourable attack (lethal, or deal >= damage taken); resolve any
+     pending city level-up reward, preferring compounding ones.
   3. Train a unit when stars allow and the army is small.
-  4. Research a cheap useful tech when flush with stars.
-  5. March a unit toward the nearest enemy city/unit.
-  6. Otherwise end the turn.
+  4. Buy the cheapest population available (harvest or building) — population is
+     what raises city level, which raises both income and the unit-support cap.
+  5. Research a cheap useful tech when flush with stars.
+  6. March a unit toward the nearest enemy city/unit.
+  7. Otherwise end the turn.
 
 The plan also calls for a "Crazy-cheat" variant (bonus star income) as the
 Phase-4 proxy target — that's just this policy with an income multiplier, wired
@@ -55,6 +58,11 @@ class ScriptedBot:
         if best_atk is not None:
             return best_atk
 
+        # 2b. A city that levelled up owes a reward choice; take the economic one.
+        rewards = by_type.get(C.A_CHOOSE_REWARD, [])
+        if rewards:
+            return self._best_reward(rewards, rules)
+
         # 3. Train when the army is small and we can afford it.
         army = int(((s.unit_owner == player) & (s.unit_type != C.U_NONE)).sum())
         trains = by_type.get(C.A_TRAIN, [])
@@ -62,7 +70,13 @@ class ScriptedBot:
             trains.sort(key=lambda a: rules.unit_cost[a.subtype], reverse=True)
             return trains[0]
 
-        # 4. Research when flush.
+        # 4. Grow the economy: population raises city level, which raises both
+        #    income and the unit-support cap. Cheapest population per star first.
+        builds = by_type.get(C.A_BUILD, [])
+        if builds:
+            return min(builds, key=lambda a: self._pop_cost(s, a, rules))
+
+        # 5. Research when flush.
         research = by_type.get(C.A_RESEARCH, [])
         if research and int(s.stars[player]) >= 8:
             return self._pick(research)
@@ -103,6 +117,20 @@ class ScriptedBot:
             if d < best_d:
                 best_d, best = d, a
         return best
+
+    def _pop_cost(self, state, action: Action, rules: Ruleset) -> float:
+        """Stars per population for this build — lower is better value."""
+        from polyengine.core.economy import improvement_population
+        pop = improvement_population(state, action.src, action.subtype, rules)
+        cost = int(rules.imp_cost[action.subtype])
+        return cost / pop if pop > 0 else 1e9
+
+    def _best_reward(self, rewards: list[Action], rules: Ruleset) -> Action:
+        """Prefer compounding rewards (income, population) over one-off ones."""
+        order = {"income": 0, "population": 1, "stars": 2, "border": 3,
+                 "walls": 4, "super_unit": 5, "explore": 6, "score": 7}
+        return min(rewards,
+                   key=lambda a: order.get(rules.reward_effect[a.subtype], 9))
 
     def _pick(self, actions: list[Action]) -> Action:
         return actions[int(self.rng.integers(len(actions)))]

@@ -15,6 +15,16 @@ from typing import NamedTuple
 
 from polyengine.core import constants as C
 from polyengine.core.combat import resolve_attack
+from polyengine.core.economy import (
+    apply_build,
+    apply_reward,
+    can_build,
+    can_choose_reward,
+    can_train_at,
+    pending_reward_cities,
+    rehome_unit,
+    rewards_for_level,
+)
 from polyengine.core.movement import attack_targets, reachable
 from polyengine.core.rules import Ruleset
 
@@ -37,6 +47,12 @@ class Action(NamedTuple):
             return f"{name}(city={self.src}, {unit})"
         if self.atype == C.A_CAPTURE:
             return f"{name}(tile={self.src})"
+        if self.atype == C.A_BUILD:
+            imp = rules.imp_names[self.subtype] if rules else self.subtype
+            return f"{name}({imp} @ {self.src})"
+        if self.atype == C.A_CHOOSE_REWARD:
+            rw = rules.reward_names[self.subtype] if rules else self.subtype
+            return f"{name}(city={self.src}, {rw})"
         return f"{name}({self.src}->{self.dst})"
 
 
@@ -101,6 +117,18 @@ def capture_targets(state, player: int, rules: Ruleset) -> list[int]:
 
 # --- enumeration (basis for both the random agent and the action masks) -------
 def enumerate_actions(state, player: int, rules: Ruleset) -> list[Action]:
+    # A city that just levelled up owes a reward choice, and the real game
+    # blocks on that popup. Offering only those keeps the agent's action space
+    # honest instead of letting it bank an unclaimed reward indefinitely.
+    pending = pending_reward_cities(state, player)
+    if pending:
+        out: list[Action] = []
+        for city in pending:
+            level = int(state.city_pending_reward[city])
+            for rw in rewards_for_level(level, rules):
+                out.append(Action(C.A_CHOOSE_REWARD, city, -1, rw))
+        return out
+
     actions: list[Action] = [Action(C.A_END_TURN)]
 
     for src in _player_units(state, player):
@@ -113,8 +141,9 @@ def enumerate_actions(state, player: int, rules: Ruleset) -> list[Action]:
 
     stars = int(state.stars[player])
     for city in _owned_city_tiles(state, player):
-        if state.unit_type[city] != C.U_NONE:
-            continue  # occupied: nothing to place onto
+        # A city supports only `level + 1` units; at the cap it cannot train.
+        if not can_train_at(state, city, player):
+            continue
         for uid in range(rules.n_units):
             if not rules.unit_trainable[uid]:
                 continue
@@ -131,6 +160,13 @@ def enumerate_actions(state, player: int, rules: Ruleset) -> list[Action]:
             continue
         if research_cost(state, player, tid, rules) <= stars:
             actions.append(Action(C.A_RESEARCH, -1, -1, tid))
+
+    for tile in range(state.n_tiles):
+        if state.owner[tile] != player:
+            continue
+        for imp in range(rules.n_improvements):
+            if can_build(state, tile, imp, player, rules):
+                actions.append(Action(C.A_BUILD, tile, -1, imp))
 
     return actions
 
@@ -154,6 +190,10 @@ def apply_action(state, action: Action, rules: Ruleset) -> dict:
         return {"type": "attack", "result": res}
     if at == C.A_CAPTURE:
         return _apply_capture(state, player, action, rules)
+    if at == C.A_BUILD:
+        return apply_build(state, action.src, action.subtype, player, rules)
+    if at == C.A_CHOOSE_REWARD:
+        return apply_reward(state, action.src, action.subtype, player, rules)
     if at == C.A_TRAIN:
         return _apply_train(state, player, action, rules)
     if at == C.A_RESEARCH:
@@ -168,7 +208,7 @@ def _apply_move(state, player: int, action: Action, rules: Ruleset) -> dict:
     src, dst = action.src, action.dst
     # Relocate the unit.
     for arr in ("unit_type", "unit_owner", "unit_hp", "unit_veteran",
-                "unit_kills", "unit_attacked"):
+                "unit_kills", "unit_attacked", "unit_home"):
         getattr(state, arr)[dst] = getattr(state, arr)[src]
     state.unit_moved[dst] = 1
     _clear_unit(state, src)
@@ -189,6 +229,7 @@ def _apply_train(state, player: int, action: Action, rules: Ruleset) -> dict:
     state.unit_kills[city] = 0
     state.unit_moved[city] = 1     # freshly trained: cannot act this turn
     state.unit_attacked[city] = 1
+    rehome_unit(state, city, city)   # this city now supports it
     return {"type": "train", "city": city, "unit": uid}
 
 
@@ -198,6 +239,8 @@ def _apply_capture(state, player: int, action: Action, rules: Ruleset) -> dict:
         raise ValueError(f"illegal capture at tile {tile}")
     previous = int(state.city_owner[tile])
     _capture_city(state, player, tile)
+    # Wiki: a unit that captures a city is supported by that city from then on.
+    rehome_unit(state, tile, tile)
     if rules.capture_ends_unit_turn:
         state.unit_moved[tile] = 1
         state.unit_attacked[tile] = 1
@@ -218,5 +261,7 @@ def _clear_unit(state, tile: int) -> None:
     state.unit_hp[tile] = 0
     state.unit_moved[tile] = 0
     state.unit_attacked[tile] = 0
+    # Free the supporting city's slot — a dead unit stops taking up space.
+    state.unit_home[tile] = -1
     state.unit_veteran[tile] = 0
     state.unit_kills[tile] = 0

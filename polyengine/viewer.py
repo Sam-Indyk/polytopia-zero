@@ -53,6 +53,20 @@ _HTML = """<!doctype html>
  .warn{border-color:#4a3a1e;background:#1e1a12}
  .warn li{margin:1px 0}
  ul{margin:4px 0 0;padding-left:17px}
+ details>summary{cursor:pointer;list-style:none;color:#8b93a7;font:600 11px/1 ui-monospace,monospace;
+   letter-spacing:.07em;text-transform:uppercase;margin-bottom:6px}
+ details>summary::-webkit-details-marker{display:none}
+ details>summary:before{content:"▸ ";display:inline-block;transition:transform .15s}
+ details[open]>summary:before{transform:rotate(90deg)}
+ .key{display:grid;grid-template-columns:auto 1fr;gap:4px 8px;align-items:center;font-size:12px}
+ .key .lbl{color:#b9c2d6}
+ .key .grp{grid-column:1/-1;color:#8b93a7;font:600 10px/1 ui-monospace,monospace;
+   letter-spacing:.08em;text-transform:uppercase;margin-top:7px}
+ .chip{display:inline-flex;align-items:center;justify-content:center;
+   width:22px;height:22px;border-radius:3px;border:1px solid rgba(0,0,0,.4);
+   font:bold 11px/1 ui-monospace,monospace}
+ .dot{display:inline-block;width:14px;height:14px;border-radius:50%;
+   border:1px solid rgba(0,0,0,.6);vertical-align:-2px}
 </style></head><body>
 <header>
   <h1>PolyZero replay</h1>
@@ -86,6 +100,8 @@ _HTML = """<!doctype html>
  </div>
  <div class="col side">
   <div class="card"><h2>tech tree</h2><div id="techs"></div></div>
+  <div class="card"><details open><summary>key &mdash; what am I looking at?</summary>
+    <div class="key" id="key"></div></details></div>
   <div class="card warn"><h2>not simulated yet</h2>
     <div class="muted">These mechanics are not in the engine, so they never appear
     in the log &mdash; nothing is being hidden from you.</div>
@@ -101,6 +117,9 @@ const PC = ['#4da3ff','#ff6b6b','#5fd68a','#ffd166'];
 const TERR = {ocean:'#0f2b4d',water:'#1a5286',field:'#33512f',forest:'#1e3d22',mountain:'#4d4d56'};
 const RES  = {fruit:['#ff8fb1','\\u25cf'],crop:['#ffd166','\\u25b2'],game:['#c58b5a','\\u25c6'],
               metal:['#c9ccd6','\\u25a0'],fish:['#7fe3e3','\\u25cf'],whale:['#8fb8ff','\\u25c6']};
+// Buildings the player paid for; population is what these buy.
+const IMP  = {lumber_hut:'L',farm:'F',mine:'M',port:'P',temple:'T',
+              sawmill:'S',windmill:'W',forge:'G'};
 let i = 0, timer = null, fogOf = -1, sel = -1, speed = 90;
 
 document.getElementById('meta').textContent =
@@ -142,6 +161,13 @@ function draw(){
     const rn=R.resource_names[f.resource[k]], rv=RES[rn];
     if(rv){cx.fillStyle=rv[0];cx.font=`${Math.floor(CELL*.3)}px serif`;
       cx.textAlign='left';cx.textBaseline='top';cx.fillText(rv[1],x+2,y+1);}
+    // improvement (building) marker
+    const imp=f.improvement[k];
+    if(imp>=0){
+      const ch=IMP[R.improvement_names[imp]];
+      if(ch){cx.fillStyle='#e9d8a6';cx.font=`bold ${Math.floor(CELL*.26)}px monospace`;
+        cx.textAlign='right';cx.textBaseline='top';cx.fillText(ch,x+CELL-2,y+1);}
+    }
     // city
     if(f.city_level[k]>0){
       const s=CELL*.52,o=(CELL-s)/2;
@@ -149,6 +175,9 @@ function draw(){
       cx.fillRect(x+o,y+o,s,s);
       if(f.city_walls[k]){cx.strokeStyle='#fff';cx.lineWidth=2;
         cx.strokeRect(x+o-2,y+o-2,s+4,s+4);cx.lineWidth=1;}
+      if(f.city_pending_reward[k]>0){       // owes a level-up choice
+        cx.strokeStyle='#ffd166';cx.lineWidth=3;
+        cx.strokeRect(x+o-4,y+o-4,s+8,s+8);cx.lineWidth=1;}
       cx.strokeStyle=f.city_capital[k]?'#ffd166':'rgba(0,0,0,.6)';
       cx.lineWidth=f.city_capital[k]?2:1;cx.strokeRect(x+o,y+o,s,s);cx.lineWidth=1;
       cx.fillStyle='#0c0e13';cx.font=`bold ${Math.floor(CELL*.3)}px monospace`;
@@ -192,13 +221,18 @@ function draw(){
 
 function renderPlayers(){
   const f=F[i];
-  let h='<table><tr><th>player</th><th>stars</th><th>cities</th><th>units</th><th>techs</th></tr>';
+  let h='<table><tr><th>player</th><th>stars</th><th>cities</th><th>units</th><th>cap</th><th>techs</th></tr>';
   for(let p=0;p<R.n_players;p++){
-    let u=0;for(let k=0;k<N;k++)if(f.unit_owner[k]===p&&f.unit_type[k]>=0)u++;
+    let u=0,cap=0;
+    for(let k=0;k<N;k++){
+      if(f.unit_owner[k]===p&&f.unit_type[k]>=0)u++;
+      if(f.city_owner[k]===p&&f.city_level[k]>0)cap+=f.city_level[k]+1;
+    }
     let nt=0;for(let t=0;t<R.tech_names.length;t++)if(hasTech(f.tech[p],t))nt++;
     h+=`<tr><td><span class="sw" style="background:${PC[p%4]}"></span>P${p} ${R.tribes[p]}`+
        `${f.alive[p]?'':' <span class="muted">(out)</span>'}${f.cur===p?' \\u25c0':''}</td>`+
-       `<td>${f.stars[p]}</td><td>${cityCount(f,p)}</td><td>${u}</td><td>${nt}</td></tr>`;
+       `<td>${f.stars[p]}</td><td>${cityCount(f,p)}</td><td>${u}</td>`+
+       `<td>${cap}</td><td>${nt}</td></tr>`;
   }
   document.getElementById('players').innerHTML=h+'</table>';
 }
@@ -230,6 +264,8 @@ function renderTile(){
   let h=`<table><tr><th>tile</th><td>${k} (x=${k%S}, y=${Math.floor(k/S)})</td></tr>`+
         `<tr><th>terrain</th><td>${R.terrain_names[R.terrain[k]]}</td></tr>`+
         `<tr><th>resource</th><td>${R.resource_names[f.resource[k]]}</td></tr>`+
+        (f.improvement[k]>=0
+          ? `<tr><th>building</th><td>${R.improvement_names[f.improvement[k]]}</td></tr>` : '')+
         `<tr><th>territory</th><td>${f.owner[k]<0?'neutral':'P'+f.owner[k]}</td></tr>`;
   if(f.city_level[k]>0)
     h+=`<tr><th>city</th><td>${f.city_owner[k]<0?'neutral':'P'+f.city_owner[k]}`+
@@ -237,7 +273,9 @@ function renderTile(){
        `${f.city_walls[k]?' \\u00b7 walls':''}${f.city_capital[k]?' \\u00b7 capital':''}</td></tr>`;
   if(f.unit_type[k]>=0){
     const ut=f.unit_type[k];
+    const home=f.unit_home[k];
     h+=`<tr><th>unit</th><td>P${f.unit_owner[k]} ${R.unit_names[ut]}`+
+       `${home>=0?` \u00b7 from city ${home}`:' \u00b7 unsupported'}`+
        ` \\u00b7 ${f.unit_hp[k]}/${R.unit_max_hp[ut]} hp`+
        `${f.unit_veteran[k]?' \\u00b7 veteran':''}${f.unit_kills[k]?' \\u00b7 '+f.unit_kills[k]+' kills':''}`+
        `<br><span class="muted">${f.unit_moved[k]?'moved':'can move'} \\u00b7 `+
@@ -285,6 +323,69 @@ addEventListener('keydown',e=>{
   if(e.key==='ArrowRight')go(i+1);else if(e.key==='ArrowLeft')go(i-1);
   else if(e.key===' '){e.preventDefault();toggle();}
   else if(e.key==='Home')go(0);else if(e.key==='End')go(F.length-1);});
+function buildKey(){
+  const sw=(bg,txt,fg)=>`<span class="chip" style="background:${bg};color:${fg||'#0c0e13'}">${txt||''}</span>`;
+  const rows=[];
+  const add=(chip,label)=>rows.push(`<div>${chip}</div><div class="lbl">${label}</div>`);
+  const grp=t=>rows.push(`<div class="grp">${t}</div>`);
+
+  grp('players');
+  R.tribes.forEach((t,p)=>add(sw(PC[p%4],'P'+p),
+    `${t} <span class="muted">(${R.agents[p]||'?'})</span>`));
+  add(`<span class="chip" style="background:${PC[0]};opacity:.24"></span>`,
+      'faint tint = that player’s territory');
+
+  grp('terrain');
+  R.terrain_names.forEach(n=>{ if(TERR[n]) add(sw(TERR[n],''), n); });
+
+  grp('resources (top-left glyph)');
+  R.resource_names.forEach(n=>{const v=RES[n]; if(v)
+    add(`<span class="chip" style="background:#222a33;color:${v[0]}">${v[1]}</span>`, n);});
+
+  grp('buildings (top-right letter)');
+  (R.improvement_names||[]).forEach(n=>{const ch=IMP[n]; if(ch)
+    add(`<span class="chip" style="background:#222a33;color:#e9d8a6">${ch}</span>`, n);});
+  add('<span class="muted" style="font-size:11px">—</span>',
+      '<span class="muted">harvests (fruit/game/fish) consume the resource and leave no building</span>');
+
+  grp('cities (square, number = level)');
+  add(sw(PC[0],'2'), 'level 2 city, owner’s colour');
+  add(`<span class="chip" style="background:${PC[0]};box-shadow:0 0 0 2px #fff">1</span>`,
+      'white outline = city walls');
+  add(`<span class="chip" style="background:${PC[0]};box-shadow:0 0 0 2px #ffd166">1</span>`,
+      'gold outline = capital');
+  add(`<span class="chip" style="background:${PC[0]};box-shadow:0 0 0 3px #ffd166">3</span>`,
+      'thick gold ring = owes a level-up reward choice');
+  add(sw('#9aa3b8','1'), 'grey = neutral village (capturable)');
+
+  grp('units (circle, letter = type)');
+  add(`<span class="dot" style="background:${PC[0]}"></span>`,
+      'first letter of the unit name, e.g. W = warrior');
+  add(`<span class="dot" style="background:${PC[0]};border-color:#ffd166;border-width:2px"></span>`,
+      'gold ring = veteran');
+  add(`<span class="dot" style="background:${PC[0]};opacity:.55"></span>`,
+      'dimmed = already moved and acted this turn');
+  add('<span class="chip" style="background:linear-gradient(90deg,#5fd68a 60%,#000 60%)"></span>',
+      'bar under the unit = health (green &rarr; yellow &rarr; red)');
+
+  grp('last action highlight');
+  add('<span class="chip" style="box-shadow:inset 0 0 0 2px #ffd166"></span>', 'source tile');
+  add('<span class="chip" style="box-shadow:inset 0 0 0 2px #5fd68a"></span>', 'move / capture target');
+  add('<span class="chip" style="box-shadow:inset 0 0 0 2px #ff6b6b"></span>', 'attack target');
+
+  grp('fog (“view as” a player)');
+  add('<span class="chip" style="background:rgba(6,8,12,.88)"></span>',
+      'darkened = that player has never explored it');
+
+  grp('reading the panels');
+  add('<span class="muted" style="font-size:11px">cap</span>',
+      'total units the player’s cities can support (sum of level+1)');
+  add('<span class="muted" style="font-size:11px">tech</span>',
+      'green = researched, outlined = affordable now, faded = prerequisite missing');
+
+  document.getElementById('key').innerHTML = rows.join('');
+}
+buildKey();
 draw();
 </script></body></html>
 """

@@ -1,0 +1,43 @@
+{{Infobox_Unit|name=Juggernaut|image=JuggernautL.png
+| type     = Naval
+|cost=|health=40|attack=4|defence=4|movement=2|range=1|skills=Water, Carry, Stiff, Stomp, Static}}
+
+The '''Juggernaut''' is a naval unit introduced in the [[Path of the Ocean Beta]]. 
+
+When a [[Giant]] moves into a [[port]], it becomes a Juggernaut. Like [[Rammer|Rammers]], these ships do not have a ranged attack. Instead, they have a unique [[Unit Skills|skill]] called Stomp, which damages all enemies adjacent to the juggernaut anytime it moves. 
+
+When a Giant moves onto a port or when the Juggernaut disembarks, it also does stomp damage. 
+
+== Gallery ==
+<gallery>
+File:JuggernautX.png|The Xin-xi Juggernaut
+File:JuggernautI.png|The Imperius Juggernaut
+File:JuggernautB.png|The Bardur Juggernaut
+File:JuggernautO.png|The Oumaji Juggernaut
+File:JuggernautK.png|The Kickoo Juggernaut
+File:JuggernautH.png|The Hoodrick Juggernaut
+File:JuggernautL.png|The Luxidoor Juggernaut
+File:JuggernautV.png|The Vengir Juggernaut
+File:JuggernautZ.png|The Zebasi Juggernaut
+File:JuggernautA.png|The Ai-Mo Juggernaut
+File:JuggernautQ.png|The Quetzali Juggernaut
+File:JuggernautY.png|The Yădakk Juggernaut
+File:JuggernautAq.png|The Aquarion Juggernaut
+File:JuggernautE.png|The Elyrion Juggernaut
+File:JuggernautP.png|The Polaris Juggernaut
+File:JuggernautC.png|The Cymanti Juggernaut
+</gallery>
+
+=== Tribe Skins ===
+{{Skin Unit Gallery}}
+
+== Trivia ==
+
+* [[File:Juggernaut alpha.png|thumb|A Sha-po Juggernaut from before Path of the Ocean.]]In an early developmental stage prior to the [[Path of the Ocean]] beta, Juggernauts were intended for transport and could not attack.<ref>{{Cite social media|author=Zoythrus|website=Discord|date=12 October 2023|link=https://discord.com/channels/283436219780825088/561211722296197120/1162058534544998430}}</ref> This was reflected in their appearance as a Giant sitting on a raft.<ref>{{Cite social media|author=Zoythrus|website=Discord|date=12 October 2023|link=https://discord.com/channels/283436219780825088/561211722296197120/1162160310669545526}}</ref>
+*[[File:Juggernaut old.png|thumb|A Juggernaut from the Path of the Ocean Beta]]In the Path of the Ocean beta, Juggernauts had 2 movement, 3 attack, 3 defense, and 3 range but lacked the ''stiff'' skill. Their appearance included a cannon to reflect their ranged nature.
+*[[File:Juggernaut beta.png|thumb|A Bardur Juggernaut from beta 2.8.0.11434]]In beta update 2.8.0.11434, Juggernauts were given their current stats. They had a different appearance, and their "Stomp" skill was then named "Smash."
+
+==References==
+<references />{{Navbox Units}}
+[[Category:Units]]
+[[Category:Path of the Ocean]]

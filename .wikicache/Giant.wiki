@@ -1,0 +1,44 @@
+{{Infobox Unit
+| name     = Giant
+| image    = GiantL.png
+| type     = Land
+| tribe    = 
+| attack   = 5
+| defence  = 4
+| movement = 1
+| range    = 1
+| health   = 40
+| skills   = Static
+| superunit= Yes}}
+The '''Giant '''is the [[Super Unit|super unit]] for all regular [[tribes]]. Giants have an extremely high health, attack, and defence, but their movement is very limited (without the Dash [[Unit Skills|skill]], they cannot move and attack in the same turn).
+
+Moving a Giant onto a [[Port]] will turn it into a [[Juggernaut]] instead of a [[Raft]] like most other units.
+
+Special tribes have their own unique super units in place of the Giant. The [[Aquarion]], [[∑∫ỹriȱŋ]], [[Polaris]], and [[Cymanti]] tribes instead have the [[Crab]], [[Dragon]], [[Gaami]], and [[Centipede]] respectively.
+
+== Strengths and Weaknesses ==
+
+Giants are good for:
+
+* Sieging [[cities]]. The Giant's high health makes killing a sieging Giant much more difficult than killing a sieging warrior or rider. Giants are thus very useful for taking contested cities (when you are certain you can protect it for long enough to capture the city).
+* Fighting on the front line. The Giant has unrivaled attack and defence, and can easily outclass any other melee units. As such, attacking a Giant in melee using any other unit will be a costly exchange. The Giant's high attack also allows it to get killing blows more often, being able to kill even slightly damaged Swordsmen or Defenders and advance into those tiles.
+* Forcing a unit to move off a city. As described on the [[Super Unit]] page, levelling up a city to level 5 or beyond will immediately spawn the Giant in the city tile itself, pushing out any enemy unit which might be besieging the city and stopping them from being able to capture it. 
+
+Giants aren't good for:
+
+* Chasing Ranged units. Although the giant has high attack and defence, its lack of the dash skill means any ranged unit with dash, e.g. [[Archer|Archers]] or [[Ship|Ships]], can kite the giant without taking damage as long as they have space to back up. 
+* Fighting large quantities of strong units. Large amounts of [[Swordsman|Swordsmen]] and [[Knight]]s can easily overwhelm even a strong giant.
+*Fighting units with the Freeze skill. The [[Polaris]] special tribe can train units with the ability to freeze enemies, and getting frozen will prevent the giant from moving, healing, attacking, or retaliating. The high stats of the giant will thus be of no use as the enemy units will be able to freely attack your Giant even from melee range without taking damage in return.
+
+== Gallery ==
+
+{{Unit Gallery}}
+
+=== Tribe Skins ===
+
+{{Skin Unit Gallery}}
+== Triva ==
+*In special tribes, other units are used in place of [[{{PAGENAME}}]]:
+::{{Replace Unit}}
+{{Navbox Units}}
+[[ru:Великан]]

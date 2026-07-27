@@ -29,31 +29,56 @@ import numpy as np
 
 from polyengine.core import constants as C
 from polyengine.core.actions import can_capture, research_cost
+from polyengine.core.economy import (
+    can_build,
+    can_train_at,
+    pending_reward_cities,
+    rewards_for_level,
+)
 from polyengine.core.movement import attack_targets, reachable
 from polyengine.core.rules import Ruleset
 
-NEEDS_SOURCE = frozenset({C.A_MOVE, C.A_ATTACK, C.A_CAPTURE, C.A_TRAIN})
+NEEDS_SOURCE = frozenset({C.A_MOVE, C.A_ATTACK, C.A_CAPTURE, C.A_TRAIN,
+                          C.A_BUILD, C.A_CHOOSE_REWARD})
 NEEDS_TARGET = frozenset({C.A_MOVE, C.A_ATTACK})
-NEEDS_SUBTYPE = frozenset({C.A_TRAIN, C.A_RESEARCH})
+NEEDS_SUBTYPE = frozenset({C.A_TRAIN, C.A_RESEARCH, C.A_BUILD,
+                           C.A_CHOOSE_REWARD})
+# Sub-types that depend on WHICH source was picked (a tile's buildable set, a
+# city's offered rewards) rather than being uniform across sources.
+SUBTYPE_DEPENDS_ON_SOURCE = frozenset({C.A_BUILD, C.A_CHOOSE_REWARD})
 
 
 def subtype_dim(rules: Ruleset) -> int:
-    """Width of the sub-type head: unit ids for TRAIN, tech ids for RESEARCH."""
-    return max(rules.n_units, rules.n_techs)
+    """Width of the sub-type head, shared across every action type that uses it:
+    unit ids (TRAIN), tech ids (RESEARCH), improvement ids (BUILD), reward ids
+    (CHOOSE_REWARD)."""
+    return max(rules.n_units, rules.n_techs, rules.n_improvements,
+               rules.n_rewards)
 
 
 # --- individual heads ---------------------------------------------------------
 def legal_sources(state, player: int, rules: Ruleset, atype: int) -> np.ndarray:
     """Boolean mask over tiles that can be the source of `atype`."""
     mask = np.zeros(state.n_tiles, dtype=bool)
+    if atype == C.A_CHOOSE_REWARD:
+        for city in pending_reward_cities(state, player):
+            mask[city] = True
+        return mask
+    if pending_reward_cities(state, player):
+        return mask          # a forced reward choice blocks everything else
     if atype == C.A_TRAIN:
         if not legal_subtypes(state, player, rules, C.A_TRAIN).any():
             return mask                    # nothing affordable/unlocked anywhere
-        np.logical_and.reduce([
-            state.city_owner == player,
-            state.city_level > 0,
-            state.unit_type == C.U_NONE,
-        ], out=mask)
+        for t in np.flatnonzero(state.city_owner == player):
+            if can_train_at(state, int(t), player):
+                mask[t] = True
+        return mask
+    if atype == C.A_BUILD:
+        for t in np.flatnonzero(state.owner == player):
+            t = int(t)
+            if any(can_build(state, t, imp, player, rules)
+                   for imp in range(rules.n_improvements)):
+                mask[t] = True
         return mask
     if atype not in NEEDS_SOURCE:
         return mask
@@ -97,7 +122,7 @@ def legal_targets(state, player: int, rules: Ruleset, atype: int,
 
 
 def legal_subtypes(state, player: int, rules: Ruleset, atype: int,
-                   src: int = -1) -> np.ndarray:
+                   src: int = -1) -> np.ndarray:  # noqa: C901
     """Boolean mask over sub-types (unit id for TRAIN, tech id for RESEARCH).
 
     Fully vectorised: the scalar version called `has_tech` once per unit/tech and
@@ -118,6 +143,15 @@ def legal_subtypes(state, player: int, rules: Ruleset, atype: int,
         have_req = np.where(req < 0, True, known[np.clip(req, 0, None)])
         costs = tech_costs(state, player, rules)
         mask[:rules.n_techs] = ~known & have_req & (costs <= stars)
+    elif atype == C.A_BUILD:
+        if src >= 0:
+            for imp in range(rules.n_improvements):
+                if can_build(state, src, imp, player, rules):
+                    mask[imp] = True
+    elif atype == C.A_CHOOSE_REWARD:
+        if src >= 0 and state.city_pending_reward[src] > 0:
+            for rw in rewards_for_level(int(state.city_pending_reward[src]), rules):
+                mask[rw] = True
     return mask
 
 
@@ -162,6 +196,11 @@ class ActionMasks:
         """
         if self._types is None:
             mask = np.zeros(C.N_ACTION_TYPES, dtype=bool)
+            if pending_reward_cities(self.state, self.player):
+                # Forced choice: nothing else is legal until it is resolved.
+                mask[C.A_CHOOSE_REWARD] = True
+                self._types = mask
+                return self._types
             mask[C.A_END_TURN] = True
             for atype in (C.A_MOVE, C.A_ATTACK, C.A_CAPTURE):
                 if self.sources(atype).any():
@@ -170,6 +209,8 @@ class ActionMasks:
                 mask[C.A_TRAIN] = True
             if self.subtypes(C.A_RESEARCH).any():
                 mask[C.A_RESEARCH] = True
+            if self.sources(C.A_BUILD).any():
+                mask[C.A_BUILD] = True
             self._types = mask
         return self._types
 
@@ -186,8 +227,9 @@ class ActionMasks:
                                                self.rules, atype, src)
         return self._targets[key]
 
-    def subtypes(self, atype: int) -> np.ndarray:
-        if atype not in self._subtypes:
-            self._subtypes[atype] = legal_subtypes(self.state, self.player,
-                                                   self.rules, atype)
-        return self._subtypes[atype]
+    def subtypes(self, atype: int, src: int = -1) -> np.ndarray:
+        key = (atype, src) if atype in SUBTYPE_DEPENDS_ON_SOURCE else (atype, -1)
+        if key not in self._subtypes:
+            self._subtypes[key] = legal_subtypes(self.state, self.player,
+                                                 self.rules, atype, key[1])
+        return self._subtypes[key]

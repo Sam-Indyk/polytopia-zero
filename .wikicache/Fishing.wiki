@@ -1,0 +1,24 @@
+{{Infobox Technology
+| image1       =Fishing Branches.png 
+| caption1     = 
+| tier         = One
+| unlocks      = Fishing, [[Port]], [[Raft]], movement on shallow water 
+| starting     = [[Kickoo]], [[Polaris]] (as Frostwork)
+| preceded_by  =  
+| leads_to     = [[Ramming]], [[Sailing]]
+}}
+
+[[File:Fish.png|thumb|Fish]]
+
+'''Fishing''' is a tier one [[technology]] that unlocks the action of the same name, the Port, and [[movement]] on [[Terrain|water]] tiles. The action costs two [[stars]] and provides one [[population]], removing the fish from the tile it is on.
+
+The [[Kickoo]] [[tribe]] starts with Fishing.
+
+Before the [[Path of the Ocean]] update, Fishing was a tier one technology but only unlocked the Fishing action. In the Path of the Ocean update, Fishing was made a tier two technology (it had the place of [[Sailing]]) and unlocked the action of the same name, the Scout unit, and movement on ocean tiles. Fishing was modified once more in the Patch the Ocean update into its current state. 
+
+== Frostwork ==
+[[Polaris]] has the '''Frostwork''' technology instead of Fishing. Frostwork unlocks the [[Mooni]] and the [[Outpost]].
+
+Polaris starts with Frostwork.{{Navbox Technology}}
+[[Category:Technology]]
+[[ru:Рыбная ловля]]

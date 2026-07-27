@@ -57,6 +57,25 @@ class Ruleset:
     tech_requires: np.ndarray            # int8[K]  (tech id or -1)
     tech_cost_override: np.ndarray       # int16[K] (-1 = use tier formula)
 
+    # improvements (harvests + buildings), indexed by improvement id
+    imp_names: tuple[str, ...]
+    imp_id: dict[str, int]
+    imp_kind: tuple[str, ...]            # "harvest" | "building"
+    imp_cost: np.ndarray                 # int16[I]
+    imp_population: np.ndarray           # int8[I]
+    imp_adjacency: np.ndarray            # int8[I]  (0 = flat population)
+    imp_adjacent_to: np.ndarray          # int8[I]  (improvement id or -1)
+    imp_requires_tech: np.ndarray        # int8[I]
+    imp_resource: np.ndarray             # int8[I]  (resource id or -1)
+    imp_terrain: np.ndarray              # int8[I]  (terrain id or -1)
+
+    # city level-up rewards
+    reward_names: tuple[str, ...]
+    reward_id: dict[str, int]
+    reward_level: np.ndarray             # int8[R]  (5 means "level 5+")
+    reward_effect: tuple[str, ...]
+    reward_value: np.ndarray             # int16[R]
+
     # tribes
     tribes: dict[str, dict]
 
@@ -79,6 +98,14 @@ class Ruleset:
     @property
     def n_techs(self) -> int:
         return len(self.tech_names)
+
+    @property
+    def n_improvements(self) -> int:
+        return len(self.imp_names)
+
+    @property
+    def n_rewards(self) -> int:
+        return len(self.reward_names)
 
 
 def _load_toml(name: str) -> dict:
@@ -108,10 +135,11 @@ def load_ruleset(name: str = "current") -> Ruleset:
     techs = _load_toml("techs.toml")
     tribes = _load_toml("tribes.toml")
     combat = _load_toml("combat.toml")
+    improvements = _load_toml("improvements.toml")
 
     version = terr["ruleset_version"]
     for src, label in [(units, "units"), (techs, "techs"), (tribes, "tribes"),
-                       (combat, "combat")]:
+                       (combat, "combat"), (improvements, "improvements")]:
         if src["ruleset_version"] != version:
             raise ValueError(f"ruleset version mismatch in {label}.toml")
 
@@ -179,6 +207,46 @@ def load_ruleset(name: str = "current") -> Ruleset:
         skills_by_id[e["id"]] = frozenset(e.get("skills", []))
     unit_skills = tuple(skills_by_id)
 
+    # --- improvements ---
+    imp_entries = improvements["improvement"]
+    n_imp = len(imp_entries)
+    _assert_dense_ids((e["id"] for e in imp_entries.values()), n_imp, "improvements")
+    imp_names = tuple(sorted(imp_entries, key=lambda k: imp_entries[k]["id"]))
+    imp_id = {name: e["id"] for name, e in imp_entries.items()}
+    imp_kind_list = [""] * n_imp
+    imp_cost = _fill_by_id(imp_entries, n_imp, "cost", np.int16)
+    imp_population = _fill_by_id(imp_entries, n_imp, "population", np.int8)
+    imp_adjacency = _fill_by_id(imp_entries, n_imp, "adjacency", np.int8, 0)
+    imp_adjacent_to = np.full(n_imp, -1, dtype=np.int8)
+    imp_requires_tech = np.full(n_imp, -1, dtype=np.int8)
+    imp_resource = np.full(n_imp, -1, dtype=np.int8)
+    imp_terrain = np.full(n_imp, -1, dtype=np.int8)
+    res_index = {name: i for i, name in enumerate(resource_names)}
+    terr_index = {name: i for i, name in enumerate(terrain_names)}
+    for name, e in imp_entries.items():
+        i = e["id"]
+        imp_kind_list[i] = e["kind"]
+        imp_requires_tech[i] = tech_or_none(e["requires_tech"])
+        if e.get("resource"):
+            imp_resource[i] = res_index[e["resource"]]
+        if e.get("terrain"):
+            imp_terrain[i] = terr_index[e["terrain"]]
+    for name, e in imp_entries.items():
+        if e.get("adjacent_to"):
+            imp_adjacent_to[e["id"]] = imp_id[e["adjacent_to"]]
+
+    # --- city level-up rewards ---
+    rw_entries = improvements["reward"]
+    n_rw = len(rw_entries)
+    _assert_dense_ids((e["id"] for e in rw_entries.values()), n_rw, "rewards")
+    reward_names = tuple(sorted(rw_entries, key=lambda k: rw_entries[k]["id"]))
+    reward_id = {name: e["id"] for name, e in rw_entries.items()}
+    reward_level = _fill_by_id(rw_entries, n_rw, "level", np.int8)
+    reward_value = _fill_by_id(rw_entries, n_rw, "value", np.int16)
+    reward_effect_list = [""] * n_rw
+    for name, e in rw_entries.items():
+        reward_effect_list[e["id"]] = e["effect"]
+
     return Ruleset(
         version=version,
         terrain_names=terrain_names,
@@ -208,6 +276,21 @@ def load_ruleset(name: str = "current") -> Ruleset:
         tech_tier=tech_tier,
         tech_requires=tech_requires,
         tech_cost_override=tech_cost_override,
+        imp_names=imp_names,
+        imp_id=imp_id,
+        imp_kind=tuple(imp_kind_list),
+        imp_cost=imp_cost,
+        imp_population=imp_population,
+        imp_adjacency=imp_adjacency,
+        imp_adjacent_to=imp_adjacent_to,
+        imp_requires_tech=imp_requires_tech,
+        imp_resource=imp_resource,
+        imp_terrain=imp_terrain,
+        reward_names=reward_names,
+        reward_id=reward_id,
+        reward_level=reward_level,
+        reward_effect=tuple(reward_effect_list),
+        reward_value=reward_value,
         tribes=tribes["tribe"],
         accuracy=float(combat["constants"]["accuracy"]),
         defense_bonus_map=dict(dbmap),

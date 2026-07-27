@@ -46,6 +46,30 @@ U_JUGGERNAUT = 15
 # --- Ownership sentinels ---
 NEUTRAL = -1  # unowned territory / neutral (village) city
 
+# --- Improvement ids (see data/improvements.toml) ---
+IMP_NONE = -1
+IMP_HARVEST_FRUIT = 0
+IMP_HUNT_GAME = 1
+IMP_FISHING = 2
+IMP_LUMBER_HUT = 3
+IMP_FARM = 4
+IMP_MINE = 5
+IMP_PORT = 6
+IMP_TEMPLE = 7
+IMP_SAWMILL = 8
+IMP_WINDMILL = 9
+IMP_FORGE = 10
+
+# --- City level-up reward ids (see data/improvements.toml [reward]) ---
+RW_WORKSHOP = 0
+RW_EXPLORER = 1
+RW_CITY_WALL = 2
+RW_RESOURCES = 3
+RW_POPULATION_GROWTH = 4
+RW_BORDER_GROWTH = 5
+RW_PARK = 6
+RW_SUPER_UNIT = 7
+
 # --- Action types (Phase-2 auto-regressive head 1) ---
 A_END_TURN = 0
 A_MOVE = 1
@@ -53,7 +77,9 @@ A_ATTACK = 2
 A_CAPTURE = 3
 A_TRAIN = 4
 A_RESEARCH = 5
-N_ACTION_TYPES = 6
+A_BUILD = 6            # harvest a resource or place a building
+A_CHOOSE_REWARD = 7    # pick one of two rewards after a city levels up
+N_ACTION_TYPES = 8
 
 ACTION_NAMES = {
     A_END_TURN: "END_TURN",
@@ -62,6 +88,8 @@ ACTION_NAMES = {
     A_CAPTURE: "CAPTURE",
     A_TRAIN: "TRAIN",
     A_RESEARCH: "RESEARCH",
+    A_BUILD: "BUILD",
+    A_CHOOSE_REWARD: "REWARD",
 }
 
 # --- dtypes for the flat per-tile / per-player arrays ---

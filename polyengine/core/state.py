@@ -26,10 +26,11 @@ _NEIGHBOR_OFFSETS = ((-1, -1), (0, -1), (1, -1),
 
 # Arrays that define ground truth (hashed for determinism / differential replay).
 _TILE_ARRAYS = (
-    "terrain", "resource", "owner",
+    "terrain", "resource", "owner", "improvement",
     "city_owner", "city_level", "city_pop", "city_walls", "city_capital",
+    "city_workshop", "city_park", "city_pending_reward",
     "unit_type", "unit_owner", "unit_hp", "unit_moved", "unit_attacked",
-    "unit_veteran", "unit_kills",
+    "unit_veteran", "unit_kills", "unit_home",
 )
 _PLAYER_ARRAYS = ("stars", "tech", "tribe", "alive")
 _FOG_ARRAYS = (
@@ -68,6 +69,12 @@ class GameState:
         self.city_pop = np.zeros(n, dtype=np.int8)
         self.city_walls = np.zeros(n, dtype=C.DT_FLAG)
         self.city_capital = np.zeros(n, dtype=C.DT_FLAG)
+        # Level-up rewards that attach to the city itself.
+        self.city_workshop = np.zeros(n, dtype=C.DT_FLAG)
+        self.city_park = np.zeros(n, dtype=C.DT_FLAG)
+        # >0 means "this city levelled up and owes the player a reward choice".
+        self.city_pending_reward = np.zeros(n, dtype=np.int8)
+        self.improvement = np.full(n, C.IMP_NONE, dtype=np.int8)
         self.unit_type = np.full(n, C.U_NONE, dtype=C.DT_UNIT_TYPE)
         self.unit_owner = np.full(n, C.NEUTRAL, dtype=C.DT_OWNER)
         self.unit_hp = np.zeros(n, dtype=C.DT_HP)
@@ -75,6 +82,10 @@ class GameState:
         self.unit_attacked = np.zeros(n, dtype=C.DT_FLAG)
         self.unit_veteran = np.zeros(n, dtype=C.DT_FLAG)
         self.unit_kills = np.zeros(n, dtype=np.int8)
+        # Tile of the city supporting this unit (-1 = unsupported/independent).
+        # A city supports at most `level + 1` units, so this is what makes unit
+        # count a scarce resource rather than a function of spare stars.
+        self.unit_home = np.full(n, -1, dtype=np.int16)
 
         self.stars = np.zeros(p, dtype=C.DT_STARS)
         self.tech = np.zeros(p, dtype=C.DT_TECH)
@@ -111,6 +122,17 @@ class GameState:
         ax, ay = self.xy(a)
         bx, by = self.xy(b)
         return max(abs(ax - bx), abs(ay - by))
+
+    # --- cities and support ---------------------------------------------------
+    def unit_capacity(self, city_tile: int) -> int:
+        """How many units this city can support: one per population bar."""
+        return int(self.city_level[city_tile]) + 1
+
+    def supported_units(self, city_tile: int) -> int:
+        return int((self.unit_home == city_tile).sum())
+
+    def has_free_support(self, city_tile: int) -> bool:
+        return self.supported_units(city_tile) < self.unit_capacity(city_tile)
 
     # --- tech ---------------------------------------------------------------
     def has_tech(self, player: int, tech_id: int) -> bool:
@@ -167,13 +189,16 @@ class GameState:
     def from_dict(cls, d: dict, rules: Ruleset) -> "GameState":
         if d["ruleset_version"] != rules.version:
             raise ValueError("ruleset version mismatch on deserialize")
-        s = cls(rules, d["size"], d["n_players"], d["map_seed"], _alloc=False)
+        # Allocate first so every array's dtype comes from _allocate() itself.
+        # A hand-maintained name->dtype table silently drifted when new arrays
+        # were added, producing states that hashed differently after a round
+        # trip; deriving the dtype makes that failure mode impossible.
+        s = cls(rules, d["size"], d["n_players"], d["map_seed"], _alloc=True)
         s.turn = d["turn"]
         s.current_player = d["current_player"]
         for name in (*_TILE_ARRAYS, *_PLAYER_ARRAYS, *_FOG_ARRAYS):
-            proto = _proto_dtype(name)
-            arr = np.asarray(d[name], dtype=proto)
-            setattr(s, name, arr)
+            proto = getattr(s, name).dtype
+            setattr(s, name, np.asarray(d[name], dtype=proto))
         s.rng.bit_generator.state = _dejsonify(d["rng_state"])
         return s
 
@@ -184,27 +209,6 @@ class GameState:
         return (f"GameState(size={self.size}, players={self.n_players}, "
                 f"turn={self.turn}, current={self.current_player})")
 
-
-def _proto_dtype(name: str):
-    # Reconstruct the dtype used at allocation for a given array name.
-    zero_int8 = {"terrain", "resource", "owner", "city_owner", "unit_type",
-                 "unit_owner", "mem_unit_type", "mem_unit_owner", "mem_city_owner"}
-    if name in zero_int8:
-        return np.int8
-    if name in {"city_level", "city_pop", "unit_kills", "tribe", "mem_city_level"}:
-        return np.int8
-    if name in {"unit_hp"}:
-        return np.int16
-    if name in {"city_walls", "city_capital", "unit_moved", "unit_attacked",
-                "unit_veteran", "alive", "fog_explored", "fog_visible"}:
-        return np.uint8
-    if name in {"fog_staleness"}:
-        return np.int16
-    if name == "stars":
-        return np.int16
-    if name == "tech":
-        return np.uint32
-    return np.int64
 
 
 def _jsonify(state: dict) -> dict:

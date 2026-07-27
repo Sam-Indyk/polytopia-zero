@@ -1,0 +1,48 @@
+{{Infobox_Unit|name=Bomber
+| type     = Naval
+|unlock=Navigation|cost=15 stars to upgrade from a Raft
+|health=Varies|veteran=No|attack=3|defence=2|movement=2|range=3|skills=Water, Carry, Splash, Stiff, Static|image=BomberB.png}}
+The '''Bomber''' is a naval [[unit]] that is an upgrade from the [[Raft]]. The health of a Bomber is determined by the unit it carries.
+
+A Raft can be upgraded into a Bomber for fifteen [[stars]] once [[Navigation]] is researched. Upgrading a naval unit does not heal it. Moving an upgraded naval unit onto land causes the unit to permanently lose its upgrade: if that unit is once again moved onto a [[Port]], it will become a Raft.
+
+The ''splash'' ability allows the bomber to deal damage to all enemy units adjacent to their target. The splash damage is [[Combat|calculated]] as the regular damage to that target, which is then halved and rounded down. This is not the same as just calculating the damage as if the bomber had 1.5 attack. The ''stiff'' ability means that a bomber cannot retaliate when attacked. It is very important to be careful with where you put them, because ''stiff'' makes you a sitting duck during your enemy's turn.
+
+== Gallery==
+<gallery>
+File:BomberX.png|The Xin-xi Bomber
+File:BomberI.png|The Imperius Bomber
+File:BomberB.png|The Bardur Bomber
+File:BomberO.png|The Oumaji Bomber
+File:BomberK.png|The Kickoo Bomber
+File:BomberH.png|The Hoodrick Bomber
+File:BomberL.png|The Luxidoor Bomber
+File:BomberV.png|The Vengir Bomber
+File:BomberZ.png|The Zebasi Bomber
+File:BomberA.png|The Ai-Mo Bomber
+File:BomberQ.png|The Quetzali Bomber
+File:BomberY.png|The Yădakk Bomber
+File:BomberAq.png|The Aquarion Bomber
+File:BomberE.png|The ∑∫ỹriȱŋ Bomber
+File:BomberP.png|The Polaris Bomber
+File:BomberC.png|The Cymanti Bomber
+</gallery>
+
+=== Tribe Skins ===
+<gallery>
+File:Ragoo Bomber.png|The Kickoo Ragoo Bomber
+File:Aumux Bomber.png|The Luxidoor Aumux Bomber
+File:Midnight Bomber.png|The ∑∫ỹriȱŋ ₼idŋighţ Bomber
+File:Forgotten Bomber.png|The Aquarion Forgotten Bomber
+</gallery>
+
+==Trivia==
+
+*The Bomber replaced the [[Battleship]] for the [[Path of the Ocean Beta]] update. It initially had 3 movement and lacked the ''stiff'' skill.
+*When the Bomber's movement was reduced to 2 and it was given the ''stiff'' skill, it gained more in common with the [[Catapult]] due to its high attack, poor defensive abilities, and lacking the ''dash'' skill.
+*In the [[Patch of the Ocean]] update, Bombers' attack was reduced to 3.
+*In some tribes, other units are used in place of [[{{PAGENAME}}]]:
+::{{Replace Unit}}
+{{Navbox Units}}
+[[Category:Units]]
+[[Category:Path of the Ocean]]

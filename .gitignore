@@ -13,29 +13,32 @@ venv/
 .ruff_cache/
 
 # Numba cache
-__pycache__/
 *.nbi
 *.nbc
 
-# Training artifacts
+# Training artifacts.
+# Trained checkpoints ARE committed (see checkpoints_11x11/) so a fresh clone
+# starts from a trained agent instead of from noise. Throwaway runs should use
+# their own --out directory, which is what these patterns cover — a flag test
+# once overwrote a 300-iteration run by defaulting into a real one.
+checkpoints_scratch/
+checkpoints_smoke/
+checkpoints_tmp/
 runs/
-checkpoints/
-*.pt
+runs_*.log
+
+# Replays are regenerable and large (an 1,800-frame 11x11 game is ~8 MB of
+# embedded JSON). Recreate with scripts/record_replay.py.
 replays/*.json
 replays/*.html
 !replays/.gitkeep
+
+# NOTE: .wikicache/ is deliberately NOT ignored. scripts/check_ruleset.py needs
+# it, and committing it means rule verification works with no network access.
+# Refresh with: scripts/fetch_wiki.py --all
 
 # OS / editor
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
-
-# Wiki reference cache (fetch with scripts/fetch_wiki.py --all)
-.wikicache/
-
-# Training artifacts
-checkpoints/
-runs_*.log
-checkpoints_pool/
-checkpoints_league/

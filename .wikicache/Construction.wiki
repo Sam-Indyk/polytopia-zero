@@ -1,0 +1,23 @@
+{{Infobox Technology
+| image1       = Construction Branch.png
+| caption1     = Construction in the technology tree.
+| tier         = Three
+| unlocks      = [[Windmill]], [[Burn Forest]] 
+| starting     = 
+| preceded_by  = [[Farming]]
+}}
+
+'''Construction''' is a tier three [[technology]] that unlocks the [[Windmill]] and the [[Burn Forest]] ability. The Windmill is a [[building]] that produces one [[population]] for every friendly adjacent [[Farm]]. The Burn Forest ability replaces an empty Forest with a field with crop at a cost of 5 stars.
+
+Prior to the [[Path of the Ocean]] update, Construction unlocked the [[Destroy]] ability. 
+
+==Recycling==
+
+[[File:Decompose.png|thumb|left|The Decompose icon]]
+
+[[Cymanti]] has the '''Recycling''' technology instead of Construction. Recycling unlocks the [[Decompose]] ability and Microbes. Decompose is identical to the Destroy ability except that Decompose removes the building or ruin at the end of the turn (instead of immediately) and returns a building's full cost.
+
+Microbes allow all [[Fungi]] to grow one additional level. They were added in the Cymanti rework (version 115). 
+
+{{Navbox Technology}}
+[[Category:Technology]]

@@ -1,0 +1,179 @@
+# Harvests and buildings — the population economy.
+#
+# VERIFIED against the Polytopia wiki "Population" table (cached in .wikicache/,
+# see scripts/fetch_wiki.py). Every cost and population yield below is taken
+# from that table; `scripts/check_ruleset.py` re-checks them.
+#
+# Population is the ONLY route to city levels, and city level is what caps how
+# many units a city can support (level + 1). That chain is why this file exists:
+# without it, star income has nothing to buy and the correct strategy degenerates
+# into flooding the map with warriors.
+#
+# `kind`:
+#   harvest  -> consumes the resource on the tile, leaves no building
+#   building -> places a permanent improvement on the tile
+# `adjacency` -> population scales with the number of friendly adjacent
+#                `adjacent_to` improvements instead of a flat `population`.
+
+ruleset_version = "current-2026.07"
+
+# ---------------- Harvests (resource -> population) ----------------
+[improvement.harvest_fruit]
+id = 0
+kind = "harvest"
+cost = 2
+population = 1
+requires_tech = "organization"
+resource = "fruit"
+terrain = "field"
+
+[improvement.hunt_game]
+id = 1
+kind = "harvest"
+cost = 2
+population = 1
+requires_tech = "hunting"
+resource = "game"
+terrain = "forest"
+
+[improvement.fishing]
+id = 2
+kind = "harvest"
+cost = 2
+population = 1
+requires_tech = "fishing"
+resource = "fish"
+terrain = "water"
+
+# ---------------- Buildings ----------------
+[improvement.lumber_hut]
+id = 3
+kind = "building"
+cost = 3
+population = 1
+requires_tech = "forestry"
+resource = ""
+terrain = "forest"
+
+[improvement.farm]
+id = 4
+kind = "building"
+cost = 5
+population = 2
+requires_tech = "farming"
+resource = "crop"
+terrain = "field"
+
+[improvement.mine]
+id = 5
+kind = "building"
+cost = 5
+population = 2
+requires_tech = "mining"
+resource = "metal"
+terrain = "mountain"
+
+[improvement.port]
+id = 6
+kind = "building"
+cost = 7
+population = 1
+requires_tech = "sailing"
+resource = ""
+terrain = "water"
+
+[improvement.temple]
+id = 7
+kind = "building"
+cost = 20
+population = 1
+requires_tech = "free_spirit"
+resource = ""
+terrain = "field"
+
+# ---------------- Adjacency buildings ----------------
+# Population scales with friendly adjacent buildings of `adjacent_to`.
+[improvement.sawmill]
+id = 8
+kind = "building"
+cost = 5
+population = 0
+adjacency = 1                  # +1 per adjacent lumber hut
+adjacent_to = "lumber_hut"
+requires_tech = "mathematics"
+resource = ""
+terrain = "field"
+
+[improvement.windmill]
+id = 9
+kind = "building"
+cost = 5
+population = 0
+adjacency = 1                  # +1 per adjacent farm
+adjacent_to = "farm"
+requires_tech = "construction"
+resource = ""
+terrain = "field"
+
+[improvement.forge]
+id = 10
+kind = "building"
+cost = 5
+population = 0
+adjacency = 2                  # +2 per adjacent mine
+adjacent_to = "mine"
+requires_tech = "smithery"
+resource = ""
+terrain = "field"
+
+# ---------------- City level-up rewards ----------------
+# Upgrading a city to level n costs n population. Each level grants +1 star of
+# income, +1 unit capacity, +50 score, and a CHOICE of one of two rewards.
+# Wiki "Cities" table; the choice is a first-class action (see A_CHOOSE_REWARD).
+[reward.workshop]
+id = 0
+level = 2
+effect = "income"              # +1 star/turn from this city
+value = 1
+
+[reward.explorer]
+id = 1
+level = 2
+effect = "explore"             # reveals a patch of map
+value = 0
+
+[reward.city_wall]
+id = 2
+level = 3
+effect = "walls"               # defence bonus for units in the city
+value = 0
+
+[reward.resources]
+id = 3
+level = 3
+effect = "stars"
+value = 5
+
+[reward.population_growth]
+id = 4
+level = 4
+effect = "population"
+value = 3
+
+[reward.border_growth]
+id = 5
+level = 4
+effect = "border"              # territory expands by one ring
+value = 1
+
+[reward.park]
+id = 6
+level = 5
+effect = "score"
+value = 250
+
+[reward.super_unit]
+id = 7
+level = 5
+effect = "super_unit"          # spawns a Giant
+value = 0

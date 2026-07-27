@@ -1,0 +1,132 @@
+'''Units''' are troops used for expansion and [[combat]].
+
+There are 42 unit types in ''The Battle of Polytopia''. Every type has unique stats and [[Unit Skills|skills]]. The most basic unit type is the [[Warrior]]. Other types include the [[Rider]], which has extra movement, and the [[Archer]], which has a ranged attack. Every unit type is unlocked by a [[technology]], except for the Warrior. Some unit types are unique to a special [[tribe]]. Every unit type has an unique icon shown on the map at the unit's upper right. For example, the icon for a Rider is shaped like the head of a horse. These icons can be used to determine at a glance which unit a naval vessel carries. The white outline of a unit's icon disappears when it cannot make any attacks, which is useful for identifying if a unit with the ''escape'' skill can attack after moving. 
+
+Units are primarily obtained through training in [[cities]]. The cost to train a unit depends on its type. Inversely, a player can [[disband]] a unit, which removes the unit and returns half of its cost (rounded down). 
+
+A [[Super Unit|super unit]] is the most powerful unit of its tribe. They are primarily obtained through [[Cities#City Upgrades|city upgrades]]. The super unit for all regular tribes is the [[Giant]]. Special tribes have unique super units.  
+
+The aesthetics of each individual unit depends on the tribe that it belongs to. Every tribe has a unique color and helmet. (In mirror matches where multiple players pick the same tribe, different players of the same tribe are distinguished by color.) Also, the animals that mounted units (like the [[Rider]]) ride on vary from tribe to tribe. Finally, the [[Battleship]] had a tribe-specific decoration until it was removed. 
+
+==List of Units==
+
+{{Main|List of Units}}
+
+== Unit Actions ==
+
+During each turn, every unit has the option to perform any available '''unit action''' in lieu of moving and/or attacking. Some unit actions are only available to units with certain [[Unit Skills|skills]] or are unlocked by a certain [[technology]].
+
+{| class="article-table"
+|+
+!Action
+!Icon
+!Description
+|-
+!Recover
+|[[File:Recover.png|thumb|center|50px]]
+|
+Heals a unit by up to 4 HP in friendly territory and 2 HP elsewhere. (Cannot heal past maximum health.) Removes poison and heals 0 HP if the unit is poisoned.
+
+Available to all units below their maximum health.
+
+Note: If a unit does not take any action in a given turn, it will automatically heal if it can do so.
+|-
+!Disband
+|[[File:Tribe head.png|thumb|center|50px]]
+| 
+Removes a unit and refunds half its cost, rounded down.
+
+Available to all units once [[Free Spirit]] has been researched.
+
+See [[Disband]] for more information.
+|-
+!Disembark
+|
+|Causes a ship unit to turn into the unit it is carrying.
+Available to any naval unit that is carrying another unit and is occupying a flooded tile.
+|-
+!Heal Others
+|[[File:Heal others.png|thumb|center|50px]]
+| 
+Heals all adjacent friendly units by up to 4 HP. (Cannot heal past maximum health.)
+
+Only available to units with the heal [[Unit Skills|skill]] (i.e., the [[Mind Bender]]).
+|-
+!Break Ice
+|[[File:Break Ice icon.png|thumb|center|50px]]
+|
+Breaks all adjacent [[Terrain|ice tiles]] into what they were before they were frozen. Can only be used when there is at least one adjacent ice tile.
+
+Available to all units except those with the freeze area skill (i.e., the [[Mooni]] and the [[Gaami]]).
+|-
+!Fill
+|[[File:Grass.png|thumb|center|50px]]
+|Turns a flooded tile into an unflooded tile.
+Available to any unit occupying a flooded tile (even ships).
+|-
+! Flood Tile
+| [[File:Flood.png|thumb|center|50px]]
+|Floods the tile that a unit is on. Can only be used on unflooded fields and forests.
+Only available to [[Aquarion]] units once the [[Roads (Technology)|Waterways]] [[technology]] has been researched.|-
+|-
+!Freeze Area 
+|[[File:Freeze Area icon.png|thumb|center|50px]]
+|Freezes all adjacent water and ocean tiles into ice and converts all adjacent land tiles into [[Polaris]] land (if and only if the unit belongs to the Polaris tribe). Also freezes all adjacent units.
+Only available to units with the freeze area skill (i.e., the Mooni and the Gaami).
+|-
+!Swarm
+|[[File:Boost.png|thumb|center|50px]]
+|Makes nearby friendly units speedy, granting them +1 movement until they are attacked
+|-
+!Explode
+|[[File:Explode icon.png|thumb|center|50px]]
+|Poisons and damages (equivalent to half of the units attack stat) all surrounding units while deleting the exploding unit. Spores are formed on all land tiles and algae and sores on water
+Only available to units with the explode skill (ie. Doomux, Boomchi, etc.)
+|}
+
+
+==Unit Skills==
+
+{{Main|Unit Skills}}
+
+==Unit Stats==
+
+[[File:Warrior Info.png|thumb|The information box of a Warrior, which includes its stats.]]
+
+The stats of each individual unit are associated with its type. Every unit type has unique stats.
+
+{| class="article-table"
+!Stat
+!Description
+|-
+!Health
+|The maximum health of the unit. The health stat of [[#Veteran Units|veteran units]] is increased by 5 HP.
+|-
+!Attack
+|Determines how much damage the unit deals when it attacks. For more information, see [[Combat]].
+|-
+!Defence
+| Determines how much retaliation damage the unit deals and how much damage it takes when attacked. For more information, see [[Combat]].
+|-
+! Movement
+|Determines how far the unit can move. For more information, see [[Movement]].
+|-
+! Range
+|Determines how close enemy units have to be for the unit to attack them. A unit can attack enemy units whose [[Wikipedia:Chebyshev distance|chessboard distance]] is not more than the unit's range.
+|}
+
+== Veteran Units ==
+
+A unit can be promoted to a veteran after it kills three enemy units (through attacks or retaliation). Promoting a unit increases its maximum health by five and then heals the unit completely. Therefore, a player may choose to not immediately promote a unit when it becomes eligible to do so because the promotion can be used as a "free" heal later.
+
+Naval units, super units, the [[Dagger]] and [[Pirate]], enchanted units (the [[Polytaur]] and the [[Navalon]]), and units that are not controlled by any player (the [[Bunny]] and the [[Bunta]]) cannot be promoted.
+
+==Trivia==
+
+*There is no unit that can be trained by all tribes. The unit that can be trained by the most tribes is the warrior, which is only unavailable to Aquarion (the only way to get an Aquarion warrior is via conversion from another tribe).
+
+{{Navbox Units}}
+{{Navbox Game Mechanics}}
+[[Category:Units]]
+[[Category:Game Mechanics]]
+[[ru:Юниты]]

@@ -1,0 +1,48 @@
+{{Infobox Unit
+| name     = Knight
+| image    = knightZ.png
+| type     = Land
+| unlock   = Chivalry
+| cost     = 8 stars
+| attack   = 3.5
+| defence  = 1
+| movement = 3
+| range    = 1
+| health   = 10
+| veteran  = Yes
+| skills   = Dash, persist, fortify
+}}
+
+The '''Knight''' is a mobile, hard-hitting [[Units|unit]] that can attack again after killing an enemy. 
+
+The design involves the tribe's warrior placed upon their game similar to a [[Rider]], but with a shield in front and beside them and a lance.
+
+== Strengths and Weaknesses ==
+
+Knights are good for:
+
+* Land travel. The Knight has the most mobility along with the [[Scout]] and [[Rammer]], which means that it is great for traversing long distances.
+* Killing pesky [[Catapult|Catapults]]. The knight can move up to and kill Catapults before they have a chance to fire. Since its movement (3) is equal to a Catapult's range (3), a Knight can ride directly up to a Catapult and instantly destroy it.
+* Destroying Rider-Spam armies. With the Persist [[Unit Skills|skill]], which allows the unit to keep attacking several others under the condition that the enemies only take one hit to kill, lone knights can tear through weak armies in a matter of turns. This is especially effective against opponents like [[Bardur]] or [[Oumaji]], who like to spam riders to overwhelm you. This could also be used against swathes of [[Warrior|Warriors]], [[Rider|Riders]], [[Archer|Archers]], [[Catapult|Catapults]], and [[Mind Bender|Mind Benders]].
+* Swarms. Two Knights can take out almost any unit out in the open, and when used in conjunction with their persist skill, they can easily tear through the enemy army or front line and attack the squishy units behind. However, they have low defence, so don't expect many Knights to survive the round. This also requires enough economy to sustain constant Knight production.
+
+Knights aren't good for:
+
+* 1v1s against strong units. Due to their low defence, Knights can easily be defeated by [[Swordsman|Swordsmen]] or [[Giant|Giants]] since their stats are more well-rounded and can survive the initial attack.
+* Naval invasions. When a Knight lands, it loses its main advantage of speed and high attack, and its low defence will make it easy pickings for defending forces.
+*Breaking through walls of defensive units or units in areas with defensive bonuses. Any defensive bonus automatically makes it so the knight cannot one-shot a more than 1-defence, 10-health units (i.e. can one shot an archer/rider with defence bonus but not a warrior) unit and any unit the knight cannot one-shot often leads to the knight being killed. Techs that allow for such things include [[archery]] and [[climbing]].
+
+== Trivia ==
+
+*[[File:Pierce.png|thumb|The "pierce" attack used by the Knight]]In the [[Path of the Ocean|Path of The Ocean]] update, the Knight was given a new "pierce" animation and attack sound effect that it shares with the [[Rammer]]. Before, it used a sword animation, similar to the [[Swordsman]], [[Defender]], and [[Giant]].
+*Knights have the old [[Defender]] model's shield in their sprite.
+*In [[Update History|update 2.0.58]], the cost of the Knight was increased from eight stars to ten. In update 2.1, this change was reverted, but the HP of the Knight was reduced from 15 to 10. 
+*In some tribes, other units are used in place of [[{{PAGENAME}}]]:
+::{{Replace Unit}}
+== Gallery ==
+{{Unit Gallery}}
+
+=== Tribe Skins ===
+{{Skin Unit Gallery}}
+{{Navbox Units}}
+[[ru:Рыцарь]]

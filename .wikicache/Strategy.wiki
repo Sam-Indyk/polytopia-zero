@@ -1,0 +1,32 @@
+{{Infobox Technology
+| image1       = Diplomacy Branch.png
+| caption1     = The Diplomacy branch of the technology tree
+| tier         = Two
+| unlocks      = [[Defender]], peace treaty  
+| starting     = [[Quetzali]]
+| preceded_by  = [[Organization]]
+| leads_to     = [[Diplomacy]]
+}}
+{{Redirect|Shields|the unit|Defender}}
+{{For|gameplay advice|Strategies|the technology}}
+
+'''Strategy''' is a tier two [[technology]] that unlocks the [[Defender]] unit and the peace treaty. The [[Quetzali]] tribe starts with Strategy. For [[Cymanti]], Strategy unlocks the [[Kiton]], a special unit that replaces the Defender. 
+
+Prior to [[Update History|update 2.1]], which added [[Diplomacy]], Strategy was named '''Shields''' and did not unlock the peace treaty. 
+
+== Peace Treaty ==
+
+The '''Peace Treaty''' offers another player the opportunity to become friends indefinitely. The Strategy technology is required to send, but not respond to, a peace treaty. While two tribes are at peace, they cannot perform any hostile actions, such as attacking, occupying cities, etc. Their units can also freely move past each other and use each other's roads. And income from [[Embassies]] is doubled. A peace treaty can be unilaterally terminated, but the player that breaks the peace treaty cannot attack the other player on that turn. Upon breaking the treaty, all of the aggressor's active units will be frozen for the rest of the turn, and any of their units within the enemy's borders will be disbanded without any star refund. 
+
+For more info on the mechanics regarding Peace Treaties, see [[Tribe Relations]]. 
+
+<gallery>
+
+File:Peace Treaty.jpg|The icon for the peace treaty
+File:Peace Treaty Rejected.jpg|The icon for a rejected peace treaty
+
+</gallery>
+
+{{Navbox Technology}}
+[[Category:Technology]]
+[[Category:Diplomacy]]

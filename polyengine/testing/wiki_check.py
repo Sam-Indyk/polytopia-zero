@@ -152,6 +152,78 @@ def parse_tech_page(page: str, text: str) -> WikiTech | None:
     )
 
 
+# Wiki row label -> our improvement name. The Population table names actions
+# ("Harvest fruit") where we name improvements ("harvest_fruit").
+POPULATION_ROWS = {
+    "harvest fruit": "harvest_fruit",
+    "hunt animal": "hunt_game",
+    "fishing": "fishing",
+    "lumber hut": "lumber_hut",
+    "farm/aqua farm": "farm",
+    "mine": "mine",
+    "port": "port",
+    "temple": "temple",
+}
+
+
+def _cell_value(cell: str) -> str:
+    """Drop a table cell's HTML attributes, keeping only its content.
+
+    Rows like `rowspan="6" |1` would otherwise yield 6 (the span) rather than 1
+    (the value) — which is exactly how the Temple row first mis-compared.
+    """
+    if "|" in cell and re.search(r'\b(row|col)span\s*=', cell):
+        return cell.rsplit("|", 1)[1]
+    return cell
+
+
+def parse_population_table(text: str) -> dict[str, tuple[int, int]]:
+    """Parse the Population page's table into {improvement: (population, cost)}.
+
+    Rows are `Item | Population | Cost | pop-per-star | stars-per-pop | Unlocked by`.
+    Rows using rowspan (the Temple block) or describing combinations
+    ("Grow Forest + Farm") are skipped — only the plain single-improvement rows
+    are unambiguous enough to check automatically.
+    """
+    out: dict[str, tuple[int, int]] = {}
+    for block in re.split(r"\n\|-", text):
+        cells = [c.strip() for c in block.split("\n|") if c.strip()]
+        if len(cells) < 3:
+            continue
+        label = clean(cells[0]).lower().strip()
+        key = POPULATION_ROWS.get(label)
+        if key is None:
+            continue
+        pop = first_number(_cell_value(cells[1]))
+        cost = first_number(_cell_value(cells[2]))
+        if pop is None or cost is None:
+            continue
+        out[key] = (int(pop), int(cost))
+    return out
+
+
+def check_improvements(rules, pages: dict[str, str]) -> Report:
+    """Diff improvement costs and population yields against the wiki table."""
+    rep = Report()
+    text = pages.get("Population")
+    if not text:
+        rep.notes.append("no Population page cached — improvements unchecked")
+        return rep
+    table = parse_population_table(text)
+    if not table:
+        rep.notes.append("Population table parsed to nothing (format changed?)")
+        return rep
+    for name, (pop, cost) in sorted(table.items()):
+        if name not in rules.imp_id:
+            rep.missing.append(f"improvement {name!r} on the wiki but not in "
+                               f"improvements.toml")
+            continue
+        i = rules.imp_id[name]
+        _cmp(rep, f"{name}.cost", cost, rules.imp_cost[i])
+        _cmp(rep, f"{name}.population", pop, rules.imp_population[i])
+    return rep
+
+
 def load_cache(cache: Path = DEFAULT_CACHE) -> dict[str, str]:
     if not cache.exists():
         return {}
@@ -267,7 +339,9 @@ def check_all(rules, cache: Path = DEFAULT_CACHE) -> Report:
         rep = Report()
         rep.notes.append(f"no wiki cache at {cache} — run scripts/fetch_wiki.py --all")
         return rep
-    techs, units = check_techs(rules, pages), check_units(rules, pages)
-    return Report(ok=techs.ok + units.ok, diffs=techs.diffs + units.diffs,
-                  missing=techs.missing + units.missing,
-                  notes=techs.notes + units.notes)
+    parts = [check_techs(rules, pages), check_units(rules, pages),
+             check_improvements(rules, pages)]
+    return Report(ok=[x for p in parts for x in p.ok],
+                  diffs=[x for p in parts for x in p.diffs],
+                  missing=[x for p in parts for x in p.missing],
+                  notes=[x for p in parts for x in p.notes])

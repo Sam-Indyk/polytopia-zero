@@ -1,0 +1,307 @@
+A '''building''' is an immovable object located on a tile. The main categories of buildings are resource buildings, monuments, and [[temples]]. Buildings are unlocked by researching technologies and constructed by the players within their territory. A tile can only contain one building. Apart from its cost each building has specific requirements for where it can be built. If a building relies on adjacent tiles for its function, only the tiles within the player's territory are considered.   
+
+==Resource Buildings==
+{| class="article-table"
+!Image
+!Name
+!Description
+!Terrain
+!Unlocked by
+!Cost (stars)
+|-
+|[[File:Lumber_hut.png|thumb|center|75px]]
+|[[Lumber Hut]]
+|Produces one population.
+|Forest
+|[[Forestry]]
+|3
+|-
+|[[File:Sawmill_level_1.png|thumb|center|75px]]
+|[[Sawmill]]
+|Produces one population for each adjacent Lumber Hut.
+|Field adjacent to a Lumber Hut
+|[[Mathematics]]
+|5
+|-
+|[[File:Farm.png|thumb|center|75px]]
+|[[Farm]]
+|Produces two population.
+|Field with Crop
+|[[Farming]]
+|5
+|-
+|[[File:Windmill_1.png|thumb|center|75px]]
+|[[Windmill]]
+|Produces one population for each adjacent Farm and Aqua Farm.
+|Field adjacent to a Farm or Aqua Farm
+|[[Construction]]
+|5
+|-
+|[[File:Mine.png|thumb|center|75px]]
+|[[Mine]]
+|Produces two population.
+|Mountain with Metal
+|[[Mining]]
+|5
+|-
+|[[File:Forge_level_1.png|thumb|center|75px]]
+|[[Forge]]
+|Produces two population for each adjacent Mine.
+|Field, Forest adjacent to a Lumber Hut
+|[[Smithery]]
+|5
+|-
+|[[File:Port.png|thumb|center|75px]]
+|[[Port]]
+|Produces one population, turns land units into [[Raft|Rafts]], turns [[Giant|Giants]] into [[Juggernaut|Juggernauts]], and forms [[City Connections|city connections]].
+|Water, flooded Field
+|[[Sailing]]
+|7
+|-
+|[[File:Market.png|center|thumb|101x101px]]
+|[[Market]]
+|Produces 1 stars per turn for each level of adjacent Sawmills, Windmills and Forges. 
+| Field adjacent to a Sawmill, Windmill, or Forge
+|[[Trade]]
+|5
+|}
+
+== Monuments==
+
+A '''monument''' is a building awarded for completing a task. Each monument produces 3 population and is worth 400 points. Monuments can be built on field and shallow water terrain.
+
+{| class="article-table"
+!Image
+!Name
+!Task
+!Unlocked by
+|-
+|[[File:Xin-xi_altar_of_peace.png|thumb|center|75px]]
+|[[Altar of Peace]]
+|Pacifst: Make no attacks for five turns.
+|[[Meditation]]
+|-
+|
+|[[Cult of Ciru]]
+|(Cymanti only) Parasite: convert 3 units
+|Rituals
+|-
+|[[File:Xin-xi_emperors_tomb.png|thumb|center|75px]]
+|[[Emperor's Tomb]]
+| Wealth: Gather 100 stars.
+|[[Trade]]
+|-
+|[[File:Xin-xi_eye_of_god.png|thumb|center|75px]]
+|[[Eye of God]]
+|Explorer: Find all [[Lighthouse|lighthouses]].
+|Finding a lighthouse
+|-
+|[[File:Xin-xi_gate_of_power.png|thumb|center|75px]]
+|[[Gate of Power]]
+|Killer: Kill 10 enemy units.
+|Killing an enemy unit
+|-
+|[[File:Xin-xi_grand_bazaar.png|thumb|center|75px]]
+|[[Grand Bazaar]]
+|Trade: Connect five cities to the capital.
+|Connecting a city
+|-
+|[[File:Xin-xi_park_of_fortune_copy.png|thumb|center|75px]]
+|[[Park of Fortune]]
+|Metropolis: Have a level 5+ city.
+|Upgrading a city
+|-
+|[[File:Xin-xi_tower_of_wisdom.png|thumb|center|75px]]
+|[[Tower of Wisdom]]
+|Genius: Research all [[technology|technologies]].
+|[[Philosophy]]
+|}
+
+==Temples==
+
+{{Main|Temples}}
+
+Temples produce one population and are initially worth 100 points; their point value increases over time.
+
+{| class="article-table"
+|+
+!Image
+!Name
+!Terrain
+!Unlocked by
+!Cost (stars)
+|-
+|[[File:Temple level 5.png|thumb|center|75px]]
+|Temple
+|Field
+|[[Free Spirit]]
+|20
+|-
+|[[File:Forest temple level 5.png|thumb|center|75px]]
+|Forest Temple
+|Forest
+|[[Spiritualism]]
+|15
+|-
+|[[File:Mountain temple level 5.png|thumb|center|75px]]
+|Mountain Temple
+|Mountain
+|[[Meditation]]
+|20
+|-
+|[[File:Water temple level 5.png|thumb|center|75px]]
+|Water Temple
+| Water, Ocean
+|[[Aquatism]]
+|20
+|-
+|[[File:Ice temple level 5.png|thumb|center|75px]]
+|Ice Temple
+|Ice
+|[[Polarism]]
+|20
+|}
+
+==Other improvements==
+{| class="article-table"
+!Image
+!Name
+!Description
+!Terrain
+!Unlocked by
+!Cost (stars)
+|-
+|[[File:Road Icon.png|thumb|center|75px]]
+|[[Roads (Building)|Roads]]
+|Does not count as a building, instead modifies the tile itself. Provides a [[movement]] bonus to land units and forms city connections. Can be built on neutral land.
+|Field, Forest
+|[[Roads (Technology)|Roads]]
+|3
+|-
+|[[File:Bridge.png|center|thumb|75x75px]]
+|[[Bridge]]
+|Decreases [[movement]] cost, form city connections and allows land units to walk over water. Can be built on neutral water.
+| Water in between 2 non-water tiles
+|[[Roads (Technology)|Roads]]
+|5
+|-
+|[[File:Embassy.png|thumb|center|75px]]
+|[[Embassy]]
+| Provides income to both the tribe that builds and the tribe that hosts the Embassy.
+|Other tribes' capitals
+|[[Diplomacy]]
+|4
+|-
+|[[File:Algae.png|center|thumb|75x75px]]
+|[[Algae]]
+|Does not count as a building, instead modifies the tile itself. A Fruit is added on top. Land units and city connections can pass over it.
+|Water, Ocean
+|[[Hydrology]]
+|5
+|}
+
+==Special Tribes==
+{| class="article-table"
+!Image
+!Name
+!Description
+!Terrain
+!Unlocked by
+!Cost (stars)
+|-
+! colspan="6" |Aquarion
+|-
+|[[File:Atoll.png|center|thumb|61x61px]]
+|[[Atoll]]
+|Connects to every city within 3 tiles over water and flooded terrain.
+|Water, flooded Field
+|[[Ramming|Aquaculture]]
+|5
+|-
+|[[File:Aqua Farm.png|center|thumb|61x61px]]
+|[[Aqua Farm]]
+|Produces 2 population.
+|Water with Aqua Crop
+|[[Ramming|Aquaculture]]
+|5
+|-
+! colspan="6" |∑∫ỹriȱŋ
+|-
+|[[File:Sanctuary level 2.png|center|thumb|75x75px]]
+|[[Sanctuary]]
+|Produces one star per turn for each adjacent wild animal. Attracts a wild animal to an empty adjacent forest every 2 turns.
+|Field, Forest, Mountain
+|Forestry
+|5
+|-
+! colspan="6" |Polaris
+|-
+|[[File:Ice bank level 2.png|center|thumb|75x75px]]
+|[[Ice Bank]]
+| Produces 2 stars per turn for each 20 frozen and burned tiles in the world. Can only be built once.
+|Field, Ice
+|Trade
+|20
+|-
+|[[File:Outpost.png|center|thumb|75x75px]]
+|[[Outpost]]
+|Produces 1 population and connects to every city within 5 tiles over ice.
+|Ice
+|[[Frostwork]]
+|5
+|-
+! colspan="6" |Cymanti
+|-
+|[[File:Fungi level 2.png|thumb|center|75px]]
+|[[Fungi]]
+|Produces one population per turn for three turns. Poisons enemy units that step on it.
+|Any land with Spores
+|[[Farming]]
+|5
+|-
+|[[File:Clathrus level 2.png|thumb|center|75px]]
+|[[Clathrus]]
+|Produces one star per turn for each adjacent Fungi. Poisons enemy units that step on it.
+|Any land tile or Algae adjacent to a Fungi
+|[[Trade]]
+|5
+|-
+|[[File:Mycelium level 2.png|thumb|center|75px|link=Special:FilePath/Mycelium_level_2.png]]
+|[[Mycelium]]
+|Connects to every city within 3 tiles over field, forest and ice. Heals friendly units that end their turn on or adjacent to it.
+|Field, Forest, Algae
+|Network
+|5
+|}
+
+==Removed==
+{| class="article-table"
+!Image
+!Name
+!Description
+!Unlocked by
+!Cost (stars)
+|-
+|[[File:Customs_house_1.png|thumb|center|75px]]
+|[[Customs House]]
+|Produced 2 stars per turn for each adjacent Port. Replaced with markets.
+|[[Trade]]
+|5
+|-
+|[[File:Old outpost 5.png|thumb|center|75px]]
+|[[Lantern]]
+|Present in beta versions of [[Polaris]]. Never released. Function varied over time. 
+|Varied over time
+|5
+|-
+|[[File:Library 1.png|thumb|center|75px]]
+|[[Library]]
+|Decreased the cost of researching new [[technology]] by 2 stars per adjacent [[Temples|temple]].
+|[[Philosophy]]
+|5
+|}
+
+{{Navbox Game Mechanics}}
+[[Category:Buildings]]
+[[Category:Game Mechanics]]
+[[ru:Постройки_и_структуры]]

@@ -1,0 +1,14 @@
+{{Infobox Technology
+| image1       = Smithery Branch.png
+| caption1     = The Smithery branch of the technology tree
+| tier         = Three
+| unlocks      = 
+| starting     = [[Vengir]]
+| preceded_by  = [[Mining]]
+| leads_to     = 
+}}'''Smithery''' is a tier three [[technology]] that unlocks the [[Swordsman]], a powerful front-line melee [[unit]], and the [[Forge]], a [[building]] that provides two [[population]] for each adjacent [[Mine]]. 
+
+The [[Vengir]] [[tribe]] starts with Smithery. Starting with Smithery does not allow researching [[Mining]], as technologies cannot be researched backwards.
+
+{{Navbox Technology}}
+[[Category:Technology]]

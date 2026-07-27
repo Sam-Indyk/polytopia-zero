@@ -1,0 +1,36 @@
+{{Infobox Technology
+| image1       = Aquatism Branch.png
+| caption1     = The Aquatism branch of the technology tree.
+| tier         = Two
+| unlocks      = [[Rammer]]
+| starting     = 
+| preceded_by  = [[Fishing]]
+| leads_to     = [[Aquatism]]
+}}
+
+'''Ramming''' is a tier two [[technology]] that unlocks the [[Rammer]].  
+
+The [[Whaling]] technology held the place in the technology tree that Aquaculture currently does. In the Path of the Ocean update, the technology was modified to bear the name "Aquaculture" for all tribes, unlocking the Rammer and the Aqua Farm. In the Patch of the Ocean update, the Aqua Farm was removed, but Aquaculture retained its name. As part of the Aquarion rework, Aquaculture received its current name of Ramming; Aquarion's modified technology retained the name "Aquaculture" due to unlocking the Aqua Farm in place of the Rammer.
+
+== Aquaculture ==
+
+[[Aquarion]] has the '''Aquaculture''' technology instead of Ramming. Aquaculture unlocks the [[Aqua Farm]].
+
+== Ice Fishing ==
+
+{{see also|Frostwork}}
+
+[[Polaris]] has the Ice Fishing technology instead of Ramming. It unlocks the fishing action, which gives a city one [[population]]. 
+
+==Gallery==
+
+<gallery>
+
+File:RammerK.png|The Kickoo Rammer.
+File:Aqua Farm.png|An Aqua Farm.
+
+</gallery>
+
+{{Navbox Technology}}
+[[Category:Technology]]
+[[ru:Китобойный промысел]]

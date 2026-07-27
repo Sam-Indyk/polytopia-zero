@@ -1,0 +1,25 @@
+{{Infobox Technology
+| image1       = Spiritualism.png
+| caption1     = The Spiritualism branch of the technology tree
+| tier         = Two
+| unlocks      = [[Archer]], defence bonus on forest tiles
+| starting     = [[Hoodrick]]
+| preceded_by  = [[Hunting]]
+| leads_to     = [[Spiritualism]]
+}}'''Archery''' is a tier two [[technology]] that unlocks the [[Archer]] [[unit]] and a [[Defence Bonus|defence bonus]] to friendly units on forest tiles. 
+
+The [[Hoodrick]] [[Tribes|tribe]] starts with Archery.
+
+For [[Polaris]], Archery unlocks the [[Ice Archer]],that freezes enemies instead of doing damage to them. For [[Cymanti]], Archery unlocks the [[Phychi]], a special unit with the ability to travel over water and poison enemy units but a low attack and health, and the defence bonus in forest. 
+
+==Gallery==
+<gallery widths="125">
+
+Archer.png|The Archer model
+Forest_defense.png|The icon for the defence bonus in forest tiles
+
+</gallery>
+
+{{Navbox Technology}}
+[[Category:Technology]]
+[[ru:Стрельба из лука]]

@@ -1,0 +1,51 @@
+{{Infobox Unit
+| name     = Dagger
+| image    = DaggerY.png
+| tribe    = 
+| skills   = Dash, Surprise, Independent, Static
+| health   = 10
+| veteran  = No
+| attack   = 2
+| defence  = 2
+| movement = 1
+| range    = 1
+}}
+{{Quote|Rebels incited to action by the Cloak to attack an enemy city. Daggers are the ultimate surprise attack guerrilla warfare units, meaning enemies won’t retaliate when they pounce.|[https://polytopia.io/diplomacy Diplomacy website]}}
+
+The '''Dagger''' is a melee unit spawned exclusively when a [[Cloak]] [[Unit Skills#infiltrate|infiltrates]] a [[city]]. The number of Daggers spawned is the same as the infiltrated city's level (maximum 5). The spawning mechanic will prioritize the infiltrated city (if unoccupied prior to being damaged during infiltration) then available tiles that provide a defense bonus, i.e. forests and mountains. A Dagger can spawn on water if there are no empty land tiles left, but it cannot spawn on [[terrain]] that the player has not unlocked movement to yet, and no Dagger will spawn if there is no empty tile within the infiltrated city's borders for a Dagger to spawn.
+
+When a Dagger spawns on water or moves to a [[Port]], it becomes a [[Pirate]]. The Pirate retains all of the skills of the Dagger including its melee surprise attack even to land targets, but cannot be upgraded into other naval units. Also, it gains a movement speed increase of +1, like a normal boat. 
+
+When a [[Moth]] infiltrates a city, [[Insect Egg]]s will be spawned instead. 
+
+==Gallery==
+{{Unit Gallery}}
+
+=== Tribe Skins ===
+<gallery>
+File:Sha-po Dagger.png|The Xin-xi Sha-po Dagger
+File:Aumux Dagger.png|The Luxidoor Aumux Dagger
+File:Cultist Dagger.png|The Vengir Cultist Dagger
+File:Anzala Dagger.png|The Zebasi Anzala Dagger
+File:Forgotten Dagger.png|The Aquarion Forgotten Dagger
+File:Solaris Dagger.png|The Polaris Solaris Dagger
+</gallery>
+
+==Mermaid Dagger==
+''See the main article: [[Mermaid Dagger]]''
+
+This is the mermaid version of the [[Dagger]].
+
+==Trivia==
+
+*The Dagger was originally named the "Rebel" during development.<ref>See [[:File:Rebel.png]].</ref>
+*The sound a Dagger makes when attacking is not used by any other unit.
+*The theoretical cost of a Dagger is 2 stars because disbanding a Dagger one yields 1 star, which is half of its theoretical cost, and because it is worth 10 points of score (5 points per cost star).
+*In some tribes, other units are used in place of [[{{PAGENAME}}]]:
+::{{Replace Unit}}
+==References==
+
+<references />
+
+{{Navbox Units}}
+[[Category:Diplomacy]]

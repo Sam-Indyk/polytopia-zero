@@ -1,0 +1,67 @@
+{{Infobox Unit
+| image    = Mind Bender.png
+| type     = Land
+| unlock   = Philosophy
+| cost     = 5 stars
+| attack   = 0
+| defence  = 1
+| movement = 1
+| range    = 1
+| health   = 10
+| veteran  = Yes
+| skills   = Heal, Convert, Stiff
+}}
+
+The '''Mind Bender''' is a [[unit]] that can heal adjacent friendly troops and convert enemy troops to your side. Its special variants are the [[Siren]] and the [[Shaman]].
+
+It converts enemy units by attacking them and has the "Heal Others" [[Unit Abilities|ability]], which allows it to heal all adjacent friendly units by up to 4 HP. (It cannot heal past a unit's maximum HP.)
+
+== Strategies ==
+Strategies for Mind Benders:
+
+*Never spawn just one Mind Bender. If you do, the more powerful [[units]] such as [[Swordsman|Swordsmen]] or, even worse, [[Knight]]s will quickly kill it. Like a good pawn defence driving away the queen, doubling up allows for the instant threat of conversion, so if anything kills one Mind Bender, it will get converted by the other standing behind it. This also allows for mass healing.
+*Ironically, you should protect your Mind Benders with weak [[units]], so that they can easily be killed by strong [[units]] from ambitious AI or eager players, unless the unit has the persist ability. Then, your Mind Bender can safely convert it. If the opponent does have persist troops, use defenders.
+*You can park your Mind Bender next to an enemy city, and defend it from ranged units like [[Catapult]]s. When they spawn units to defend, convert it. Instant units, completely free and can go over city population limits.
+*[[Bunny|Bunnies]] cannot be converted.
+
+Strategies against Mind Benders:
+
+*You can pinpoint the locations of enemy Mind Benders hidden in the clouds. You will be able to immediately see the health increase in healed units, so you can tell where the Mind Bender is based on which units get healed.
+*Ranged Units. Snipe the Mind Benders safely out of range of their convert ability and you will not lose a unit. In large army fights where both sides are being healed by Mind Benders, take out the Mind Benders with ranged first in order to cripple their healing capabilities.
+*Knights. Since as previously mentioned people surround their mind benders with weak units, knights can easily exploit this. Considering that philosophy is a high-level technology, this is quite feasible.
+==Strengths and Weaknesses==
+
+Mind Benders are good for:
+
+*Back-end healing. Their 3x3 Heal Others radius is very useful for frontier defence, when you cannot afford to stop attacking. The Mind Benders can heal large portions of damage very quickly.
+*Bait. One Mind Bender poses an immediate threat to any enemies who obviously don't want to lose their adjacent units. However, if a melee unit were to destroy it, a Mind Bender behind the first one could convert the offender, resulting in a lost unit for them anyway.
+*[[City]] defence. A Mind Bender stationed behind a city can heal the defending [[Units|unit]] in the city, but it can also convert enemies that try to capture the city.
+
+Mind Benders aren't good for:
+
+*Advancing lines. If the front lines of warfare are quickly advancing, the Mind Bender with its slow movement will have difficulty catching up to support the mobile army. This would either weaken the army to heavy hits while the Mind Benders are catching up or allow the enemy to recover if the army is moving slowly with the Mind Benders.
+
+==Gallery==
+
+{{Unit Gallery|MindBender}}
+
+=== Tribe Skins ===
+{{Skin Unit Gallery}}
+
+== Siren ==
+''See the main article: [[Siren]]''
+
+This is the mermaid version of the [[Mind Bender]].
+
+== Trivia ==
+*Mind Benders were originally known as Priests; some game files still use this name.
+**This and the Mind Bender's functionality are likely references to the [[w:c:ageofempires:Priest_(Age_of_Empires)|Priest]] unit from the ''[[Wikipedia:Age_of_Empires|Age of Empires]]'' series, which also has the ability to heal allies and convert enemy units.
+*Mind Benders are the only unit with a visible hand.
+*Mind Bender is much similar to the removed unit [[Scout (Removed)|Scout]].
+*Converting a unit saves their veteran progress: If a Mind Bender converts a unit that is at 2/3 kills, it will stay that way when converted. 
+*Prior to [[Update History|update 2.0.31]], Mind Benders and other units with 0 attack could not capture cities, making a Mind-Bender-only game significantly harder.
+*Converting a unit with a Mind Bender is considered an attack, as it resets the [[Altar of Peace|Pacifist task]] and also destroys embassies.
+*In some tribes, other units are used in place of [[{{PAGENAME}}]]:
+::{{Replace Unit}}
+{{Navbox Units}}
+[[ru:Жрец]]

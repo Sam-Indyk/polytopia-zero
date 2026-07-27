@@ -176,3 +176,63 @@ def test_entropy_is_non_negative():
     with torch.no_grad():
         out = policy.evaluate(stored)
     assert (out["entropy"] >= -1e-6).all()
+
+
+# --- crash regression: non-finite logits ------------------------------------------
+# A 700-iteration run died at ~iteration 476 with a CUDA "scatter gather kernel
+# index out of bounds" assert. The saved weights were finite, so it was not
+# divergence: a transient non-finite logit made torch.multinomial return an
+# OUT-OF-RANGE index, which was stored and only blew up later inside an
+# unrelated gather during the PPO update. These pin both halves of the fix.
+def test_nan_logits_do_not_produce_an_out_of_range_index():
+    logits = torch.full((8, 12), float("nan"))
+    mask = torch.zeros(8, 12, dtype=torch.bool)
+    mask[:, 3] = True
+    idx, logp, ent = sample_masked(logits, mask)
+    assert int(idx.min()) >= 0 and int(idx.max()) < 12
+    assert torch.isfinite(logp).all()
+
+
+def test_inf_logits_are_survivable():
+    logits = torch.zeros(4, 6)
+    logits[0, 0] = float("inf")
+    logits[1, 1] = float("-inf")
+    mask = torch.ones(4, 6, dtype=torch.bool)
+    idx, logp, ent = sample_masked(logits, mask)
+    assert int(idx.max()) < 6
+    assert torch.isfinite(logp).all() and torch.isfinite(ent).all()
+
+
+def test_masked_log_softmax_scrubs_non_finite_values():
+    logits = torch.tensor([[float("nan"), 0.0, float("inf")]])
+    mask = torch.ones(1, 3, dtype=torch.bool)
+    logp = masked_log_softmax(logits, mask)
+    assert torch.isfinite(logp).all()
+
+
+def test_pointer_heads_clamp_out_of_range_sources():
+    """An out-of-range stored index must not fault the gather."""
+    policy, net, cfg = make_policy()
+    feat = torch.randn(2, cfg.channels, 5, 5)
+    ctx = torch.randn(2, cfg.channels + O.global_dim(R))
+    atype = torch.zeros(2, dtype=torch.long)
+    bad = torch.tensor([999, -5])
+    assert torch.isfinite(net.target_logits(feat, atype, bad)).all()
+    assert torch.isfinite(net.subtype_logits(feat, ctx, atype, bad)).all()
+
+
+def test_evaluate_tolerates_a_corrupt_stored_index():
+    policy, _, _ = make_policy()
+    pairs = [(Game.new(size=9, seed=s).state, 0) for s in range(3)]
+    _, info = policy.act(pairs)
+    stored = {k: info[k] for k in ("spatial", "global", "valid", "type_mask",
+                                   "src_mask", "tgt_mask", "sub_mask",
+                                   "atype", "src_idx", "tgt_idx", "sub_idx")}
+    for head, key in (("source", M.NEEDS_SOURCE), ("target", M.NEEDS_TARGET),
+                      ("subtype", M.NEEDS_SUBTYPE)):
+        stored[f"applies_{head}"] = torch.tensor(
+            [int(a) in key for a in info["atype"]], dtype=torch.bool)
+    stored["src_idx"] = torch.full_like(stored["src_idx"], 10_000)
+    with torch.no_grad():
+        out = policy.evaluate(stored)
+    assert torch.isfinite(out["logp"]).all()

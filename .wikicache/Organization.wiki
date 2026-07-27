@@ -1,0 +1,62 @@
+{{Infobox Technology
+| image1       = Organization Branches.png
+| caption1     = Organization and its branches in the technology tree
+| tier         = One
+| unlocks      = Harvest Fruit, reveals crop
+| starting     = [[Imperius]]
+| leads_to     = [[Farming]], [[Strategy]]
+}}'''Organization''' is a tier one [[technology]] that unlocks Harvest Fruit, which costs two [[stars]], produces one [[population]], and can only be performed on tiles with fruit. Organization also reveals crop, a resource used by the [[Farm]].
+
+The [[Imperius]] tribe starts with Organization.
+
+==Trivia==
+
+*[[Zebasi|Zebasi's]] fruit was changed from red watermelons to orange cantaloupes in late 2019 to avoid potential concerns about [[Wikipedia:Watermelon stereotype|racism]].
+*[[∑∫ỹriȱŋ|∑∫ỹriȱŋ's]] fruit is the only one which visually appears as just a single piece of fruit per tile.
+
+==Gallery==
+===Fruit===
+<gallery widths="120">
+
+Xin-xi fruit.png|The Xin-xi Ixi Fruit (citrus)
+Imperius fruit.png|The Imperius Lumaepeles (apples)
+Bardur fruit.png|The Bardur Øgelfuss Berries (blueberries)
+Oumaji fruit.png|The Oumaji Sajaa (cacti)
+Kickoo fruit.png|The Kickoo Banoos (bananas)
+Hoodrick fruit.png|The Hoodrick Quissberries (raspberries)
+Luxidoor fruit.png|The Luxidoor Lôni Fruit (mangoes)
+Vengir fruit.png|The Vengir Thxando-shrooms (mushrooms)
+Zebasi fruit-0.png|The Zebasi Waongii (cantaloupes)
+Ai-mo fruit.png|The Ai-Mo Lï-po Chili Peppers (peppers)
+Aquarion fruit.png|The Aquarion Tunico (sea cucumbers)
+Quetzali fruit.png|The Quetzali Qorn (corn)
+Elyrion fruit.png|The ∑∫ỹriȱŋ Sunburst Lily
+Yadakk fruit.png|The Yădakk Khizuz (lemons)
+Polaris fruit.png|The Polaris Annuqi Crystals
+Cymanti fruit.png|The Cymanti Aphea Nectar
+
+</gallery>
+
+=== Tribe Skins===
+<gallery>
+File:Lirepacci fruit.png|The Lirepacci (Imperius) Uveppi (grapes)
+File:Urkaz fruit.png|The Ürkaz (Yădakk) Lizuz (limes)
+File:Midnight fruit.png|The ₼idŋighţ (∑∫ỹriȱŋ) fruit
+File:Forgotten fruit.png|The Forgotten (Aquarion) Bog Lillums (water lilies)
+</gallery>
+
+=== Gather Icons===
+Unused icons named "Gather" that contain fruit in a basket are found in the game files. 
+<gallery widths="120">
+
+Gather 1.png|A gather icon with the Xin-xi fruit.
+Gather 2.png|A gather icon with the Imperius fruit.
+Gather 3.png|A gather icon with the Bardur fruit.
+Gather 4.png|A gather icon with the Oumaji fruit.
+Gather 5.png|A gather icon with the Kickoo fruit.
+
+</gallery>
+
+{{Navbox Technology}}
+[[Category:Technology]]
+[[ru:Собирательство]]

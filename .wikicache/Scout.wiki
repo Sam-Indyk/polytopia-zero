@@ -1,0 +1,38 @@
+{{Infobox Unit|name=Scout|unlock=Fishing
+| type     = Naval
+|health=Varies|veteran=No|attack=2|defence=1|movement=3|range=2|skills=Water, Dash, Carry, Scout, Static|cost=5 stars to upgrade from a Raft|image=ScoutH.png}}
+{{For|the removed land unit|Scout (Removed)|the naval unit}}
+The '''Scout''' is a naval [[unit]] that is an upgrade from the [[Raft]]. The health of a Scout is determined by the unit it carries.
+
+A Raft can be upgraded into a Scout for five [[stars]], once [[Sailing]] is researched.  Upgrading a naval unit does not heal it.
+
+Moving an upgraded naval unit onto land causes the unit to permanently lose its upgrade: if that unit is once again moved onto a [[Port]], it will become a Raft. It should be noted that when a Scout moves onto land it will still reveal fog in a 5x5 radius before it disembarks.
+
+The Scout replaced the scouting aspect of the [[Battleship]] for the [[Path of the Ocean]] update. While the Scout has the scouting aspect of the [[Battleship]], it is a lot closer to the [[Ship]] in appearance and usage, having the same Attack, Range, and [[Movement]] as the Ship. It is used for both offence and exploration.
+
+== Gallery ==
+<gallery>
+File:ScoutX.png|The Xin-xi Scout
+File:ScoutI.png|The Imperius Scout
+File:ScoutB.png|The Bardur Scout
+File:ScoutO.png|The Oumaji Scout
+File:ScoutK.png|The Kickoo Scout
+File:ScoutH.png|The Hoodrick Scout
+File:ScoutL.png|The Luxidoor Scout
+File:ScoutV.png|The Vengir Scout
+File:ScoutZ.png|The Zebasi Scout
+File:ScoutA.png|The Ai-Mo Scout
+File:ScoutQ.png|The Quetzali Scout
+File:ScoutY.png|The Yădakk Scout
+File:ScoutAq.png|The Aquarion Scout
+File:ScoutE.png|The ∑∫ỹriȱŋ Scout
+File:ScoutP.png|The Polaris Scout
+File:ScoutC.png|The Cymanti Scout
+</gallery>
+===Tribe Skins===
+{{Skin Unit Gallery}}
+==Trivia==
+*In some tribes, other units are used in place of [[{{PAGENAME}}]]:
+::{{Replace Unit}}
+{{Navbox Units}}
+[[Category:Path of the Ocean]]

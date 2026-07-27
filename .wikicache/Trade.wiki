@@ -1,0 +1,16 @@
+{{Infobox Technology
+| image1       = Trade Branch.png
+| caption1     = The Trade branch of the technology tree.
+| tier         = Three
+| unlocks      = [[Market]], [[Emperor's Tomb|Wealth task]]
+| preceded_by  = [[Roads (Technology)|Roads]]
+}}
+
+'''Trade''' is a tier three [[technology]] that unlocks the [[Market]], a [[building]] that produces two [[stars]] per turn for each adjacent resource building, and the Wealth task, which awards the [[Emperor's Tomb]] when 100 stars are accumulated.
+
+For [[Polaris]], Trade unlocks the [[Ice Bank]], a building that produces two stars per turn for every 20 frozen tiles in the world, and the Wealth task.
+
+For [[Cymanti]], Trade unlocks the [[Clathrus]], a building that produces one star per turn for each adjacent [[Algae]], and the Wealth task. 
+
+{{Navbox Technology}}
+[[Category:Technology]]

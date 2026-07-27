@@ -1,0 +1,21 @@
+{{Infobox Technology
+| image1       = Spiritualism.png
+| caption1     = The Spiritualism branch of the technology tree
+| tier         = Three
+| unlocks      = [[Grow Forest]], [[Temples|Forest Temple]]
+| starting     = 
+| preceded_by  = [[Archery]]
+| leads_to     = 
+}}'''Spiritualism''' is a tier three [[technology]] that unlocks the [[Grow Forest]] ability, which turns a field [[Terrain|tile]] into a forest tile at a cost of 5 [[stars]], and the [[Temples|Forest Temple]], which costs 15 stars (5 stars less than other temples). 
+
+==Gallery==
+<gallery widths="125">
+
+Grow_forest.png|The Grow Forest icon
+Forest_temple_level_1.png|A level 1 Forest Temple
+
+</gallery>
+
+{{Navbox Technology}}
+[[Category:Technology]]
+[[ru:Духовность]]

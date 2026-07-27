@@ -1,0 +1,51 @@
+{{Infobox Unit
+| image    = Defender-2.png
+| type     = Land
+| unlock   = Strategy
+| cost     = 3 stars
+| attack   = 1
+| defence  = 3
+| movement = 1
+| range    = 1
+| health   = 15
+| veteran  = Yes
+| skills   = Fortify
+}}
+The '''Defender''' is a strong defensive [[Units|unit]] that is unlocked by the [[Strategy]] technology. As their name implies, defenders have good defence while lacking in attack and movement. The [[Quetzali]] tribe starts the game with a Defender. Its replacements in Aquarion and Cymanti are the [[Mermaid Defender]] and the [[Kiton]], respectively. 
+
+==Strategy==
+
+* A very effective strategy used to be to build a wall of [[Warrior]]s (or [[Swordsman|Swordsmen]] if you have them) and block the defenders but not to attack.  Bots with Defenders would attack, sustaining heavy damage (even on Crazy difficulty). The next turn, warriors could kill defenders with 5 or lower health. As of the Feb 2021 update, this is no longer effective against bot players, who have learned to use Defenders passively.
+*Defenders can also be dealt with using ranged attacks, as their high defence means nothing if they cannot retaliate.
+* Mind Benders are very effective against Defenders, who cannot kill them unless in large swarms.
+
+==Strengths and Weaknesses==
+
+Strengths:
+
+*'''Defending cities.''' Full-health defenders cannot be one-hit by anything, so that naturally makes them good for holding a certain point.
+*'''Holding choke points.''' Barring a sea invasion, if you put defenders across a point you don't want someone to reach, the enemy can't get through it, and even if they do, their army can't flood through it easily.
+*'''Countering attacks.''' Unlike other units, defenders have very high counter damage.  Since most enemies can't resist attacking a defender, one of these units can thin out overly ambitious neighbors in the early rounds.
+*'''Defending against weak swarms.''' In a [[city wall]], a defender has so much defence that damaged [[Warrior|Warriors]] and [[Rider|Riders]] will actually deal 0 damage to it, and the defender's retaliation will instantly kill the assailants.
+*'''Ship swarm.''' On a naval unit, all the original unit's stats are ignored except for the health of that unit. And since the Defender is the cheapest unit with 15 health besides [[Polytaur|Polytaurs]], you can just swarm the sea with them, quickly and cheaply securing naval dominance.
+
+Weaknesses:
+
+*'''Defending against mobs of strong units.''' A mob of [[Swordsman|swordsmen]] or knights can take down a defender, although they will suffer some damage.
+*'''Fighting ranged units.''' [[Archer|Archers]] can continually move back and snipe it, [[Scout|scouts]] and [[Bomber|bombers]] can shoot them from off the coast, and [[Catapult|catapults]] deal too much damage for defenders to even be able to scratch it.
+==Gallery==
+
+{{Template:Unit Gallery}}
+
+===Tribe Skins===
+{{Skin Unit Gallery}}
+
+==Mermaid Defender==
+''See the main article: [[Mermaid Defender]]''
+
+This is the mermaid version of the Defender.
+==Trivia==
+*In some tribes, other units are used in place of [[{{PAGENAME}}]]:
+::{{Replace Unit}}
+{{Navbox Units}}
+[[Category:Units]]

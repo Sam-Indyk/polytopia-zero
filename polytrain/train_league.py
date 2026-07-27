@@ -79,6 +79,8 @@ def main() -> None:
                     help="hardware profile: smoke | laptop | workstation | auto")
     ap.add_argument("--precision", default="fp32", choices=("fp32", "bf16"),
                     help="autocast precision for the trunk")
+    ap.add_argument("--resume", metavar="CKPT",
+                    help="continue from a checkpoint (e.g. checkpoints_x/latest.pt)")
     ap.add_argument("--smoke", action="store_true")
     args = ap.parse_args()
 
@@ -106,6 +108,14 @@ def main() -> None:
     print(f"device={device} params={sum(p.numel() for p in policy.net.parameters())/1e6:.2f}M "
           f"size={args.size} league_size={args.league_size}")
 
+    start_iter = 1
+    if args.resume:
+        blob = torch.load(args.resume, map_location=device, weights_only=False)
+        policy.net.load_state_dict(blob["model"])
+        start_iter = int(blob.get("iter", 0)) + 1
+        print(f"resumed {args.resume} at iteration {start_iter} "
+              f"(elo {blob.get('elo', 0):+.0f}, scripted {blob.get('wr_scripted')})")
+
     learner = PPOLearner(policy, PPOConfig(lr=args.lr, minibatch=args.minibatch,
                                            epochs=args.epochs,
                                            entropy_coef=args.entropy))
@@ -121,9 +131,15 @@ def main() -> None:
     games_self = None
     games_vs = None
     best = -1.0
+    if args.resume:
+        # Don't let a resumed run overwrite a better best.pt with a worse one.
+        best_path = out_dir / "best.pt"
+        if best_path.exists():
+            prev = torch.load(best_path, map_location="cpu", weights_only=False)
+            best = prev.get("wr_scripted") or -1.0
     t0 = time.perf_counter()
 
-    for it in range(1, args.iters + 1):
+    for it in range(start_iter, args.iters + 1):
         shaping = args.shaping * max(0.0, 1 - it / max(1, args.shaping_anneal))
         member = league.sample(rng)
 

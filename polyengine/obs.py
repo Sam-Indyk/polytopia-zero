@@ -10,8 +10,10 @@ player cannot see on screen.
 Layout (C x H x W float32, C = N_PLANES):
   terrain one-hot                     n_terrain
   resource one-hot                    n_resource
+  improvement one-hot                 n_improvements  (harvests + buildings)
   territory                           4   own / enemy / neutral / off-board
-  city                                7   present, own, enemy, level, pop, walls, capital
+  city                                9   present, own, enemy, level, pop, walls,
+                                          capital, workshop, support-used fraction
   remembered units                    n_units + 6
                                           type one-hot (from memory)
                                           own, enemy, hp fraction, veteran, moved, attacked
@@ -40,8 +42,10 @@ STALENESS_SCALE = 20.0
 def plane_layout(rules: Ruleset) -> dict[str, tuple[int, int]]:
     """Name -> (start, count) for every block of planes, for debugging/tests."""
     n_t, n_r, n_u = rules.n_terrain, len(rules.resource_names), rules.n_units
+    n_i = rules.n_improvements
     blocks = [
-        ("terrain", n_t), ("resource", n_r), ("territory", 4), ("city", 7),
+        ("terrain", n_t), ("resource", n_r), ("improvement", n_i),
+        ("territory", 4), ("city", 9),
         ("unit_type", n_u), ("unit_attrs", 6), ("fog", 3), ("geometry", 3),
     ]
     out, start = {}, 0
@@ -64,10 +68,10 @@ def global_dim(rules: Ruleset) -> int:
 
 
 @njit(cache=True)
-def _encode_spatial(size, player, n_terrain, n_resource, n_units,
-                    terrain, resource, owner,
+def _encode_spatial(size, player, n_terrain, n_resource, n_units, n_improvement,
+                    terrain, resource, improvement, owner,
                     mem_city_owner, mem_city_level, city_pop, city_walls,
-                    city_capital,
+                    city_capital, city_workshop, city_support_frac,
                     mem_unit_type, mem_unit_owner, unit_hp, unit_veteran,
                     unit_moved, unit_attacked, unit_max_hp,
                     visible, explored, staleness,
@@ -76,9 +80,10 @@ def _encode_spatial(size, player, n_terrain, n_resource, n_units,
     # block offsets
     o_terr = 0
     o_res = o_terr + n_terrain
-    o_terr_own = o_res + n_resource
+    o_imp = o_res + n_resource
+    o_terr_own = o_imp + n_improvement
     o_city = o_terr_own + 4
-    o_utype = o_city + 7
+    o_utype = o_city + 9
     o_uattr = o_utype + n_units
     o_fog = o_uattr + 6
     o_geo = o_fog + 3
@@ -91,6 +96,8 @@ def _encode_spatial(size, player, n_terrain, n_resource, n_units,
 
         out[o_terr + terrain[i], y, x] = 1.0
         out[o_res + resource[i], y, x] = 1.0
+        if improvement[i] >= 0:
+            out[o_imp + improvement[i], y, x] = 1.0
 
         # territory (relative ownership)
         if owner[i] == player:
@@ -113,6 +120,11 @@ def _encode_spatial(size, player, n_terrain, n_resource, n_units,
                 out[o_city + 4, y, x] = city_pop[i] / 10.0
                 out[o_city + 5, y, x] = 1.0 if city_walls[i] else 0.0
             out[o_city + 6, y, x] = 1.0 if city_capital[i] else 0.0
+            if visible[i] == 1:
+                out[o_city + 7, y, x] = 1.0 if city_workshop[i] else 0.0
+                # How full this city's unit-support is — the scarce resource
+                # that decides whether another unit can be trained at all.
+                out[o_city + 8, y, x] = city_support_frac[i]
 
         # units, from memory
         ut = mem_unit_type[i]
@@ -157,11 +169,20 @@ def encode_spatial(state, player: int, rules: Ruleset,
     if out_size < size:
         raise ValueError(f"pad_to={pad_to} smaller than map size {size}")
     out = np.zeros((n_planes(rules), out_size, out_size), dtype=np.float32)
+    # Fraction of each city's unit-support capacity already in use.
+    support = np.zeros(state.n_tiles, dtype=np.float32)
+    cities = np.flatnonzero(state.city_level > 0)
+    if cities.size:
+        used = (state.unit_home[:, None] == cities[None, :]).sum(axis=0)
+        cap = state.city_level[cities].astype(np.float32) + 1.0
+        support[cities] = np.minimum(used / cap, 1.0)
     _encode_spatial(
         size, player, rules.n_terrain, len(rules.resource_names), rules.n_units,
-        state.terrain, state.resource, state.owner,
+        rules.n_improvements,
+        state.terrain, state.resource, state.improvement, state.owner,
         state.mem_city_owner[player], state.mem_city_level[player],
         state.city_pop, state.city_walls, state.city_capital,
+        state.city_workshop, support,
         state.mem_unit_type[player], state.mem_unit_owner[player],
         state.unit_hp, state.unit_veteran, state.unit_moved, state.unit_attacked,
         rules.unit_max_hp.astype(np.float32),

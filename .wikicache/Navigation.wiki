@@ -1,0 +1,24 @@
+{{Infobox Technology
+| image1       = Navigation.png
+| caption1     = The Navigation branch of the technology tree
+| tier         = Three
+| unlocks      = [[Bomber]], [[Starfish Harvesting]]
+| starting     = 
+| preceded_by  = [[Sailing]]
+| leads_to     = 
+}}'''Navigation''' is a tier three [[technology]] that unlocks the [[Bomber]] [[unit]] and the ability to harvest [[Starfish]].  
+
+Navigation is a crucial technology on maps that require long-distance naval bombardments.
+
+== Polar Warfare ==
+[[Polaris]] has the '''Polar Warfare''' technology instead of Navigation. Polar Warfare unlocks the [[Ice Fortress]] and the ability to harvest Starfish.
+
+== Oceanology ==
+[[Cymanti]] has the '''Oceanology''' technology instead of Navigation. Oceanology unlocks the ability to harvest starfish.
+
+== '''Before Path of the Ocean''' ==
+Before the Path of the Ocean update, Navigation unlocked the [[Battleship]] [[Units|unit]], [[movement]] on ocean tiles, and the [[Eye of God|Explorer task]]. 
+
+{{Navbox Technology}}
+[[Category:Technology]]
+[[ru:Навигация]]

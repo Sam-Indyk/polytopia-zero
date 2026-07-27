@@ -1,0 +1,59 @@
+{{Infobox Unit
+| name     = Swordsman
+| image    = Swordsman-1.png
+| type     = Land
+| unlock   = Smithery
+| cost     = 5 stars
+| attack   = 3
+| defence  = 3
+| movement = 1
+| range    = 1
+| health   = 15
+| veteran  = Yes
+| skills   = Dash
+}}
+The '''Swordsman''' is a melee [[Units|unit]]. It is an all-around upgrade from the [[Warrior]], with more health and greater attack and defence. The unit is unlocked by the [[Smithery]] [[technology]]. [[Vengir]] starts with a Swordsman. [[Ruins]] may give a veteran Swordsman as a reward. The [[Cymanti]] tribe has the [[Mantis]] instead of the Swordsman. 
+
+==Strategy==
+Strategies for the Swordsman:
+
+* City sieging. The Swordsman possesses the attack needed to shave off the last 5 health of that pesky [[Warrior]] in the city walls, as well as the defence needed to survive the counterattack.
+* Army leading. The Swordsman is easily replaced and durable, making large quantities of them easy to obtain.
+
+Strategies against Swordsmen:
+
+*[[Giant|Giants]]. The Swordsman can't take these out so quickly. However, giants are not to be used when there are 3+ swordsmen nearby, or they will overpower it easily.
+*[[Catapult|Catapults]]. The Catapult can two-hit a Swordsman while staying safely out of range.
+*[[Scout|Scouts]] and [[Bomber|bombers]]. If possible, pummeling a Swordsman from offshore has similar effects to a Catapult.
+*[[Defender|Defenders]] in [[City wall|city walls]]. These are extremely tough to bring down, requiring the assistance of numerous other units.
+
+== Strengths and Weaknesses ==
+
+=== Strengths ===
+
+* Melee fights. In a 1v1 situation, the Swordsman rules, second only to the Giant. It can take huge chunks of health off [[Giant|Giants]], [[Crab|Crabs]], [[Warrior|Warriors]], and other Swordsmen, and can instantly kill non-veteran [[Rider|Riders]], [[Archer|Archers]], and [[Catapult|Catapults]].
+* Front lines. The Swordsman is good at killing those in front. It is also decent at retaliation whenever attacked. These make it a viable unit for your front lines, advancing in front of a wave of ranged units. Note that [[Defender|Defenders]] are cheaper and have the same defence, but are much less capable of attacking and don't have [[Unit Skills|dash]].
+* [[Knight]] defence. The Swordsman is also surprisingly effective against knights. Since knights can't retreat after their initial assault, a group of swordsmen can easily beat a group of low-defence knights.
+*  
+
+=== Weaknesses ===
+
+* Killing [[Catapult|Catapults]]. The Swordsman can only move one (two using roads) tile at a time. This leaves them unable to advance through the range of a [[Catapult]] in one turn, which leaves the Swordsman as an easy target.
+* Breaching [[Defender]] walls. To be fair, virtually every melee unit is weak against [[Defender|Defenders]], due to their high retaliation damage.   
+* Defending. Because the Swordsman lacks the ''fortify'' skill, it cannot receive a defense bonus from city walls. Defenders, which have the same amount of health and defense, are therefore better for defending cities.   
+
+== Gallery ==
+
+{{Unit Gallery}}
+
+=== Tribe Skins ===
+{{Skin Unit Gallery}}
+
+== Swordsmaid ==
+''See the main article: [[Swordsmaid]]''
+
+This is the mermaid version of the [[Swordsman]].{{Navbox Units}}
+==Trivia==
+*In some tribes, other units are used in place of [[{{PAGENAME}}]]:
+::{{Replace Unit}}
+[[ru:Мечник]]
