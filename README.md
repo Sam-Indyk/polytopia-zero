@@ -79,8 +79,28 @@ Scrub with the slider or ← / → / space.
   since a player's own decisions are not contiguous in a turn-based game; clipped surrogate loss,
   summed per-head entropy, annealed material shaping on top of terminal ±1.
 
-Still to come in M2: the win-rate gates (>90% vs ScriptedBot, >60% vs MCTS-1k), the Elo curve,
-and a scaled-up run.
+- **Snapshot opponent pool** (`polytrain/pool.py`) — a fraction of iterations are played against
+  frozen past selves, so the policy has to stay good against old styles instead of cycling.
+
+#### Results so far (6×6 smoke config, 0.25M-param net, ~14 min on an RTX PRO 1000)
+
+| run | vs RandomLegal | vs ScriptedBot (100 games) |
+|---|---|---|
+| mirror self-play, final (iter 150) | 100% | **47%** |
+| + snapshot pool, final (iter 300) | 100% | **69%** |
+| + snapshot pool, best (iter 160) | 100% | **88%** |
+
+The first run reached 91.7% against ScriptedBot at iteration 100 and fell back to 47% by 150 —
+confirmed with a 100-game eval, so drift, not noise. That is textbook self-play strategy cycling:
+mirror self-play only optimises against the *current* opponent, so nothing stops the policy
+unlearning how to beat an earlier style. The snapshot pool is the standard fix and roughly
+doubled sustained strength. A best-by-win-rate checkpoint is now saved alongside `latest.pt`,
+because self-play win rate is not a monotone proxy for strength.
+
+**The M2 gate (>90% vs ScriptedBot, >60% vs MCTS-1k) is not met yet** — 88% at best on the toy
+config. Remaining M2 work: a scaled-up run at the real config (`--size 9`, full 160×12 net), the
+MCTS-1k gate, and the Elo curve. The residual best-vs-final gap (88% → 69%) is exactly what the
+full PFSP league in M3 is designed to close.
 
 ### What's landed (M1)
 
