@@ -154,18 +154,30 @@ required before M5. Rationale is in `PLAN.md`.
 - **`viewer.py` embeds JS/CSS in a Python string.** Escapes are treacherous:
   `\25b8` in CSS was silently parsed as a Python octal escape. After editing,
   regenerate a replay and render it (headless Edge works) before trusting it.
-- **THIS MACHINE BUGCHECKS UNDER SUSTAINED GPU LOAD.** Two crashes so far
-  (27 Jul 21:02, 28 Jul 10:00), both within ~3 minutes of a training run
-  starting, with *identical* bugcheck parameters — so it is deterministic, not
-  luck. `HYPERVISOR_ERROR 0x00020001`, alongside a WHEA **fatal hardware error**
-  (Event ID 1) and corrected **PCI Express AER** errors naming the GPU
-  (`PCI\VEN_10DE&DEV_2DB8`, i.e. the RTX PRO 1000). It presents as
-  HYPERVISOR_ERROR rather than the usual `0x124` because VBS is enabled. This is
-  **not a bug in this repo** — our workload is just a reliable stress test. The
-  PCIe link also negotiates x4 width on a Gen5 link. Untried mitigations: NVIDIA
-  driver update/rollback (32.0.15.9608, 30 Mar 2026), disabling PCIe ASPM /
-  "prefer maximum performance", Dell BIOS update. The GPU power limit is not
-  settable here (`nvidia-smi` reports `N/A`).
+- **THIS MACHINE BUGCHECKS UNDER SUSTAINED GPU LOAD.** Four crashes on
+  27–28 Jul, every one with *byte-identical* bugcheck parameters:
+  `HYPERVISOR_ERROR 0x00020001 (0x28, 0x1, 0x29b92701, 0xfc801000)`, each
+  alongside a WHEA **fatal hardware error** (Event ID 1) and corrected
+  **PCI Express AER** errors naming the GPU (`PCI\VEN_10DE&DEV_2DB8`, the
+  RTX PRO 1000, Dell subsystem `1028`). It presents as HYPERVISOR_ERROR rather
+  than the usual `0x124` because VBS is enabled. This is **not a bug in this
+  repo** — our workload is just a reliable stress test. Time-to-crash is
+  variable (2h43m once, 9 minutes another time), so only the *signature* is
+  deterministic, not the timing.
+
+  **Ruled out — do not re-investigate these:**
+  - *Wake from sleep.* Two crashes followed a Modern Standby exit within 15
+    min, which looked compelling, but a later crash happened with no standby
+    transition for 18 minutes beforehand. Correlation was coincidence.
+  - *PCIe ASPM.* Already `Off` on AC before any of the crashes.
+  - *GPU power limit.* Not settable on this laptop part (`nvidia-smi` reports
+    `N/A`; default 50 W, max 65 W).
+
+  **Still untried, in order of likelihood:** NVIDIA driver update/rollback
+  (was 32.0.15.9608, 30 Mar 2026), Dell BIOS update, warranty claim. Note the
+  PCIe link negotiates **x4 width on a Gen5 link**, which is worth raising with
+  Dell alongside the AER errors.
+
   *Because of this, long runs must be crash-resilient — see below.*
 - **Elo used to reset on `--resume`.** Fixed: `League.state_dict()` /
   `load_state_dict()` persist the pool and Elo to `<out>/league.pt`, and
@@ -194,6 +206,12 @@ survives the reboot that follows a bugcheck:
 ```
 crash -> reboot -> logon -> task -> supervisor -> --auto-resume
 ```
+
+Two power settings matter and are already applied (`powercfg`, AC): idle
+standby and hibernate are both **never**. A 10-minute idle sleep once cost a run
+68 minutes mid-training. The supervisor additionally holds `ES_SYSTEM_REQUIRED`
+for its lifetime, so the machine stays awake even if a Windows update resets the
+power plan.
 
 **Remove the task when the run is done**, or training starts on every login:
 
