@@ -47,6 +47,19 @@ Set-Location $repo
 $py = Join-Path $repo ".venv\Scripts\python.exe"
 if (-not (Test-Path $py)) { throw "venv python not found at $py" }
 
+# Refuse to start if a trainer is already running. The logon task fires on every
+# login, including logins that happen while a manually-started supervisor is
+# still going -- and two trainers sharing one --out directory would interleave
+# writes to latest.pt and destroy the run they exist to protect.
+$existing = Get-CimInstance Win32_Process -Filter "Name='python.exe'" -ErrorAction SilentlyContinue |
+            Where-Object { $_.CommandLine -like '*polytrain.train_league*' }
+if ($existing) {
+  $msg = "a trainer is already running (pid $($existing.ProcessId | Select-Object -First 1)); exiting"
+  Write-Output $msg
+  Add-Content -Path $Log -Value "=== $msg ===" -Encoding utf8
+  return
+}
+
 # Keep the trainer's own output ASCII-safe; the console here is cp1252.
 $env:PYTHONIOENCODING = "utf-8"
 
