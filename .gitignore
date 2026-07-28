@@ -27,6 +27,14 @@ checkpoints_tmp/
 runs/
 runs_*.log
 
+# In-progress long runs. league.pt is capacity x model size (hundreds of MB) and
+# the .bak/.tmp files are crash-recovery scratch -- none belong in git. Promote a
+# finished run by copying best.pt/latest.pt into a committed checkpoints_* dir.
+checkpoints_big/
+*.pt.bak
+*.pt.tmp
+league.pt
+
 # Replays are regenerable and large (an 1,800-frame 11x11 game is ~8 MB of
 # embedded JSON). Recreate with scripts/record_replay.py.
 replays/*.json

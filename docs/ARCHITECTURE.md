@@ -201,6 +201,11 @@ Mixture per `PLAN.md`: 50% self / 35% even / 10% hard / 5% scripted. Win rates
 policy drifts. Eviction preserves Elo *spread*, not recency — a pool of recent
 snapshots is a pool of near-identical opponents.
 
+Snapshots, Elo and decayed win rates round-trip through `League.state_dict()` to
+`<out>/league.pt`. Without that, every crash-restart silently dropped the pool
+back to pure mirror self-play — which is exactly the cycling failure the league
+exists to prevent.
+
 ### `evaluate.py` — measurement protocol
 
 **Mirrored seed pairs** (same map, both seats) cancel spawn luck. Win rates come
@@ -242,10 +247,15 @@ has no real Steam captures yet.
 
 ## Known limitations
 
-- **Rollout is single-process** (`train_league.py`), using ~1 of 16 cores.
+- **Rollout is single-process** (`train_league.py`), using ~1 of 16 cores. This is
+  now the binding constraint: rollout wall-time is essentially independent of net
+  size (see the sizing table in `CLAUDE.md`), because it is CPU-bound.
 - **The multiprocess collector doesn't scale to large nets** — full policy copy
   per worker; measured table in `polytrain/parallel.py`.
-- **Elo bookkeeping resets on `--resume`.**
+- **The dev box bugchecks under sustained GPU load** — a hardware fault, not a
+  code bug (WHEA fatal error + PCIe AER on the NVIDIA link). Long runs therefore
+  go through `scripts/train_overnight.ps1`, and checkpointing is atomic with
+  `.bak` fallback. Details and mitigations in `CLAUDE.md`.
 - **Map generation isn't faithful** to Polytopia's (see `PLAN.md`, deferred M4).
 - **Naval, cloak/diplomacy, special tribes**: stats and tech gating are correct
   data, mechanics are not implemented. Those units are flagged non-trainable.

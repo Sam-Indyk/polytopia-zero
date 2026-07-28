@@ -189,3 +189,51 @@ def test_sprt_decisions(wins, games, expected):
 def test_sprt_with_no_games_is_inconclusive():
     r = sprt(0, 0)
     assert r.decision == "continue" and not r.decided
+
+
+# --- persistence across a crash -------------------------------------------------
+# This box bugchecks under sustained GPU load, so a training run is restarted
+# repeatedly from `latest.pt`. If the league did not round-trip, every restart
+# would silently drop the opponent pool back to pure self-play and reset Elo.
+def test_league_state_dict_round_trips_snapshots_and_elo():
+    torch = pytest.importorskip("torch")
+    import torch.nn as nn
+
+    league = League(capacity=5)
+    league.add_scripted("scripted", lambda s: object())
+    for it in (10, 20, 30):
+        league.add_snapshot(nn.Linear(4, 4), it)
+    league.main_elo = 123.5
+    for m in league.snapshots:
+        m.record(1.0); m.record(0.0)
+
+    blob = league.state_dict()
+
+    restored = League(capacity=5)
+    restored.add_scripted("scripted", lambda s: object())
+    restored.load_state_dict(blob)
+
+    assert restored.main_elo == pytest.approx(123.5)
+    assert [m.name for m in restored.snapshots] == [m.name for m in league.snapshots]
+    assert [m.iteration for m in restored.snapshots] == [10, 20, 30]
+    for a, b in zip(restored.snapshots, league.snapshots):
+        assert a.win_rate == pytest.approx(b.win_rate)
+        assert a.elo == pytest.approx(b.elo)
+
+
+def test_league_load_state_dict_does_not_duplicate_scripted_members():
+    league = League(capacity=4)
+    league.add_scripted("scripted", lambda s: object())
+    league.load_state_dict(league.state_dict())
+    assert len(league.scripted) == 1
+
+
+def test_league_restores_scripted_statistics():
+    league = League(capacity=4)
+    m = league.add_scripted("scripted", lambda s: object())
+    m.record(1.0); m.record(1.0); m.record(0.0)
+
+    restored = League(capacity=4)
+    restored.add_scripted("scripted", lambda s: object())
+    restored.load_state_dict(league.state_dict())
+    assert restored.scripted[0].win_rate == pytest.approx(m.win_rate)

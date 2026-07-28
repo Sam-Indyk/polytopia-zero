@@ -104,12 +104,31 @@ trust a checkpoint label; re-measure with `polytrain.evaluate.play_match`.
 
 The plateau is most likely **sparse terminal reward**: with 96-step rollouts and
 11×11 games running ~80 turns, only ~6–9 episodes finish per iteration, so 700
-iterations saw maybe 5,000 win/loss signals. In rough order of expected value:
+iterations saw maybe 5,000 win/loss signals.
 
-1. **Longer rollouts** (`--rollout 256`–512) so games finish inside a segment.
-   One flag, ~30 min to test. Try this first.
-2. **More parallel games**, which needs the rollout rewrite below.
-3. **A bigger network** — 0.57M params is small for a 64-plane 11×11 board.
+**A run addressing this is in flight** (28 Jul, `checkpoints_big/`, gitignored):
+`128x10 = 3.44M params` (6× the old net), `--games 64 --rollout 192` on 11×11 —
+12,288 steps/iteration, 4× the old run, and ~21 episodes/iteration instead of
+6–9. Measured 25.5s/iteration (7.2s rollout + 18.3s update), 5.5 GB of 8.5 GB
+peak VRAM. Watch it with `Get-Content runs_big.log -Tail 20`.
+
+The sizing measurement that drove those numbers, and which should be redone
+before any future scale-up:
+
+| net | params | rollout | update | peak VRAM |
+|---|---|---|---|---|
+| 64×6 (old) | 0.58M | 1.87s | 2.23s | 1.8 GB |
+| 96×8 | 1.57M | 2.07s | 3.07s | 3.0 GB |
+| **128×10** | **3.37M** | **2.09s** | **4.39s** | **4.7 GB** |
+| 160×12 | 6.17M | 2.10s | 6.97s | 6.8 GB |
+
+The headline: **rollout time is flat across net sizes** — it is CPU-bound, so a
+bigger network is nearly free during collection and costs only in the PPO update.
+That is why growing the net was cheap and why item 1 below is still the ceiling.
+
+1. **Parallel rollout** is now the binding constraint (see below).
+2. **A bigger network still** — 160×12 fits, but only pays off with more
+   parallel environments; otherwise the update dominates.
 
 **The one piece of engineering the target hardware genuinely needs:** the current
 multiprocess collector (`polytrain/parallel.py`) puts a full policy copy in every
@@ -135,11 +154,57 @@ required before M5. Rationale is in `PLAN.md`.
 - **`viewer.py` embeds JS/CSS in a Python string.** Escapes are treacherous:
   `\25b8` in CSS was silently parsed as a Python octal escape. After editing,
   regenerate a replay and render it (headless Edge works) before trusting it.
-- **Elo resets on `--resume`** — the league pool rebuilds empty, so ratings
-  across a resume boundary aren't comparable. Weights restore correctly.
+- **THIS MACHINE BUGCHECKS UNDER SUSTAINED GPU LOAD.** Two crashes so far
+  (27 Jul 21:02, 28 Jul 10:00), both within ~3 minutes of a training run
+  starting, with *identical* bugcheck parameters — so it is deterministic, not
+  luck. `HYPERVISOR_ERROR 0x00020001`, alongside a WHEA **fatal hardware error**
+  (Event ID 1) and corrected **PCI Express AER** errors naming the GPU
+  (`PCI\VEN_10DE&DEV_2DB8`, i.e. the RTX PRO 1000). It presents as
+  HYPERVISOR_ERROR rather than the usual `0x124` because VBS is enabled. This is
+  **not a bug in this repo** — our workload is just a reliable stress test. The
+  PCIe link also negotiates x4 width on a Gen5 link. Untried mitigations: NVIDIA
+  driver update/rollback (32.0.15.9608, 30 Mar 2026), disabling PCIe ASPM /
+  "prefer maximum performance", Dell BIOS update. The GPU power limit is not
+  settable here (`nvidia-smi` reports `N/A`).
+  *Because of this, long runs must be crash-resilient — see below.*
+- **Elo used to reset on `--resume`.** Fixed: `League.state_dict()` /
+  `load_state_dict()` persist the pool and Elo to `<out>/league.pt`, and
+  `--resume` now also restores the Adam optimiser state and RNG. Ratings are
+  comparable across a resume boundary again.
 - `_fill_by_id` in `rules.py` tolerates missing optional TOML keys; `from_dict`
   derives dtypes from `_allocate()` so adding a state array can't silently break
   serialization (it did once).
+
+## Long runs on a machine that crashes
+
+Because of the bugcheck above, `train_league.py` is built to lose minutes, not
+nights. Four mechanisms, all of them tested:
+
+| flag / file | what it does |
+|---|---|
+| `--save-every N` (default 5) | writes `latest.pt` every N iterations, not just at eval |
+| `--auto-resume` | picks up `<out>/latest.pt` if present; safe to pass on a fresh run |
+| `checkpoint.save_atomic` | write-to-`.tmp` + `fsync` + `os.replace`, and rotates a `.bak`, so a crash mid-save cannot tear the file |
+| `checkpoint.load_resumable` | falls back to `.bak` if the primary is truncated; returns `None` rather than dying |
+
+`scripts/train_overnight.ps1` wraps all that in a restart loop, and
+`scripts/Register-Overnight.ps1` registers a **logon** scheduled task so the loop
+survives the reboot that follows a bugcheck:
+
+```
+crash -> reboot -> logon -> task -> supervisor -> --auto-resume
+```
+
+**Remove the task when the run is done**, or training starts on every login:
+
+```bash
+powershell -ExecutionPolicy Bypass -File scripts/Register-Overnight.ps1 -Remove
+```
+
+Checkpoint promotion now uses a **held-out** gate: with `--league-scripted`,
+ScriptedBot is a training opponent, so `best.pt` is selected on the OSLA win rate
+instead (`blob["gate_name"]` records which). Selecting on an opponent you train
+against measures sparring, not strength.
 
 ## Watching games
 
