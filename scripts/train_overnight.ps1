@@ -65,6 +65,22 @@ if ($existing) {
 # Keep the trainer's own output ASCII-safe; the console here is cp1252.
 $env:PYTHONIOENCODING = "utf-8"
 
+# Keep the machine awake for as long as this supervisor lives. A 10-minute idle
+# sleep timeout once cost this run 68 minutes mid-training (it 200 -> 201 took
+# 4074s). powercfg has been set to never sleep on AC, but that is a global
+# setting a Windows update can reset; this is scoped to the run and reverts
+# automatically when the supervisor exits, so it cannot leave the laptop
+# permanently unable to sleep.
+if (-not ("Win.Power" -as [type])) {
+  Add-Type -Namespace Win -Name Power -MemberDefinition @'
+[DllImport("kernel32.dll", SetLastError = true)]
+public static extern uint SetThreadExecutionState(uint esFlags);
+'@
+}
+$ES_CONTINUOUS = [uint32]0x80000000
+$ES_SYSTEM_REQUIRED = [uint32]0x00000001
+[void][Win.Power]::SetThreadExecutionState($ES_CONTINUOUS -bor $ES_SYSTEM_REQUIRED)
+
 $attempt = 0
 while ($attempt -lt $MaxRetries) {
   $attempt++
