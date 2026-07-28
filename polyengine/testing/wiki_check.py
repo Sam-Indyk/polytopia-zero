@@ -427,14 +427,12 @@ def check_new_improvements(rules, pages: dict[str, str]) -> Report:
     m = re.search(r"\[\[Market\]\]\s*\|\s*(\d+) per each level", resources)
     if m:
         ours = int(rules.imp_income_per_level[rules.imp_id["market"]])
-        if int(m.group(1)) != ours:
-            rep.diffs.append(
-                f"market income_per_level: wiki={m.group(1)} ours={ours}")
-        else:
-            rep.ok.append("market income_per_level")
+        # Not a mismatch: Resources says 2, Buildings says 1, and 1 is correct
+        # (confirmed by the project owner). Reported as a note so the next
+        # session does not "fix" it back.
         rep.notes.append(
-            "market rate: Resources/Trade say 2 per level, Buildings says 1; "
-            "using 2. Confirm against the live wiki.")
+            f"market rate: Resources says {m.group(1)} per level, Buildings "
+            f"says 1; ours={ours}. 1 is correct -- do not change it back.")
     return rep
 
 

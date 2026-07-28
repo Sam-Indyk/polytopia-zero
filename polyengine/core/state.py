@@ -32,7 +32,8 @@ _TILE_ARRAYS = (
     "unit_type", "unit_owner", "unit_hp", "unit_moved", "unit_attacked",
     "unit_veteran", "unit_kills", "unit_home", "unit_carried", "unit_hidden",
 )
-_PLAYER_ARRAYS = ("stars", "tech", "tribe", "alive")
+_PLAYER_ARRAYS = ("stars", "tech", "tribe", "alive",
+                  "task_done", "monument_built", "kills", "calm_turns")
 _FOG_ARRAYS = (
     "fog_explored", "fog_visible", "fog_staleness",
     "mem_unit_type", "mem_unit_owner", "mem_city_owner", "mem_city_level",
@@ -106,6 +107,14 @@ class GameState:
         self.tech = np.zeros(p, dtype=C.DT_TECH)
         self.tribe = np.zeros(p, dtype=np.int8)
         self.alive = np.ones(p, dtype=C.DT_FLAG)
+        # Task/monument bookkeeping. Tasks are one-way: once earned, a monument
+        # stays available even if the condition lapses (you do not lose the
+        # Gate of Power by having fewer kills later).
+        self.task_done = np.zeros(p, dtype=np.int32)        # bitmask over tasks
+        self.monument_built = np.zeros(p, dtype=np.int32)   # bitmask over tasks
+        self.kills = np.zeros(p, dtype=np.int16)
+        # Consecutive turns without attacking, for the Pacifist task.
+        self.calm_turns = np.zeros(p, dtype=np.int16)
 
         self.fog_explored = np.zeros((p, n), dtype=C.DT_FLAG)
         self.fog_visible = np.zeros((p, n), dtype=C.DT_FLAG)

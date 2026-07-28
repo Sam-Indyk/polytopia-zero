@@ -215,16 +215,12 @@ population = 0
 requires_tech = "trade"
 terrains = ["field"]
 adjacent_any = ["sawmill", "windmill", "forge"]
-# CONFLICTING SOURCES, resolve against the live wiki before trusting this.
-#   Resources.wiki: "Market | 2 per each level of adjacent Windmill, Sawmill,
-#                    or Forge, max. level 8"
-#   Trade.wiki:     "produces two stars per turn for each adjacent resource
-#                    building"
-#   Buildings.wiki: "Produces 1 stars per turn for each level of adjacent
-#                    Sawmills, Windmills and Forges."
-# Two pages say 2 and one says 1, so 2 is used here. It is a single number to
-# change if the live wiki disagrees; `scripts/check_ruleset.py` raises a note.
-income_per_level = 2
+# The wiki disagrees with itself here: Resources and Trade say 2 stars per
+# adjacent building level, Buildings says 1. RESOLVED to 1 by the project owner,
+# who plays the game -- Buildings is the correct page. Kept as data so it is one
+# number to change, and `check_ruleset.py` reports the disagreement rather than
+# pretending the sources agree.
+income_per_level = 1
 income_max_levels = 8
 
 [improvement.embassy]
@@ -238,3 +234,93 @@ requires_tech = "diplomacy"
 # goes on a city tile, and on someone else's at that.
 on_enemy_capital = true
 income_flat = 1
+
+# ---------------- Monuments ----------------
+# "A monument is a building awarded for completing a task. Each monument
+# produces 3 population and is worth 400 points. Monuments can be built on field
+# and shallow water terrain." Awarded, not bought: cost is 0, and the gate is
+# `requires_task` rather than stars.
+#
+# Cult of Ciru is omitted -- it is Cymanti-only, and special tribes are out of
+# scope by decision.
+
+[improvement.altar_of_peace]
+id = 15
+kind = "building"
+cost = 0
+population = 3
+requires_tech = "meditation"
+requires_task = "pacifist"
+terrains = ["field", "water"]
+score = 400
+
+[improvement.emperors_tomb]
+id = 16
+kind = "building"
+cost = 0
+population = 3
+requires_tech = "trade"
+requires_task = "wealth"
+terrains = ["field", "water"]
+score = 400
+
+[improvement.eye_of_god]
+id = 17
+kind = "building"
+cost = 0
+population = 3
+requires_tech = ""
+requires_task = "explorer"
+terrains = ["field", "water"]
+score = 400
+
+[improvement.gate_of_power]
+id = 18
+kind = "building"
+cost = 0
+population = 3
+requires_tech = ""
+requires_task = "killer"
+terrains = ["field", "water"]
+score = 400
+
+[improvement.grand_bazaar]
+id = 19
+kind = "building"
+cost = 0
+population = 3
+requires_tech = ""
+requires_task = "network"
+terrains = ["field", "water"]
+score = 400
+
+[improvement.park_of_fortune]
+id = 20
+kind = "building"
+cost = 0
+population = 3
+requires_tech = ""
+requires_task = "metropolis"
+terrains = ["field", "water"]
+score = 400
+
+[improvement.tower_of_wisdom]
+id = 21
+kind = "building"
+cost = 0
+population = 3
+requires_tech = "philosophy"
+requires_task = "genius"
+terrains = ["field", "water"]
+score = 400
+
+# A map feature rather than something a player builds: the four corners carry a
+# lighthouse, and finding them all completes the Explorer task.
+[improvement.lighthouse]
+id = 22
+kind = "building"
+cost = 0
+population = 0
+requires_tech = ""
+map_feature = true
+terrains = ["ocean", "water"]

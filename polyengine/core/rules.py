@@ -79,6 +79,9 @@ class Ruleset:
     imp_income_max_levels: np.ndarray    # int8[I]  cap on those levels
     imp_on_enemy_capital: np.ndarray     # bool[I]  Embassy only
     imp_income_flat: np.ndarray          # int8[I]  flat stars per turn
+    imp_requires_task: np.ndarray        # int8[I]  task id, or -1
+    imp_score: np.ndarray                # int16[I] points the tile is worth
+    imp_map_feature: np.ndarray          # bool[I]  placed by mapgen, never built
 
     # city level-up rewards
     reward_names: tuple[str, ...]
@@ -249,6 +252,9 @@ def load_ruleset(name: str = "current") -> Ruleset:
     imp_income_max_levels = np.zeros(n_imp, dtype=np.int8)
     imp_on_enemy_capital = np.zeros(n_imp, dtype=np.bool_)
     imp_income_flat = np.zeros(n_imp, dtype=np.int8)
+    imp_requires_task = np.full(n_imp, -1, dtype=np.int8)
+    imp_score = np.zeros(n_imp, dtype=np.int16)
+    imp_map_feature = np.zeros(n_imp, dtype=np.bool_)
 
     for name, e in imp_entries.items():
         i = e["id"]
@@ -268,6 +274,10 @@ def load_ruleset(name: str = "current") -> Ruleset:
         imp_income_max_levels[i] = int(e.get("income_max_levels", 0))
         imp_on_enemy_capital[i] = bool(e.get("on_enemy_capital", False))
         imp_income_flat[i] = int(e.get("income_flat", 0))
+        imp_score[i] = int(e.get("score", 0))
+        imp_map_feature[i] = bool(e.get("map_feature", False))
+        task = e.get("requires_task", "")
+        imp_requires_task[i] = C.TASK_ID[task] if task else -1
     for name, e in imp_entries.items():
         if e.get("adjacent_to"):
             imp_adjacent_to[e["id"]] = imp_id[e["adjacent_to"]]
@@ -338,6 +348,9 @@ def load_ruleset(name: str = "current") -> Ruleset:
         imp_income_max_levels=imp_income_max_levels,
         imp_on_enemy_capital=imp_on_enemy_capital,
         imp_income_flat=imp_income_flat,
+        imp_requires_task=imp_requires_task,
+        imp_score=imp_score,
+        imp_map_feature=imp_map_feature,
         reward_names=reward_names,
         reward_id=reward_id,
         reward_level=reward_level,

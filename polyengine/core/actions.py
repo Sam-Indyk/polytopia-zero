@@ -308,19 +308,28 @@ def _spawn_daggers(state, player: int, city: int, count: int,
     dagger = C.U_DAGGER
     candidates = [city] + [nb for nb in state.neighbors(city)]
     free = [t for t in candidates
-            if state.unit_type[t] == C.U_NONE and state.owner[t] == state.owner[city]]
+            if state.unit_type[t] == C.U_NONE and state.owner[t] == state.owner[city]
+            # "it cannot spawn on terrain that the player has not unlocked
+            # movement to yet"
+            and state.has_tech(player, int(rules.terrain_requires_tech[state.terrain[t]]))]
 
     def priority(tile):
-        # City tile first, then the best defensive ground available.
-        return (0 if tile == city else 1, -_terrain_bonus_for(state, tile, rules))
+        # City tile first, then the best defensive ground, and water only once
+        # no land is left ("A Dagger can spawn on water if there are no empty
+        # land tiles left").
+        water = 0 if state.rules.terrain_is_land[state.terrain[tile]] else 1
+        return (water, 0 if tile == city else 1,
+                -_terrain_bonus_for(state, tile, rules))
 
     out = []
     for tile in sorted(free, key=priority)[:count]:
-        if not state.rules.terrain_is_land[state.terrain[tile]]:
-            continue                        # Pirates on water are out of scope
-        state.unit_type[tile] = dagger
+        # "A Dagger can spawn on water if there are no empty land tiles left ...
+        # When a Dagger spawns on water ... it becomes a Pirate."
+        on_water = not state.rules.terrain_is_land[state.terrain[tile]]
+        spawned = C.U_PIRATE if on_water else dagger
+        state.unit_type[tile] = spawned
         state.unit_owner[tile] = player
-        state.unit_hp[tile] = int(rules.unit_max_hp[dagger])
+        state.unit_hp[tile] = int(rules.unit_max_hp[spawned])
         state.unit_home[tile] = -1          # `independent`: no city supports it
         state.unit_moved[tile] = 1          # cannot act until the owner's turn
         state.unit_attacked[tile] = 1
@@ -389,6 +398,14 @@ def _resolve_boarding(state, tile: int, rules: Ruleset) -> dict:
     on_land = bool(rules.terrain_is_land[state.terrain[tile]])
 
     if carried == C.U_NONE and not rules.unit_naval[utype] and not on_land:
+        # "When a Dagger ... moves to a Port, it becomes a Pirate." A Pirate is
+        # not a hull carrying a passenger, it IS the unit, so nothing is stowed
+        # in `unit_carried` and it never reverts to a Dagger.
+        if utype == C.U_DAGGER:
+            state.unit_type[tile] = C.U_PIRATE
+            state.unit_moved[tile] = 1
+            state.unit_attacked[tile] = 1
+            return {"became": "pirate"}
         # Stepping onto a Port: board a hull. A Giant is too big for a Raft and
         # gets a Juggernaut, per the Port's description.
         hull = C.U_JUGGERNAUT if utype == C.U_GIANT else C.U_RAFT
@@ -404,6 +421,14 @@ def _resolve_boarding(state, tile: int, rules: Ruleset) -> dict:
         state.unit_moved[tile] = 1
         state.unit_attacked[tile] = 1
         return {"disembarked": rules.unit_names[carried]}
+
+    # A Pirate carries no passenger, but "will revert to a Dagger if it chooses
+    # to land" -- so it needs its own landing case.
+    if utype == C.U_PIRATE and on_land:
+        state.unit_type[tile] = C.U_DAGGER
+        state.unit_moved[tile] = 1
+        state.unit_attacked[tile] = 1
+        return {"became": "dagger"}
     return {}
 
 

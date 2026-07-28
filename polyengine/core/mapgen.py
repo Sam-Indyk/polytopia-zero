@@ -91,10 +91,31 @@ def new_game(rules: Ruleset, size: int = 11, tribes: list[str] | None = None,
 
     # Seed a couple of neutral villages for early expansion targets.
     _place_villages(state, count=max(0, size // 4))
+    _place_lighthouses(state)
 
     from polyengine.core.fog import recompute_all
     recompute_all(state)
     return state
+
+
+def _place_lighthouses(state: GameState) -> None:
+    """Put a lighthouse in each of the four corners.
+
+    The one piece of Polytopia's map generation implemented so far (the rest is
+    still deferred, see PLAN.md). It is here because the Explorer task -- "find
+    all lighthouses" -- is unreachable without them, so the Eye of God monument
+    would be dead data.
+
+    Corners are forced to ocean, which is also what the real generator does.
+    """
+    s = state.size
+    for tile in (0, s - 1, s * (s - 1), s * s - 1):
+        state.terrain[tile] = C.T_OCEAN
+        state.resource[tile] = C.R_NONE
+        state.improvement[tile] = C.IMP_LIGHTHOUSE
+        state.city_owner[tile] = C.NEUTRAL
+        state.city_level[tile] = 0
+        state.unit_type[tile] = C.U_NONE
 
 
 def _place_villages(state: GameState, count: int) -> None:

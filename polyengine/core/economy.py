@@ -125,6 +125,8 @@ def can_build(state, tile: int, imp_id: int, player: int, rules: Ruleset) -> boo
             return False
     elif state.owner[tile] != player:
         return False
+    if rules.imp_map_feature[imp_id]:
+        return False                                  # placed by mapgen only
     if state.city_level[tile] > 0:
         return False                                  # not on the city tile
     if state.improvement[tile] != C.IMP_NONE:
@@ -132,6 +134,9 @@ def can_build(state, tile: int, imp_id: int, player: int, rules: Ruleset) -> boo
     if not state.has_tech(player, int(rules.imp_requires_tech[imp_id])):
         return False
     if int(rules.imp_cost[imp_id]) > int(state.stars[player]):
+        return False
+    # Monuments are awarded, not bought: gated on the task, and one apiece.
+    if not monument_available(state, player, imp_id, rules):
         return False
 
     allowed = rules.imp_terrains[imp_id]
@@ -183,6 +188,9 @@ def apply_build(state, tile: int, imp_id: int, player: int, rules: Ruleset) -> d
     else:
         state.improvement[tile] = imp_id
         state.improvement_owner[tile] = player
+        task = int(rules.imp_requires_task[imp_id])
+        if task >= 0:
+            state.monument_built[player] |= (1 << task)   # one monument per task
 
     city = nearest_owned_city(state, tile, player)
     levelled = []
@@ -358,6 +366,62 @@ def recompute_connections(state, player: int, rules: Ruleset) -> dict:
             lost += [(tile, lv) for lv in remove_population(state, tile, -delta, rules)]
         state.city_conn_pop[tile] = target
     return {"connected": linked, "levelled": levelled, "lost": lost}
+
+
+# --- tasks and monuments ----------------------------------------------------------
+def lighthouse_tiles(state) -> list[int]:
+    """The four corner lighthouses, if the map has them."""
+    s = state.size
+    return [t for t in (0, s - 1, s * (s - 1), s * s - 1)
+            if int(state.improvement[t]) == C.IMP_LIGHTHOUSE]
+
+
+def task_satisfied(state, player: int, task: int, rules: Ruleset) -> bool:
+    """Is `player` currently meeting the condition for `task`?
+
+    Conditions verbatim from the wiki's monument table. Note these are *current*
+    conditions -- `update_tasks` latches them, because a monument once earned is
+    not taken back when the condition lapses.
+    """
+    if task == C.TASK_PACIFIST:
+        return int(state.calm_turns[player]) >= C.PACIFIST_TURNS
+    if task == C.TASK_WEALTH:
+        return int(state.stars[player]) >= C.WEALTH_STARS
+    if task == C.TASK_KILLER:
+        return int(state.kills[player]) >= C.KILLER_KILLS
+    if task == C.TASK_METROPOLIS:
+        owned = (state.city_owner == player)
+        return bool((state.city_level[owned] >= C.METROPOLIS_LEVEL).any())
+    if task == C.TASK_GENIUS:
+        return all(state.has_tech(player, t) for t in range(rules.n_techs))
+    if task == C.TASK_NETWORK:
+        return len(connected_cities(state, player, rules)) >= C.NETWORK_CITIES
+    if task == C.TASK_EXPLORER:
+        houses = lighthouse_tiles(state)
+        return bool(houses) and all(state.fog_explored[player][t] for t in houses)
+    return False
+
+
+def update_tasks(state, player: int, rules: Ruleset) -> list[int]:
+    """Latch any newly completed tasks. Returns the ones earned just now."""
+    earned = []
+    for task in range(C.N_TASKS):
+        if int(state.task_done[player]) >> task & 1:
+            continue
+        if task_satisfied(state, player, task, rules):
+            state.task_done[player] |= (1 << task)
+            earned.append(task)
+    return earned
+
+
+def monument_available(state, player: int, imp_id: int, rules: Ruleset) -> bool:
+    """A monument may be placed once its task is done and it is not yet built."""
+    task = int(rules.imp_requires_task[imp_id])
+    if task < 0:
+        return True
+    if not (int(state.task_done[player]) >> task & 1):
+        return False
+    return not (int(state.monument_built[player]) >> task & 1)
 
 
 # --- markets ----------------------------------------------------------------------

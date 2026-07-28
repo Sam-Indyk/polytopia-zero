@@ -120,7 +120,10 @@ const RES  = {fruit:['#ff8fb1','\\u25cf'],crop:['#ffd166','\\u25b2'],game:['#c58
 // Buildings the player paid for; population is what these buy.
 const IMP  = {lumber_hut:'L',farm:'F',mine:'M',port:'P',temple:'T',
               sawmill:'S',windmill:'W',forge:'G',
-              road:'=',bridge:'≡',market:'$',embassy:'E'};
+              road:'=',bridge:'≡',market:'$',embassy:'E',lighthouse:'✶',
+              altar_of_peace:'♈',emperors_tomb:'♈',eye_of_god:'♈',
+              gate_of_power:'♈',grand_bazaar:'♈',park_of_fortune:'♈',
+              tower_of_wisdom:'♈'};
 let i = 0, timer = null, fogOf = -1, sel = -1, speed = 90;
 
 document.getElementById('meta').textContent =

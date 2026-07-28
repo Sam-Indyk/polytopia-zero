@@ -169,6 +169,7 @@ def resolve_attack(state, src: int, dst: int, rules: Ruleset) -> CombatResult:
     if state.unit_hp[dst] <= 0:
         defender_died = True
         state.unit_kills[src] += 1
+        state.kills[state.unit_owner[src]] += 1      # Killer task: 10 kills
         _clear_unit(state, dst)
         # Melee units advance into the vacated tile; ranged do not.
         if a_range == 1:
@@ -180,6 +181,7 @@ def resolve_attack(state, src: int, dst: int, rules: Ruleset) -> CombatResult:
             state.unit_hp[src] -= def_res
             if state.unit_hp[src] <= 0:
                 attacker_died = True
+                state.kills[state.unit_owner[dst]] += 1
                 _clear_unit(state, src)
 
     # An attack always consumes the attacker's turn.

@@ -42,6 +42,7 @@ U_SCOUT = 12
 U_RAMMER = 13
 U_BOMBER = 14
 U_JUGGERNAUT = 15
+U_PIRATE = 16
 
 # --- Ownership sentinels ---
 NEUTRAL = -1  # unowned territory / neutral (village) city
@@ -63,6 +64,40 @@ IMP_ROAD = 11
 IMP_BRIDGE = 12
 IMP_MARKET = 13
 IMP_EMBASSY = 14
+IMP_ALTAR_OF_PEACE = 15
+IMP_EMPERORS_TOMB = 16
+IMP_EYE_OF_GOD = 17
+IMP_GATE_OF_POWER = 18
+IMP_GRAND_BAZAAR = 19
+IMP_PARK_OF_FORTUNE = 20
+IMP_TOWER_OF_WISDOM = 21
+IMP_LIGHTHOUSE = 22
+
+# --- Task ids (see data/improvements.toml `requires_task`) ---
+# "A monument is a building awarded for completing a task." Each task is a
+# standing condition on the player's whole empire, checked once a turn.
+TASK_PACIFIST = 0        # make no attacks for five turns
+TASK_WEALTH = 1          # gather 100 stars
+TASK_EXPLORER = 2        # find all lighthouses
+TASK_KILLER = 3          # kill 10 enemy units
+TASK_NETWORK = 4         # connect five cities to the capital
+TASK_METROPOLIS = 5      # have a level 5+ city
+TASK_GENIUS = 6          # research all technologies
+N_TASKS = 7
+
+TASK_NAMES = {
+    TASK_PACIFIST: "pacifist", TASK_WEALTH: "wealth", TASK_EXPLORER: "explorer",
+    TASK_KILLER: "killer", TASK_NETWORK: "network",
+    TASK_METROPOLIS: "metropolis", TASK_GENIUS: "genius",
+}
+TASK_ID = {v: k for k, v in TASK_NAMES.items()}
+
+PACIFIST_TURNS = 5
+KILLER_KILLS = 10
+WEALTH_STARS = 100
+NETWORK_CITIES = 5
+METROPOLIS_LEVEL = 5
+MONUMENT_SCORE = 400
 
 # Tiles that carry a city connection. Ports count (the wiki's Port description
 # says so explicitly), and city tiles conduct implicitly — see economy.py.

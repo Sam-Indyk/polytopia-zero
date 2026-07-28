@@ -14,7 +14,7 @@ from __future__ import annotations
 from polyengine.core import constants as C
 from polyengine.core.actions import Action, apply_action, enumerate_actions
 from polyengine.core.economy import (city_income, player_income,
-                                     recompute_connections)
+                                     recompute_connections, update_tasks)
 from polyengine.core.combat import recover_idle_units
 from polyengine.core.fog import recompute_fog
 from polyengine.core.mapgen import new_game
@@ -26,6 +26,7 @@ class Game:
     def __init__(self, state: GameState, rules: Ruleset):
         self.state = state
         self.rules = rules
+        self._attacked_this_turn: dict[int, bool] = {}
         self._begin_turn(state.current_player)
 
     @classmethod
@@ -44,6 +45,7 @@ class Game:
         g = Game.__new__(Game)
         g.state = self.state.copy()
         g.rules = self.rules
+        g._attacked_this_turn = dict(self._attacked_this_turn)
         return g
 
     # --- queries ------------------------------------------------------------
@@ -75,12 +77,17 @@ class Game:
         owned = (s.city_owner == player) & (s.city_level > 0)
         city_score = int(s.city_level[owned].sum()) * 100
         city_score += int(s.city_park[owned].sum()) * 250
+        # "Each monument ... is worth 400 points."
+        mine = s.improvement_owner == player
+        city_score += int(self.rules.imp_score[s.improvement[mine]].sum())
         n_units = int(((s.unit_owner == player) & (s.unit_type != C.U_NONE)).sum())
         tech_score = bin(int(s.tech[player])).count("1") * 20
         return city_score + n_units * 5 + tech_score + int(s.stars[player])
 
     # --- stepping -----------------------------------------------------------
     def step(self, action: Action) -> dict:
+        if action.atype == C.A_ATTACK:
+            self._attacked_this_turn[self.current_player] = True
         info = apply_action(self.state, action, self.rules)
         if action.atype == C.A_END_TURN:
             self._advance()
@@ -122,6 +129,15 @@ class Game:
         # Units that did nothing last turn recover, which must happen while the
         # move/attack flags still describe last turn -- so before the reset.
         recover_idle_units(s, player, self.rules)
+        # Pacifist counts whole turns without an attack. `_attacked_this_turn`
+        # is set by apply_action and cleared here, so the counter measures the
+        # turn that just ended.
+        if self._attacked_this_turn.get(player):
+            s.calm_turns[player] = 0
+        else:
+            s.calm_turns[player] += 1
+        self._attacked_this_turn[player] = False
+        update_tasks(s, player, self.rules)
         # Reset this player's units for the new turn.
         mine = (s.unit_owner == player) & (s.unit_type != C.U_NONE)
         s.unit_moved[mine] = 0

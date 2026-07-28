@@ -11,7 +11,7 @@ Goal (PLAN.md): beat the game's built-in Crazy bots through the real Steam clien
 ## Environment
 
 ```bash
-.venv\Scripts\python.exe -m pytest            # 345 tests, ~5 min
+.venv\Scripts\python.exe -m pytest            # 376 tests, ~5 min
 .venv\Scripts\python.exe -m polytrain.train_league --smoke --iters 50
 ```
 
@@ -51,7 +51,7 @@ Two gotchas that will waste your time otherwise:
    `tests/test_masks.py` checks equivalence at every decision point of real games.
 
 3. **Rules come from the wiki, not from memory.** Every stat in `data/*.toml` is
-   checked by `scripts/check_ruleset.py` against cached wiki pages (172 checks,
+   checked by `scripts/check_ruleset.py` against cached wiki pages (177 checks,
    0 mismatches). Change a number → re-run it.
 
 4. **Games are deterministic.** `(map_seed, ruleset_version)` fully determines a
@@ -99,9 +99,10 @@ The defence bugs survived 164 wiki checks because **nothing was checking
 damage-formula sentence and pins them; anything the combat maths reads from data
 belongs in that check.
 
-One data conflict is unresolved and deliberately surfaced as a checker note: the
-**Market rate**. `Resources` and `Trade` both say 2 stars per adjacent building
-level; `Buildings` says 1. We use 2. It is one number in `improvements.toml`.
+The wiki contradicts itself on the **Market rate** — `Resources` and `Trade` say
+2 stars per adjacent building level, `Buildings` says 1. **1 is correct**,
+confirmed by the project owner. `check_ruleset.py` reports the disagreement as a
+note; do not "fix" it back to 2.
 
 ## Current state
 
@@ -128,13 +129,24 @@ Daggers equal to the city level (max 5).
 Terrain defence is tech-gated as the wiki describes: forest needs Archery,
 mountain Climbing, and shallow water / ocean Aquatism.
 
-**Not simulated yet:** special tribes (excluded by choice), monuments and the
-task system, and Pirates (a Dagger spawning on water). The viewer lists these so
-an empty log never reads as "nothing happened".
+**Tasks and monuments** are in: all seven non-tribe tasks (Pacifist, Wealth,
+Explorer, Killer, Network, Metropolis, Genius) are checked once a turn and
+*latched* — a monument once earned is not taken back when the condition lapses.
+Each monument is free to place, yields 3 population and 400 points, and only one
+may be built per task. **Pirates** too: a Dagger on a Port becomes one and
+reverts to a Dagger on landing.
+
+The four **corner lighthouses** are the only piece of Polytopia's real map
+generation implemented so far. They exist because the Explorer task ("find all
+lighthouses") is otherwise unreachable and the Eye of God would be dead data.
+The rest of mapgen fidelity is still deferred — see `PLAN.md`.
+
+**Not simulated yet:** special tribes only (excluded by choice). The viewer lists
+this so an empty log never reads as "nothing happened".
 
 **Checkpoints from before 28 Jul are architecturally incompatible**: the action
 head grew from 8 types to 10 (Disband, Upgrade) and the observation from 64
-planes to 68. They will not load into the current network.
+planes to 77. They will not load into the current network.
 
 Best trained agent (`checkpoints_11x11/`, committed), 100 mirrored games on 11×11:
 
