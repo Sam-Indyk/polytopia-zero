@@ -27,10 +27,12 @@
 [CmdletBinding()]
 param(
   [string]$Out       = "checkpoints_big",
-  # ~25.5s/iteration measured at 128x10, games=64, rollout=192 on 11x11
-  # (7.2s rollout + 18.3s update, 5.5 GB of 8.5 GB peak). 2000 iterations is
-  # about 14 hours before eval overhead and crash restarts.
-  [int]   $Iters     = 2000,
+  # ~19s/iteration in practice at 128x10, games=64, rollout=192 on 11x11
+  # (25.5s for a full self-play iteration; opponent iterations collect fewer
+  # steps and run faster). 5.5 GB of 8.5 GB peak VRAM. 4000 iterations is about
+  # 21 hours, so a run started in the morning is still going the next morning
+  # rather than finishing at 9pm and leaving the box idle overnight.
+  [int]   $Iters     = 4000,
   [int]   $Channels  = 128,
   [int]   $Blocks    = 10,
   [int]   $Size      = 11,
