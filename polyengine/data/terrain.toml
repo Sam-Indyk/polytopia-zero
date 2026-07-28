@@ -18,7 +18,8 @@ symbol = "~"
 land = false
 move_cost = 1
 requires_tech = "sailing"     # non-naval land units cannot enter
-defense_bonus = "water"
+defense_bonus = "ocean"
+defense_tech = "aquatism"     # "grants a defence bonus on water and ocean tiles"
 
 [terrain.water]                # shallow water / coast
 id = 1
@@ -26,7 +27,8 @@ symbol = "-"
 land = false
 move_cost = 1
 requires_tech = "fishing"
-defense_bonus = "water"
+defense_bonus = "shallow_water"
+defense_tech = "aquatism"
 
 [terrain.field]
 id = 2
@@ -44,6 +46,7 @@ move_cost = 1
 rough = true                   # halts movement unless a road crosses it
 requires_tech = ""
 defense_bonus = "forest"
+defense_tech = "archery"
 
 [terrain.mountain]
 id = 4
@@ -53,6 +56,7 @@ move_cost = 1
 rough = true                   # halts movement; roads cannot be built here
 requires_tech = "climbing"
 defense_bonus = "mountain"
+defense_tech = "climbing"
 
 # Resources sit on top of terrain and are harvested via improvements.
 [resource.none]

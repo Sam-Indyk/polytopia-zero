@@ -26,6 +26,59 @@ def recompute_fog(state, player: int) -> None:
         state.mem_unit_type[player], state.mem_unit_owner[player],
         state.mem_city_owner[player], state.mem_city_level[player],
     )
+    _hide_cloaks_from(state, player)
+    _apply_capital_vision(state, player)
+
+
+def _hide_cloaks_from(state, player: int) -> None:
+    """Erase hidden enemy Cloaks from `player`'s memory of the board.
+
+    "The Hide skill makes it invisible to enemies after it moves ... all units
+    can detect Cloaks on adjacent tiles."
+
+    Runs after the fog kernel, which has no concept of stealth and will happily
+    have written the Cloak in. Detection is the exception: a Cloak standing next
+    to one of our units is visible, which is what stops hiding from being an
+    unanswerable information advantage.
+    """
+    mem_type = state.mem_unit_type[player]
+    mem_owner = state.mem_unit_owner[player]
+    for tile in range(state.n_tiles):
+        if not state.unit_hidden[tile]:
+            continue
+        if int(state.unit_owner[tile]) == player:
+            continue
+        adjacent = any(int(state.unit_owner[nb]) == player
+                       and state.unit_type[nb] != C.U_NONE
+                       for nb in state.neighbors(tile))
+        if adjacent:
+            continue
+        mem_type[tile] = C.U_NONE
+        mem_owner[tile] = C.NEUTRAL
+
+
+def _apply_capital_vision(state, player: int) -> None:
+    """Diplomacy reveals rival capitals.
+
+    "Capital Vision, which allows the player to see the capitals of tribes they
+    have discovered (including capitals that have been captured)."
+
+    Only the *city* memory is filled in — this grants knowledge of where a
+    capital is, not sight of the units standing on it, so it cannot become a
+    back door around the fog contract in invariant 1.
+    """
+    diplomacy = state.rules.tech_id.get("diplomacy", -1)
+    if diplomacy < 0 or not state.has_tech(player, diplomacy):
+        return
+    for tile in range(state.n_tiles):
+        if not state.city_capital[tile] or state.city_level[tile] <= 0:
+            continue
+        owner = int(state.city_owner[tile])
+        if owner == player or owner == C.NEUTRAL:
+            continue
+        state.fog_explored[player][tile] = 1
+        state.mem_city_owner[player][tile] = owner
+        state.mem_city_level[player][tile] = state.city_level[tile]
 
 
 def recompute_all(state) -> None:

@@ -226,3 +226,15 @@ adjacent_any = ["sawmill", "windmill", "forge"]
 # change if the live wiki disagrees; `scripts/check_ruleset.py` raises a note.
 income_per_level = 2
 income_max_levels = 8
+
+[improvement.embassy]
+id = 14
+kind = "building"
+cost = 4
+population = 0
+requires_tech = "diplomacy"
+# "Provides income to both the tribe that builds and the tribe that hosts the
+# Embassy" and is built on "Other tribes' capitals" -- the only improvement that
+# goes on a city tile, and on someone else's at that.
+on_enemy_capital = true
+income_flat = 1

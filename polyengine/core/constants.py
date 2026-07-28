@@ -62,6 +62,7 @@ IMP_FORGE = 10
 IMP_ROAD = 11
 IMP_BRIDGE = 12
 IMP_MARKET = 13
+IMP_EMBASSY = 14
 
 # Tiles that carry a city connection. Ports count (the wiki's Port description
 # says so explicitly), and city tiles conduct implicitly — see economy.py.
@@ -86,7 +87,9 @@ A_TRAIN = 4
 A_RESEARCH = 5
 A_BUILD = 6            # harvest a resource or place a building
 A_CHOOSE_REWARD = 7    # pick one of two rewards after a city levels up
-N_ACTION_TYPES = 8
+A_DISBAND = 8          # remove a unit, refund half its cost (needs Free Spirit)
+A_UPGRADE = 9          # pay to turn a naval hull into a better one
+N_ACTION_TYPES = 10
 
 ACTION_NAMES = {
     A_END_TURN: "END_TURN",
@@ -97,7 +100,14 @@ ACTION_NAMES = {
     A_RESEARCH: "RESEARCH",
     A_BUILD: "BUILD",
     A_CHOOSE_REWARD: "REWARD",
+    A_DISBAND: "DISBAND",
+    A_UPGRADE: "UPGRADE",
 }
+
+# Naval hulls a Raft can be bought up to, and the tech that unlocks each.
+# "A Raft can be upgraded into a Scout for five stars, once Sailing is
+# researched." Moving onto land drops the upgrade permanently.
+NAVAL_UPGRADES = (U_SCOUT, U_RAMMER, U_BOMBER)
 
 # --- dtypes for the flat per-tile / per-player arrays ---
 DT_TERRAIN = np.int8

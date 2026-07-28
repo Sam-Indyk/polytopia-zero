@@ -11,7 +11,7 @@ Goal (PLAN.md): beat the game's built-in Crazy bots through the real Steam clien
 ## Environment
 
 ```bash
-.venv\Scripts\python.exe -m pytest            # 307 tests, ~5 min
+.venv\Scripts\python.exe -m pytest            # 345 tests, ~5 min
 .venv\Scripts\python.exe -m polytrain.train_league --smoke --iters 50
 ```
 
@@ -115,9 +115,26 @@ Movement now implements the real rules rather than approximations: costs run in
 next to an enemy (`creep` bypasses it). A Rider gets exactly the wiki's 2 -> 4
 tiles on roads.
 
-**Not simulated yet:** cloak infiltration and diplomacy, special tribes, and
-open-water routing between two Ports (a Port only links to what it touches).
-The viewer lists these so an empty log never reads as "nothing happened".
+Also implemented: **healing** (4 HP in friendly territory, 2 elsewhere, applied
+automatically to any unit that took no action — "if a unit does not take any
+action in a given turn, it will automatically heal"), **Disband** (Free Spirit,
+refunds half cost), **naval hull upgrades** (Raft -> Scout/Rammer/Bomber; landing
+drops the upgrade), **Diplomacy** (Embassy on a rival capital paying both tribes,
+plus Capital Vision), and the **Cloak** — `hide` removes it from enemy
+observations until one of their units stands adjacent, and `infiltrate` *is* its
+attack, consuming it to damage the garrison, steal the city's income and spawn
+Daggers equal to the city level (max 5).
+
+Terrain defence is tech-gated as the wiki describes: forest needs Archery,
+mountain Climbing, and shallow water / ocean Aquatism.
+
+**Not simulated yet:** special tribes (excluded by choice), monuments and the
+task system, and Pirates (a Dagger spawning on water). The viewer lists these so
+an empty log never reads as "nothing happened".
+
+**Checkpoints from before 28 Jul are architecturally incompatible**: the action
+head grew from 8 types to 10 (Disband, Upgrade) and the observation from 64
+planes to 68. They will not load into the current network.
 
 Best trained agent (`checkpoints_11x11/`, committed), 100 mirrored games on 11×11:
 

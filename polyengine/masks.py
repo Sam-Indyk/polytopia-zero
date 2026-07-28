@@ -35,14 +35,18 @@ from polyengine.core.economy import (
     pending_reward_cities,
     rewards_for_level,
 )
+from polyengine.core.actions import can_disband, upgrade_options
 from polyengine.core.movement import attack_targets, reachable
 from polyengine.core.rules import Ruleset
 
 NEEDS_SOURCE = frozenset({C.A_MOVE, C.A_ATTACK, C.A_CAPTURE, C.A_TRAIN,
-                          C.A_BUILD, C.A_CHOOSE_REWARD})
-NEEDS_TARGET = frozenset({C.A_MOVE, C.A_ATTACK})
+                          C.A_BUILD, C.A_CHOOSE_REWARD, C.A_DISBAND,
+                          C.A_UPGRADE})
+# DISBAND follows CAPTURE's convention of dst == src: it keeps every
+# source-bearing action the same shape for the sampler.
+NEEDS_TARGET = frozenset({C.A_MOVE, C.A_ATTACK, C.A_CAPTURE, C.A_DISBAND})
 NEEDS_SUBTYPE = frozenset({C.A_TRAIN, C.A_RESEARCH, C.A_BUILD,
-                           C.A_CHOOSE_REWARD})
+                           C.A_CHOOSE_REWARD, C.A_UPGRADE})
 # Sub-types that depend on WHICH source was picked (a tile's buildable set, a
 # city's offered rewards) rather than being uniform across sources.
 SUBTYPE_DEPENDS_ON_SOURCE = frozenset({C.A_BUILD, C.A_CHOOSE_REWARD})
@@ -74,7 +78,14 @@ def legal_sources(state, player: int, rules: Ruleset, atype: int) -> np.ndarray:
                 mask[t] = True
         return mask
     if atype == C.A_BUILD:
-        for t in np.flatnonzero(state.owner == player):
+        # Not just our own territory: roads and bridges go on neutral land, and
+        # the Embassy goes on a *rival capital*. Narrowing to `owner == player`
+        # silently drops both, which breaks invariant 2 (masks and
+        # enumerate_actions must describe the same set).
+        candidates = np.flatnonzero((state.owner == player)
+                                    | (state.owner == C.NEUTRAL)
+                                    | (state.city_capital > 0))
+        for t in candidates:
             t = int(t)
             if any(can_build(state, t, imp, player, rules)
                    for imp in range(rules.n_improvements)):
@@ -103,6 +114,14 @@ def legal_sources(state, player: int, rules: Ruleset, atype: int) -> np.ndarray:
         for t in cand:
             if can_capture(state, int(t), rules):
                 mask[t] = True
+    elif atype == C.A_DISBAND:
+        for t in own:
+            if can_disband(state, int(t), player, rules):
+                mask[t] = True
+    elif atype == C.A_UPGRADE:
+        for t in own[state.unit_type[own] == C.U_RAFT]:
+            if upgrade_options(state, int(t), player, rules):
+                mask[t] = True
     return mask
 
 
@@ -116,7 +135,7 @@ def legal_targets(state, player: int, rules: Ruleset, atype: int,
     elif atype == C.A_ATTACK:
         for t in attack_targets(state, src, rules):
             mask[t] = True
-    elif atype == C.A_CAPTURE:
+    elif atype in (C.A_CAPTURE, C.A_DISBAND):
         mask[src] = True
     return mask
 
@@ -152,6 +171,13 @@ def legal_subtypes(state, player: int, rules: Ruleset, atype: int,
         if src >= 0 and state.city_pending_reward[src] > 0:
             for rw in rewards_for_level(int(state.city_pending_reward[src]), rules):
                 mask[rw] = True
+    elif atype == C.A_UPGRADE:
+        # Which hulls are affordable depends only on stars and tech, not on
+        # which Raft was picked, so this stays out of SUBTYPE_DEPENDS_ON_SOURCE.
+        for hull in C.NAVAL_UPGRADES:
+            req = int(rules.unit_requires_tech[hull])
+            if int(rules.unit_cost[hull]) <= stars and (req < 0 or known[req]):
+                mask[hull] = True
     return mask
 
 
@@ -211,6 +237,10 @@ class ActionMasks:
                 mask[C.A_RESEARCH] = True
             if self.sources(C.A_BUILD).any():
                 mask[C.A_BUILD] = True
+            if self.sources(C.A_DISBAND).any():
+                mask[C.A_DISBAND] = True
+            if self.sources(C.A_UPGRADE).any() and self.subtypes(C.A_UPGRADE).any():
+                mask[C.A_UPGRADE] = True
             self._types = mask
         return self._types
 

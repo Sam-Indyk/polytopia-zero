@@ -101,15 +101,37 @@ def test_uncaptured_village_fortifies_nobody(city):
         float(R.terrain_defense_bonus[s.terrain[tile]]))
 
 
-# --- terrain still works ------------------------------------------------------
+# --- terrain still works, but is gated by tech --------------------------------
+# "Tiles of certain terrain types provide a defence bonus once the corresponding
+# technology is researched": forest -> Archery, mountain -> Climbing, shallow
+# water and ocean -> Aquatism.
 def test_terrain_bonus_applies_off_city_tiles():
     game = Game.new(size=9, seed=5)
     s = game.state
     tile = next(t for t in range(s.n_tiles)
                 if s.terrain[t] == C.T_FOREST and s.city_level[t] == 0)
     place(s, tile, FORTIFIER, owner=0)
+    s.grant_tech(0, R.tech_id["archery"])
     assert defense_bonus_for(s, tile, R) == pytest.approx(
         float(R.terrain_defense_bonus[C.T_FOREST]))
+
+
+@pytest.mark.parametrize("terrain,tech", [
+    (C.T_FOREST, "archery"),
+    (C.T_MOUNTAIN, "climbing"),
+    (C.T_WATER, "aquatism"),
+    (C.T_OCEAN, "aquatism"),
+])
+def test_terrain_bonus_requires_its_technology(terrain, tech):
+    game = Game.new(size=9, seed=5)
+    s = game.state
+    tile = next(t for t in range(s.n_tiles)
+                if s.city_level[t] == 0 and s.unit_type[t] == C.U_NONE)
+    s.terrain[tile] = terrain
+    place(s, tile, FORTIFIER, owner=0)
+    assert defense_bonus_for(s, tile, R) == pytest.approx(1.0), "ungated by default"
+    s.grant_tech(0, R.tech_id[tech])
+    assert defense_bonus_for(s, tile, R) == pytest.approx(1.5)
 
 
 def test_empty_tile_falls_back_to_terrain():

@@ -97,6 +97,22 @@ def bridge_span_ok(state, tile: int) -> bool:
 
 def can_build(state, tile: int, imp_id: int, player: int, rules: Ruleset) -> bool:
     """Is placing improvement `imp_id` on `tile` legal for `player` right now?"""
+    # The Embassy inverts every placement rule: it goes on ANOTHER tribe's
+    # capital, which is the one tile every other improvement forbids.
+    if rules.imp_on_enemy_capital[imp_id]:
+        if not state.city_capital[tile] or state.city_level[tile] <= 0:
+            return False
+        owner = int(state.city_owner[tile])
+        if owner == player or owner == C.NEUTRAL:
+            return False
+        if state.improvement[tile] != C.IMP_NONE:
+            return False
+        if not state.has_tech(player, int(rules.imp_requires_tech[imp_id])):
+            return False
+        if int(rules.imp_cost[imp_id]) > int(state.stars[player]):
+            return False
+        return bool(state.fog_explored[player][tile])
+
     # Roads and bridges are the exception to "own territory only": the wiki says
     # both may be built on neutral land. Enemy ground is still off limits, and
     # the tile must have been *seen* -- letting the agent road a tile it has
@@ -166,6 +182,7 @@ def apply_build(state, tile: int, imp_id: int, player: int, rules: Ruleset) -> d
         state.resource[tile] = C.R_NONE       # consumed, no building left behind
     else:
         state.improvement[tile] = imp_id
+        state.improvement_owner[tile] = player
 
     city = nearest_owned_city(state, tile, player)
     levelled = []
@@ -254,9 +271,10 @@ def connected_cities(state, player: int, rules: Ruleset) -> set[int]:
     on the way are connected and keep relaying, so a chain of cities linked by
     short road stubs works the way it does in game.
 
-    Known simplification: two Ports on the same ocean connect in the real game
-    without a bridge between them. Open-water routing is not modelled yet, so a
-    Port only links to things it physically touches.
+    Ports additionally reach each other across open water: two Ports on the same
+    body of water are connected however far apart they sit, which is how island
+    empires join up without a bridge. Water conducts only *between* Ports, so a
+    stretch of sea is not itself a road.
     """
     capital = -1
     for t in range(state.n_tiles):
@@ -271,7 +289,10 @@ def connected_cities(state, player: int, rules: Ruleset) -> set[int]:
     found: set[int] = set()
     while stack:
         cur = stack.pop()
-        for nb in state.neighbors(cur):
+        neighbours = list(state.neighbors(cur))
+        if int(state.improvement[cur]) == C.IMP_PORT:
+            neighbours += _ports_reachable_by_sea(state, cur)
+        for nb in neighbours:
             if nb in seen or not _conducts(state, nb, player, rules):
                 continue
             seen.add(nb)
@@ -280,6 +301,29 @@ def connected_cities(state, player: int, rules: Ruleset) -> set[int]:
                 found.add(nb)
     found.discard(capital)
     return found
+
+
+def _ports_reachable_by_sea(state, port: int) -> list[int]:
+    """Other Ports on the same body of water as `port`.
+
+    Flood-fills across water tiles only. The sea is a medium between Ports, not
+    a connector in its own right, so nothing but Ports is returned.
+    """
+    seen = {port}
+    stack = [port]
+    out = []
+    while stack:
+        cur = stack.pop()
+        for nb in state.neighbors(cur):
+            if nb in seen:
+                continue
+            if state.rules.terrain_is_land[state.terrain[nb]]:
+                continue
+            seen.add(nb)
+            stack.append(nb)
+            if int(state.improvement[nb]) == C.IMP_PORT:
+                out.append(nb)
+    return out
 
 
 def recompute_connections(state, player: int, rules: Ruleset) -> dict:
@@ -325,6 +369,8 @@ def market_income(state, tile: int, rules: Ruleset) -> int:
     engine, so each contributes 1 level — revisit if building levels are added.
     """
     imp = int(state.improvement[tile])
+    if imp < 0:
+        return 0              # IMP_NONE is -1, which would index the LAST row
     per = int(rules.imp_income_per_level[imp])
     if per <= 0:
         return 0
@@ -382,8 +428,20 @@ def player_income(state, player: int, rules: Ruleset | None = None) -> int:
     for t in range(state.n_tiles):
         if state.city_owner[t] == player and state.city_level[t] > 0:
             total += city_income(state, t)
-        if rules is not None and state.owner[t] == player:
+        if rules is None:
+            continue
+        if state.owner[t] == player:
             total += market_income(state, t, rules)
+        # An Embassy "provides income to both the tribe that builds and the
+        # tribe that hosts", so it pays out on the host's capital *and* to
+        # whoever placed it, who is a different player by construction.
+        imp = int(state.improvement[t])
+        if imp < 0:
+            continue          # IMP_NONE is -1, and -1 indexes the LAST row
+        flat = int(rules.imp_income_flat[imp])
+        if flat and (int(state.improvement_owner[t]) == player
+                     or int(state.city_owner[t]) == player):
+            total += flat
     return total
 
 

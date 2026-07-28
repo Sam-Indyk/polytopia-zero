@@ -29,8 +29,9 @@ COMPARED_FIELDS = (
     "owner", "resource", "improvement",
     "city_owner", "city_level", "city_pop", "city_walls", "city_capital",
     "city_workshop", "city_park", "city_pending_reward", "city_conn_pop",
+    "improvement_owner",
     "unit_type", "unit_owner", "unit_hp", "unit_veteran", "unit_home",
-    "unit_carried",
+    "unit_carried", "unit_hidden",
 )
 
 

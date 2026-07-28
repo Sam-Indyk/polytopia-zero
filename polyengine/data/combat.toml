@@ -39,4 +39,5 @@ city = 1.5                # friendly city, no walls (fortify skill only)
 city_walls = 4.0          # friendly city with walls (fortify skill only)
 mountain = 1.5            # defending on a mountain (with Climbing)
 forest = 1.5              # defending in a forest (with Archery)
-water = 1.0               # TODO: 1.5 with Aquatism, once naval lands
+shallow_water = 1.5       # with Aquatism
+ocean = 1.5               # with Aquatism

@@ -31,6 +31,7 @@ class Ruleset:
     terrain_rough: np.ndarray            # bool[T] — enterable but halts movement
     terrain_requires_tech: np.ndarray    # int8[T]  (tech id or -1)
     terrain_defense_bonus: np.ndarray    # float32[T]
+    terrain_defense_tech: np.ndarray     # int8[T]  (tech gating the bonus, or -1)
 
     resource_names: tuple[str, ...]
     resource_symbol: tuple[str, ...]
@@ -76,6 +77,8 @@ class Ruleset:
     imp_needs_bridge_span: np.ndarray    # bool[I]  water between two land tiles
     imp_income_per_level: np.ndarray     # int8[I]  stars per adjacent partner level
     imp_income_max_levels: np.ndarray    # int8[I]  cap on those levels
+    imp_on_enemy_capital: np.ndarray     # bool[I]  Embassy only
+    imp_income_flat: np.ndarray          # int8[I]  flat stars per turn
 
     # city level-up rewards
     reward_names: tuple[str, ...]
@@ -182,9 +185,11 @@ def load_ruleset(name: str = "current") -> Ruleset:
     terrain_requires_tech = np.full(n_terr, -1, dtype=np.int8)
     dbmap = combat["defense_bonus"]
     terrain_defense_bonus = np.ones(n_terr, dtype=np.float32)
+    terrain_defense_tech = np.full(n_terr, -1, dtype=np.int8)
     for e in terr_entries.values():
         terrain_requires_tech[e["id"]] = tech_or_none(e["requires_tech"])
         terrain_defense_bonus[e["id"]] = dbmap[e["defense_bonus"]]
+        terrain_defense_tech[e["id"]] = tech_or_none(e.get("defense_tech", ""))
 
     res_entries = terr["resource"]
     n_res = len(res_entries)
@@ -242,6 +247,8 @@ def load_ruleset(name: str = "current") -> Ruleset:
     imp_needs_bridge_span = np.zeros(n_imp, dtype=np.bool_)
     imp_income_per_level = np.zeros(n_imp, dtype=np.int8)
     imp_income_max_levels = np.zeros(n_imp, dtype=np.int8)
+    imp_on_enemy_capital = np.zeros(n_imp, dtype=np.bool_)
+    imp_income_flat = np.zeros(n_imp, dtype=np.int8)
 
     for name, e in imp_entries.items():
         i = e["id"]
@@ -259,6 +266,8 @@ def load_ruleset(name: str = "current") -> Ruleset:
         imp_needs_bridge_span[i] = bool(e.get("needs_bridge_span", False))
         imp_income_per_level[i] = int(e.get("income_per_level", 0))
         imp_income_max_levels[i] = int(e.get("income_max_levels", 0))
+        imp_on_enemy_capital[i] = bool(e.get("on_enemy_capital", False))
+        imp_income_flat[i] = int(e.get("income_flat", 0))
     for name, e in imp_entries.items():
         if e.get("adjacent_to"):
             imp_adjacent_to[e["id"]] = imp_id[e["adjacent_to"]]
@@ -288,6 +297,7 @@ def load_ruleset(name: str = "current") -> Ruleset:
         terrain_rough=terrain_rough,
         terrain_requires_tech=terrain_requires_tech,
         terrain_defense_bonus=terrain_defense_bonus,
+        terrain_defense_tech=terrain_defense_tech,
         resource_names=resource_names,
         resource_symbol=resource_symbol,
         unit_names=unit_names,
@@ -326,6 +336,8 @@ def load_ruleset(name: str = "current") -> Ruleset:
         imp_needs_bridge_span=imp_needs_bridge_span,
         imp_income_per_level=imp_income_per_level,
         imp_income_max_levels=imp_income_max_levels,
+        imp_on_enemy_capital=imp_on_enemy_capital,
+        imp_income_flat=imp_income_flat,
         reward_names=reward_names,
         reward_id=reward_id,
         reward_level=reward_level,

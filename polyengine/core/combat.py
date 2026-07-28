@@ -23,6 +23,27 @@ class CombatResult:
     attacker_advanced: bool  # melee kill on an adjacent tile -> attacker moved in
 
 
+def _terrain_bonus_for(state, tile: int, rules: Ruleset) -> float:
+    """Terrain defence, honouring the techs that unlock each one.
+
+    The wiki's table gives forest -> Archery, mountain -> Climbing, and shallow
+    water / ocean -> Aquatism: "Tiles of certain terrain types provide a defence
+    bonus once the corresponding technology is researched." Water was hard-coded
+    to 1.0 before because naval combat did not exist.
+    """
+    terrain = int(state.terrain[tile])
+    bonus = float(rules.terrain_defense_bonus[terrain])
+    gate = int(rules.terrain_defense_tech[terrain])
+    if bonus <= 1.0 or gate < 0:
+        return bonus
+    owner = int(state.unit_owner[tile])
+    if owner == C.NEUTRAL:
+        return bonus            # no defender to hold the tech; report the terrain
+    if not state.has_tech(owner, gate):
+        return rules.defense_bonus_map["none"]
+    return bonus
+
+
 def defense_bonus_for(state, tile: int, rules: Ruleset) -> float:
     """Defense multiplier for the unit standing on `tile` (it is the defender).
 
@@ -42,7 +63,7 @@ def defense_bonus_for(state, tile: int, rules: Ruleset) -> float:
     ownership test since `city_owner` is NEUTRAL for them.
     """
     utype = int(state.unit_type[tile])
-    terrain_bonus = float(rules.terrain_defense_bonus[state.terrain[tile]])
+    terrain_bonus = _terrain_bonus_for(state, tile, rules)
     if utype == C.U_NONE:
         return terrain_bonus
 
@@ -69,6 +90,54 @@ def effective_max_hp(state, tile: int, rules: Ruleset) -> int:
     if carried != C.U_NONE and rules.unit_hull_hp_varies[utype]:
         return int(rules.unit_max_hp[carried])
     return int(rules.unit_max_hp[utype])
+
+
+HEAL_FRIENDLY = 4
+HEAL_ELSEWHERE = 2
+
+
+def heal_amount(state, tile: int, rules: Ruleset) -> int:
+    """HP the unit on `tile` would recover this turn.
+
+    Wiki: "Heals a unit by up to 4 HP in friendly territory and 2 HP elsewhere.
+    (Cannot heal past maximum health.)"
+    """
+    utype = int(state.unit_type[tile])
+    if utype == C.U_NONE:
+        return 0
+    cap = effective_max_hp(state, tile, rules)
+    missing = cap - int(state.unit_hp[tile])
+    if missing <= 0:
+        return 0
+    owner = int(state.unit_owner[tile])
+    rate = HEAL_FRIENDLY if int(state.owner[tile]) == owner else HEAL_ELSEWHERE
+    return min(missing, rate)
+
+
+def recover_idle_units(state, player: int, rules: Ruleset) -> list[tuple[int, int]]:
+    """Heal every unit of `player` that did nothing on its last turn.
+
+    Wiki: "If a unit does not take any action in a given turn, it will
+    automatically heal if it can do so." That makes an explicit Recover action
+    redundant -- declining to move *is* recovering -- so this is modelled as an
+    end-of-turn consequence rather than as a ninth action type.
+
+    Must run BEFORE the per-turn move/attack flags are cleared, since those
+    flags are the record of what the unit did last turn.
+    """
+    healed = []
+    for tile in range(state.n_tiles):
+        if int(state.unit_owner[tile]) != player:
+            continue
+        if state.unit_type[tile] == C.U_NONE:
+            continue
+        if state.unit_moved[tile] or state.unit_attacked[tile]:
+            continue
+        amount = heal_amount(state, tile, rules)
+        if amount > 0:
+            state.unit_hp[tile] += amount
+            healed.append((tile, amount))
+    return healed
 
 
 def resolve_attack(state, src: int, dst: int, rules: Ruleset) -> CombatResult:

@@ -92,11 +92,37 @@ def reachable(state, src: int, rules: Ruleset) -> list[int]:
     return out
 
 
+def infiltrate_targets(state, src: int, rules: Ruleset) -> list[int]:
+    """Adjacent enemy cities the Cloak on `src` can infiltrate.
+
+    "The Cloak cannot fight; because of its Infiltrate unit skill, it can only
+    target adjacent enemy cities with its attack." Infiltration is therefore not
+    a new action type -- it *is* the Cloak's attack.
+
+    "Cloaks cannot infiltrate ... a city under siege."
+    """
+    from polyengine.core.economy import is_under_siege
+    player = int(state.unit_owner[src])
+    out = []
+    for nb in state.neighbors(src):
+        if state.city_level[nb] <= 0:
+            continue
+        owner = int(state.city_owner[nb])
+        if owner == player or owner == C.NEUTRAL:
+            continue
+        if is_under_siege(state, nb):
+            continue
+        out.append(nb)
+    return out
+
+
 def attack_targets(state, src: int, rules: Ruleset) -> list[int]:
     """Enemy-occupied tiles the unit on `src` can attack this turn."""
     utype = state.unit_type[src]
     if utype == C.U_NONE or state.unit_attacked[src]:
         return []
+    if "infiltrate" in rules.unit_skills[int(utype)]:
+        return infiltrate_targets(state, src, rules)
     player = int(state.unit_owner[src])
     rng = int(rules.unit_range[utype])
     out = np.empty(state.n_tiles, dtype=np.int32)

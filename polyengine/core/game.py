@@ -15,6 +15,7 @@ from polyengine.core import constants as C
 from polyengine.core.actions import Action, apply_action, enumerate_actions
 from polyengine.core.economy import (city_income, player_income,
                                      recompute_connections)
+from polyengine.core.combat import recover_idle_units
 from polyengine.core.fog import recompute_fog
 from polyengine.core.mapgen import new_game
 from polyengine.core.rules import Ruleset, load_ruleset
@@ -118,6 +119,9 @@ class Game:
         # network before taking income.
         recompute_connections(s, player, self.rules)
         s.stars[player] += player_income(s, player, self.rules)
+        # Units that did nothing last turn recover, which must happen while the
+        # move/attack flags still describe last turn -- so before the reset.
+        recover_idle_units(s, player, self.rules)
         # Reset this player's units for the new turn.
         mine = (s.unit_owner == player) & (s.unit_type != C.U_NONE)
         s.unit_moved[mine] = 0

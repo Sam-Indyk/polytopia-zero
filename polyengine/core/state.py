@@ -26,11 +26,11 @@ _NEIGHBOR_OFFSETS = ((-1, -1), (0, -1), (1, -1),
 
 # Arrays that define ground truth (hashed for determinism / differential replay).
 _TILE_ARRAYS = (
-    "terrain", "resource", "owner", "improvement",
+    "terrain", "resource", "owner", "improvement", "improvement_owner",
     "city_owner", "city_level", "city_pop", "city_walls", "city_capital",
     "city_workshop", "city_park", "city_pending_reward", "city_conn_pop",
     "unit_type", "unit_owner", "unit_hp", "unit_moved", "unit_attacked",
-    "unit_veteran", "unit_kills", "unit_home", "unit_carried",
+    "unit_veteran", "unit_kills", "unit_home", "unit_carried", "unit_hidden",
 )
 _PLAYER_ARRAYS = ("stars", "tech", "tribe", "alive")
 _FOG_ARRAYS = (
@@ -79,6 +79,9 @@ class GameState:
         # what it granted, rather than guessing.
         self.city_conn_pop = np.zeros(n, dtype=np.int8)
         self.improvement = np.full(n, C.IMP_NONE, dtype=np.int8)
+        # Who built it. Only differs from the tile owner for the Embassy,
+        # which is placed on someone else's capital and pays them both.
+        self.improvement_owner = np.full(n, C.NEUTRAL, dtype=C.DT_OWNER)
         self.unit_type = np.full(n, C.U_NONE, dtype=C.DT_UNIT_TYPE)
         self.unit_owner = np.full(n, C.NEUTRAL, dtype=C.DT_OWNER)
         self.unit_hp = np.zeros(n, dtype=C.DT_HP)
@@ -94,6 +97,10 @@ class GameState:
         # vehicle, not a new unit: the passenger keeps its identity and HP, which
         # is why the wiki lists naval health as "Varies".
         self.unit_carried = np.full(n, C.U_NONE, dtype=C.DT_UNIT_TYPE)
+        # A Cloak with the `hide` skill is invisible to enemies once it has
+        # moved. Enemies still detect it on an ADJACENT tile, which is what
+        # keeps this inside the fog contract rather than beside it.
+        self.unit_hidden = np.zeros(n, dtype=C.DT_FLAG)
 
         self.stars = np.zeros(p, dtype=C.DT_STARS)
         self.tech = np.zeros(p, dtype=C.DT_TECH)
