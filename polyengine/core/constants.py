@@ -59,6 +59,13 @@ IMP_TEMPLE = 7
 IMP_SAWMILL = 8
 IMP_WINDMILL = 9
 IMP_FORGE = 10
+IMP_ROAD = 11
+IMP_BRIDGE = 12
+IMP_MARKET = 13
+
+# Tiles that carry a city connection. Ports count (the wiki's Port description
+# says so explicitly), and city tiles conduct implicitly — see economy.py.
+CONNECTORS = frozenset({IMP_ROAD, IMP_BRIDGE, IMP_PORT})
 
 # --- City level-up reward ids (see data/improvements.toml [reward]) ---
 RW_WORKSHOP = 0

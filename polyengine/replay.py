@@ -41,6 +41,7 @@ def _board(state) -> dict:
         "city_capital": state.city_capital.tolist(),
         "city_workshop": state.city_workshop.tolist(),
         "city_park": state.city_park.tolist(),
+        "city_conn_pop": state.city_conn_pop.tolist(),
         "city_pending_reward": state.city_pending_reward.tolist(),
         "unit_type": state.unit_type.tolist(),
         "unit_owner": state.unit_owner.tolist(),
@@ -50,6 +51,7 @@ def _board(state) -> dict:
         "unit_veteran": state.unit_veteran.tolist(),
         "unit_kills": state.unit_kills.tolist(),
         "unit_home": state.unit_home.tolist(),
+        "unit_carried": state.unit_carried.tolist(),
         "stars": state.stars.tolist(),
         "tech": [int(t) for t in state.tech],       # bitmask per player
         "alive": state.alive.tolist(),

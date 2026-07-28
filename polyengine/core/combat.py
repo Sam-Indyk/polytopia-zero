@@ -57,6 +57,20 @@ def defense_bonus_for(state, tile: int, rules: Ruleset) -> float:
     return terrain_bonus
 
 
+def effective_max_hp(state, tile: int, rules: Ruleset) -> int:
+    """Max HP of the unit on `tile`, following a naval hull to its passenger.
+
+    The wiki lists naval health as "Varies" because a hull does not have health
+    of its own -- it carries the passenger's. Reading `unit_max_hp[hull]` would
+    silently use the placeholder value in units.toml.
+    """
+    utype = int(state.unit_type[tile])
+    carried = int(state.unit_carried[tile])
+    if carried != C.U_NONE and rules.unit_hull_hp_varies[utype]:
+        return int(rules.unit_max_hp[carried])
+    return int(rules.unit_max_hp[utype])
+
+
 def resolve_attack(state, src: int, dst: int, rules: Ruleset) -> CombatResult:
     """Apply an attack from the unit on `src` against the unit on `dst`.
 
@@ -67,8 +81,8 @@ def resolve_attack(state, src: int, dst: int, rules: Ruleset) -> CombatResult:
     d_type = state.unit_type[dst]
     a_atk = float(rules.unit_attack[a_type])
     d_def = float(rules.unit_defense[d_type])
-    a_maxhp = int(rules.unit_max_hp[a_type])
-    d_maxhp = int(rules.unit_max_hp[d_type])
+    a_maxhp = effective_max_hp(state, src, rules)
+    d_maxhp = effective_max_hp(state, dst, rules)
     a_range = int(rules.unit_range[a_type])
     dbonus = defense_bonus_for(state, dst, rules)
 

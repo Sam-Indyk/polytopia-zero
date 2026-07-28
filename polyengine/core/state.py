@@ -28,9 +28,9 @@ _NEIGHBOR_OFFSETS = ((-1, -1), (0, -1), (1, -1),
 _TILE_ARRAYS = (
     "terrain", "resource", "owner", "improvement",
     "city_owner", "city_level", "city_pop", "city_walls", "city_capital",
-    "city_workshop", "city_park", "city_pending_reward",
+    "city_workshop", "city_park", "city_pending_reward", "city_conn_pop",
     "unit_type", "unit_owner", "unit_hp", "unit_moved", "unit_attacked",
-    "unit_veteran", "unit_kills", "unit_home",
+    "unit_veteran", "unit_kills", "unit_home", "unit_carried",
 )
 _PLAYER_ARRAYS = ("stars", "tech", "tribe", "alive")
 _FOG_ARRAYS = (
@@ -74,6 +74,10 @@ class GameState:
         self.city_park = np.zeros(n, dtype=C.DT_FLAG)
         # >0 means "this city levelled up and owes the player a reward choice".
         self.city_pending_reward = np.zeros(n, dtype=np.int8)
+        # Population this city currently holds *because of* city connections.
+        # Tracked separately so a connection that breaks can hand back exactly
+        # what it granted, rather than guessing.
+        self.city_conn_pop = np.zeros(n, dtype=np.int8)
         self.improvement = np.full(n, C.IMP_NONE, dtype=np.int8)
         self.unit_type = np.full(n, C.U_NONE, dtype=C.DT_UNIT_TYPE)
         self.unit_owner = np.full(n, C.NEUTRAL, dtype=C.DT_OWNER)
@@ -86,6 +90,10 @@ class GameState:
         # A city supports at most `level + 1` units, so this is what makes unit
         # count a scarce resource rather than a function of spare stars.
         self.unit_home = np.full(n, -1, dtype=np.int16)
+        # The land unit riding inside a naval hull, or U_NONE. A hull is a
+        # vehicle, not a new unit: the passenger keeps its identity and HP, which
+        # is why the wiki lists naval health as "Varies".
+        self.unit_carried = np.full(n, C.U_NONE, dtype=C.DT_UNIT_TYPE)
 
         self.stars = np.zeros(p, dtype=C.DT_STARS)
         self.tech = np.zeros(p, dtype=C.DT_TECH)

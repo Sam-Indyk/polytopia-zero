@@ -28,6 +28,7 @@ class Ruleset:
     terrain_symbol: tuple[str, ...]
     terrain_is_land: np.ndarray          # bool[T]
     terrain_move_cost: np.ndarray        # int8[T]
+    terrain_rough: np.ndarray            # bool[T] — enterable but halts movement
     terrain_requires_tech: np.ndarray    # int8[T]  (tech id or -1)
     terrain_defense_bonus: np.ndarray    # float32[T]
 
@@ -68,6 +69,13 @@ class Ruleset:
     imp_requires_tech: np.ndarray        # int8[I]
     imp_resource: np.ndarray             # int8[I]  (resource id or -1)
     imp_terrain: np.ndarray              # int8[I]  (terrain id or -1)
+    imp_terrains: tuple[frozenset, ...]  # frozenset[terrain id] per improvement
+    imp_adjacent_any: tuple[frozenset, ...]   # partner improvement ids (Market)
+    imp_allow_neutral: np.ndarray        # bool[I]  roads/bridges on neutral land
+    imp_connector: np.ndarray            # bool[I]  carries a city connection
+    imp_needs_bridge_span: np.ndarray    # bool[I]  water between two land tiles
+    imp_income_per_level: np.ndarray     # int8[I]  stars per adjacent partner level
+    imp_income_max_levels: np.ndarray    # int8[I]  cap on those levels
 
     # city level-up rewards
     reward_names: tuple[str, ...]
@@ -170,6 +178,7 @@ def load_ruleset(name: str = "current") -> Ruleset:
     terrain_symbol = _symbols(terr_entries, n_terr)
     terrain_is_land = _fill_by_id(terr_entries, n_terr, "land", bool, False)
     terrain_move_cost = _fill_by_id(terr_entries, n_terr, "move_cost", np.int8, 1)
+    terrain_rough = _fill_by_id(terr_entries, n_terr, "rough", np.bool_, False)
     terrain_requires_tech = np.full(n_terr, -1, dtype=np.int8)
     dbmap = combat["defense_bonus"]
     terrain_defense_bonus = np.ones(n_terr, dtype=np.float32)
@@ -223,6 +232,17 @@ def load_ruleset(name: str = "current") -> Ruleset:
     imp_terrain = np.full(n_imp, -1, dtype=np.int8)
     res_index = {name: i for i, name in enumerate(resource_names)}
     terr_index = {name: i for i, name in enumerate(terrain_names)}
+    # Roads take field OR forest and the Market takes any of three partner
+    # buildings, so the single-valued `terrain` / `adjacent_to` columns above are
+    # kept for the entries that have one, and these carry the general case.
+    imp_terrains: list[frozenset] = [frozenset()] * n_imp
+    imp_adjacent_any: list[frozenset] = [frozenset()] * n_imp
+    imp_allow_neutral = np.zeros(n_imp, dtype=np.bool_)
+    imp_connector = np.zeros(n_imp, dtype=np.bool_)
+    imp_needs_bridge_span = np.zeros(n_imp, dtype=np.bool_)
+    imp_income_per_level = np.zeros(n_imp, dtype=np.int8)
+    imp_income_max_levels = np.zeros(n_imp, dtype=np.int8)
+
     for name, e in imp_entries.items():
         i = e["id"]
         imp_kind_list[i] = e["kind"]
@@ -231,9 +251,21 @@ def load_ruleset(name: str = "current") -> Ruleset:
             imp_resource[i] = res_index[e["resource"]]
         if e.get("terrain"):
             imp_terrain[i] = terr_index[e["terrain"]]
+            imp_terrains[i] = frozenset({terr_index[e["terrain"]]})
+        if e.get("terrains"):
+            imp_terrains[i] = frozenset(terr_index[t] for t in e["terrains"])
+        imp_allow_neutral[i] = bool(e.get("allow_neutral", False))
+        imp_connector[i] = bool(e.get("connector", False))
+        imp_needs_bridge_span[i] = bool(e.get("needs_bridge_span", False))
+        imp_income_per_level[i] = int(e.get("income_per_level", 0))
+        imp_income_max_levels[i] = int(e.get("income_max_levels", 0))
     for name, e in imp_entries.items():
         if e.get("adjacent_to"):
             imp_adjacent_to[e["id"]] = imp_id[e["adjacent_to"]]
+            imp_adjacent_any[e["id"]] = frozenset({imp_id[e["adjacent_to"]]})
+        if e.get("adjacent_any"):
+            imp_adjacent_any[e["id"]] = frozenset(
+                imp_id[p] for p in e["adjacent_any"])
 
     # --- city level-up rewards ---
     rw_entries = improvements["reward"]
@@ -253,6 +285,7 @@ def load_ruleset(name: str = "current") -> Ruleset:
         terrain_symbol=terrain_symbol,
         terrain_is_land=terrain_is_land,
         terrain_move_cost=terrain_move_cost,
+        terrain_rough=terrain_rough,
         terrain_requires_tech=terrain_requires_tech,
         terrain_defense_bonus=terrain_defense_bonus,
         resource_names=resource_names,
@@ -286,6 +319,13 @@ def load_ruleset(name: str = "current") -> Ruleset:
         imp_requires_tech=imp_requires_tech,
         imp_resource=imp_resource,
         imp_terrain=imp_terrain,
+        imp_terrains=tuple(imp_terrains),
+        imp_adjacent_any=tuple(imp_adjacent_any),
+        imp_allow_neutral=imp_allow_neutral,
+        imp_connector=imp_connector,
+        imp_needs_bridge_span=imp_needs_bridge_span,
+        imp_income_per_level=imp_income_per_level,
+        imp_income_max_levels=imp_income_max_levels,
         reward_names=reward_names,
         reward_id=reward_id,
         reward_level=reward_level,

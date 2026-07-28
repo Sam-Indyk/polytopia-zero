@@ -74,10 +74,41 @@ def improvement_population(state, tile: int, imp_id: int, rules: Ruleset) -> int
     return int(rules.imp_population[imp_id])
 
 
+def bridge_span_ok(state, tile: int) -> bool:
+    """A bridge needs "water in between 2 non-water tiles" — opposite sides.
+
+    Checked as a straight span rather than any two land neighbours, so a bridge
+    cannot be dropped into a bay it does not actually cross.
+    """
+    if not state.rules.terrain_is_land[state.terrain[tile]]:
+        x, y = tile % state.size, tile // state.size
+        for dx, dy in ((1, 0), (0, 1), (1, 1), (1, -1)):
+            ax, ay = x - dx, y - dy
+            bx, by = x + dx, y + dy
+            if not (0 <= ax < state.size and 0 <= ay < state.size
+                    and 0 <= bx < state.size and 0 <= by < state.size):
+                continue
+            a, b = ay * state.size + ax, by * state.size + bx
+            if (state.rules.terrain_is_land[state.terrain[a]]
+                    and state.rules.terrain_is_land[state.terrain[b]]):
+                return True
+    return False
+
+
 def can_build(state, tile: int, imp_id: int, player: int, rules: Ruleset) -> bool:
     """Is placing improvement `imp_id` on `tile` legal for `player` right now?"""
-    if state.owner[tile] != player:
-        return False                                  # must be our territory
+    # Roads and bridges are the exception to "own territory only": the wiki says
+    # both may be built on neutral land. Enemy ground is still off limits, and
+    # the tile must have been *seen* -- letting the agent road a tile it has
+    # never explored would be acting on information the observation does not
+    # contain, which breaks invariant 1 in CLAUDE.md.
+    if rules.imp_allow_neutral[imp_id]:
+        if state.owner[tile] not in (player, C.NEUTRAL):
+            return False
+        if state.owner[tile] != player and not state.fog_explored[player][tile]:
+            return False
+    elif state.owner[tile] != player:
+        return False
     if state.city_level[tile] > 0:
         return False                                  # not on the city tile
     if state.improvement[tile] != C.IMP_NONE:
@@ -87,9 +118,20 @@ def can_build(state, tile: int, imp_id: int, player: int, rules: Ruleset) -> boo
     if int(rules.imp_cost[imp_id]) > int(state.stars[player]):
         return False
 
-    need_terrain = int(rules.imp_terrain[imp_id])
-    if need_terrain >= 0 and int(state.terrain[tile]) != need_terrain:
+    allowed = rules.imp_terrains[imp_id]
+    if allowed and int(state.terrain[tile]) not in allowed:
         return False
+    need_terrain = int(rules.imp_terrain[imp_id])
+    if not allowed and need_terrain >= 0 and int(state.terrain[tile]) != need_terrain:
+        return False
+    if rules.imp_needs_bridge_span[imp_id] and not bridge_span_ok(state, tile):
+        return False
+    # The Market must touch at least one of its partner buildings.
+    partners = rules.imp_adjacent_any[imp_id]
+    if partners and int(rules.imp_adjacency[imp_id]) == 0:
+        if not any(int(state.improvement[nb]) in partners
+                   for nb in state.neighbors(tile)):
+            return False
     need_resource = int(rules.imp_resource[imp_id])
     if need_resource >= 0 and int(state.resource[tile]) != need_resource:
         return False
@@ -129,8 +171,13 @@ def apply_build(state, tile: int, imp_id: int, player: int, rules: Ruleset) -> d
     levelled = []
     if city >= 0 and pop > 0:
         levelled = add_population(state, city, pop, rules)
+    # A road, bridge or port may have just joined a city to the capital.
+    conn = {"connected": set(), "levelled": []}
+    if rules.imp_connector[imp_id] or imp_id == C.IMP_PORT:
+        conn = recompute_connections(state, player, rules)
     return {"type": "build", "tile": tile, "improvement": imp_id,
-            "cost": cost, "population": pop, "city": city, "levelled": levelled}
+            "cost": cost, "population": pop, "city": city, "levelled": levelled,
+            "connected": sorted(conn["connected"])}
 
 
 # --- population and city levels --------------------------------------------------
@@ -160,6 +207,134 @@ def add_population(state, city_tile: int, amount: int, rules: Ruleset) -> list[i
         # single build crossed several thresholds at once.
         state.city_pending_reward[city_tile] = reached[-1]
     return reached
+
+
+def remove_population(state, city_tile: int, amount: int, rules: Ruleset) -> list[int]:
+    """Take population back, de-levelling if that drops below a threshold.
+
+    The inverse of `add_population`, needed because a city connection can be
+    *broken* — a road razed, a linking city captured — and the population it
+    granted has to go back. Returns the levels lost.
+    """
+    state.city_pop[city_tile] -= amount
+    lost = []
+    while int(state.city_pop[city_tile]) < 0 and int(state.city_level[city_tile]) > 1:
+        level = int(state.city_level[city_tile])
+        state.city_pop[city_tile] += level_cost(level)
+        state.city_level[city_tile] = level - 1
+        lost.append(level)
+    if int(state.city_pop[city_tile]) < 0:
+        state.city_pop[city_tile] = 0          # a level-1 city cannot shrink further
+    if lost:
+        # A city that fell back below a threshold no longer owes a choice for it.
+        if int(state.city_pending_reward[city_tile]) >= lost[-1]:
+            state.city_pending_reward[city_tile] = 0
+    return lost
+
+
+# --- city connections -------------------------------------------------------------
+def _conducts(state, tile: int, player: int, rules: Ruleset) -> bool:
+    """Can a connection run through this tile for `player`?
+
+    Roads, bridges and Ports carry connections (the wiki names Ports explicitly),
+    and the player's own cities are endpoints that also relay. Roads may sit on
+    neutral land, so ownership is not required for the road itself — only enemy
+    *cities* break a chain.
+    """
+    if state.city_level[tile] > 0:
+        return int(state.city_owner[tile]) == player
+    return bool(rules.imp_connector[state.improvement[tile]]) or \
+        int(state.improvement[tile]) == C.IMP_PORT
+
+
+def connected_cities(state, player: int, rules: Ruleset) -> set[int]:
+    """Cities of `player` joined to their capital by roads/bridges/ports.
+
+    Flood-fill outward from the capital across conducting tiles. Cities found
+    on the way are connected and keep relaying, so a chain of cities linked by
+    short road stubs works the way it does in game.
+
+    Known simplification: two Ports on the same ocean connect in the real game
+    without a bridge between them. Open-water routing is not modelled yet, so a
+    Port only links to things it physically touches.
+    """
+    capital = -1
+    for t in range(state.n_tiles):
+        if state.city_capital[t] and int(state.city_owner[t]) == player:
+            capital = t
+            break
+    if capital < 0:
+        return set()
+
+    seen = {capital}
+    stack = [capital]
+    found: set[int] = set()
+    while stack:
+        cur = stack.pop()
+        for nb in state.neighbors(cur):
+            if nb in seen or not _conducts(state, nb, player, rules):
+                continue
+            seen.add(nb)
+            stack.append(nb)
+            if state.city_level[nb] > 0 and int(state.city_owner[nb]) == player:
+                found.add(nb)
+    found.discard(capital)
+    return found
+
+
+def recompute_connections(state, player: int, rules: Ruleset) -> dict:
+    """Bring connection population in line with the current road network.
+
+    Wiki: "each city connection adds one population to both the capital and the
+    connected city". The capital therefore holds one population per connection,
+    each other city at most one. Population already granted is tracked in
+    `city_conn_pop`, so this is idempotent and safe to call after any build,
+    capture or destruction.
+    """
+    capital = -1
+    for t in range(state.n_tiles):
+        if state.city_capital[t] and int(state.city_owner[t]) == player:
+            capital = t
+            break
+    if capital < 0:
+        return {"connected": set(), "levelled": [], "lost": []}
+
+    linked = connected_cities(state, player, rules)
+    want = {capital: len(linked)}
+    for t in range(state.n_tiles):
+        if state.city_owner[t] == player and state.city_level[t] > 0 and t != capital:
+            want[t] = 1 if t in linked else 0
+
+    levelled, lost = [], []
+    for tile, target in want.items():
+        delta = target - int(state.city_conn_pop[tile])
+        if delta > 0:
+            levelled += [(tile, lv) for lv in add_population(state, tile, delta, rules)]
+        elif delta < 0:
+            lost += [(tile, lv) for lv in remove_population(state, tile, -delta, rules)]
+        state.city_conn_pop[tile] = target
+    return {"connected": linked, "levelled": levelled, "lost": lost}
+
+
+# --- markets ----------------------------------------------------------------------
+def market_income(state, tile: int, rules: Ruleset) -> int:
+    """Stars per turn from the Market on `tile`.
+
+    Wiki (Resources): "2 per each level of adjacent Windmill, Sawmill, or Forge,
+    max. level 8". Those partner buildings do not carry their own level in this
+    engine, so each contributes 1 level — revisit if building levels are added.
+    """
+    imp = int(state.improvement[tile])
+    per = int(rules.imp_income_per_level[imp])
+    if per <= 0:
+        return 0
+    partners = rules.imp_adjacent_any[imp]
+    levels = sum(1 for nb in state.neighbors(tile)
+                 if int(state.improvement[nb]) in partners)
+    cap = int(rules.imp_income_max_levels[imp])
+    if cap > 0:
+        levels = min(levels, cap)
+    return per * levels
 
 
 def is_under_siege(state, city_tile: int) -> bool:
@@ -195,11 +370,20 @@ def city_income(state, city_tile: int) -> int:
     return income
 
 
-def player_income(state, player: int) -> int:
+def player_income(state, player: int, rules: Ruleset | None = None) -> int:
+    """Stars per turn across the empire: cities plus Markets.
+
+    Market income is deliberately *not* part of `city_income`. It belongs to the
+    tile, not a city, and the wiki notes it survives effects that zero a city's
+    output ("This does not affect other methods of star production: the Market,
+    Ice Bank or Sanctuary") — so a besieged city still earns from its Markets.
+    """
     total = 0
     for t in range(state.n_tiles):
         if state.city_owner[t] == player and state.city_level[t] > 0:
             total += city_income(state, t)
+        if rules is not None and state.owner[t] == player:
+            total += market_income(state, t, rules)
     return total
 
 

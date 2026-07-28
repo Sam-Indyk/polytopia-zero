@@ -11,7 +11,7 @@ Goal (PLAN.md): beat the game's built-in Crazy bots through the real Steam clien
 ## Environment
 
 ```bash
-.venv\Scripts\python.exe -m pytest            # 270 tests, ~4 min
+.venv\Scripts\python.exe -m pytest            # 307 tests, ~5 min
 .venv\Scripts\python.exe -m polytrain.train_league --smoke --iters 50
 ```
 
@@ -51,7 +51,7 @@ Two gotchas that will waste your time otherwise:
    `tests/test_masks.py` checks equivalence at every decision point of real games.
 
 3. **Rules come from the wiki, not from memory.** Every stat in `data/*.toml` is
-   checked by `scripts/check_ruleset.py` against cached wiki pages (169 checks,
+   checked by `scripts/check_ruleset.py` against cached wiki pages (172 checks,
    0 mismatches). Change a number → re-run it.
 
 4. **Games are deterministic.** `(map_seed, ruleset_version)` fully determines a
@@ -88,30 +88,35 @@ agent is doing something weird" as a rules bug until proven otherwise:
   stars. Without this the agent could neither apply nor break the central
   pressure mechanic of the game.
 
-The last three all survived 164 wiki checks because **nothing was checking
+- **Movement was approximated.** Mountains carried `move_cost = 2` as a stand-in
+  for "halts movement", which both overcharged them and let units walk straight
+  *through* forests. Rough terrain is now enterable-but-not-traversable, and
+  **zone of control** — a unit that steps beside an enemy stops dead — did not
+  exist at all despite shaping every tactical exchange in the real game.
+
+The defence bugs survived 164 wiki checks because **nothing was checking
 `combat.toml`'s multipliers**. `wiki_check.check_combat` now parses the wiki's
 damage-formula sentence and pins them; anything the combat maths reads from data
 belongs in that check.
+
+One data conflict is unresolved and deliberately surfaced as a checker note: the
+**Market rate**. `Resources` and `Trade` both say 2 stars per adjacent building
+level; `Buildings` says 1. We use 2. It is one number in `improvements.toml`.
 
 ## Current state
 
 Engine is complete for base-tribe land play: movement, combat, capture, tech,
 and the full population economy (harvests, buildings, city levels, level-up
-reward choices), plus **siege** (an enemy unit on a city zeroes its income).
+reward choices), **siege**, the **roads/trade economy**, and **naval embarking**.
 
-**Not simulated yet**, in roughly the order they are worth doing — all verified
-missing against the cached wiki, all CPU-only work:
-- **Roads / Bridges** (Roads, T2) and **city connections**: each connection to
-  the capital adds **+1 population to both** the capital and the connected city.
-  Population is the only route to city levels, so this is a compounding economy
-  the agent simply cannot access.
-- **Market** (Trade, T3): 2 stars/turn per *level* of adjacent Windmill, Sawmill
-  or Forge, max level 8. All three partner buildings already exist.
-- **Naval embarking**: the unit data is there (`naval = true`, `carry`) but
-  boarding is not. `check_ruleset.py` reports 4 hulls with placeholder HP until
-  this lands.
-- Cloak infiltration and diplomacy, special tribes.
+Movement now implements the real rules rather than approximations: costs run in
+**half-moves** because a road step costs 0.5, rough terrain (forest, mountain) is
+*enterable but not traversable*, and **zone of control** stops a unit that steps
+next to an enemy (`creep` bypasses it). A Rider gets exactly the wiki's 2 -> 4
+tiles on roads.
 
+**Not simulated yet:** cloak infiltration and diplomacy, special tribes, and
+open-water routing between two Ports (a Port only links to what it touches).
 The viewer lists these so an empty log never reads as "nothing happened".
 
 Best trained agent (`checkpoints_11x11/`, committed), 100 mirrored games on 11×11:

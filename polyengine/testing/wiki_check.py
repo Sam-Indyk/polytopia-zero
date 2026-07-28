@@ -385,6 +385,59 @@ def check_combat(rules, pages: dict[str, str]) -> Report:
     return rep
 
 
+def parse_other_improvement_costs(text: str) -> dict[str, int]:
+    """Costs from the "Other improvements" table on Buildings.
+
+    The rows are pipe-delimited wikitext ending in the star cost, e.g.
+    "|Roads |...|Field, Forest |Roads |3". Anchored on the improvement name so
+    row order cannot shift the numbers.
+    """
+    section = text.split("Other improvements", 1)[-1]
+    out: dict[str, int] = {}
+    for block in re.split(r"\n\|-", section):
+        cells = [c.strip() for c in block.split("\n|") if c.strip()]
+        if len(cells) < 3:
+            continue
+        # Image | Name | Description | Terrain | Unlocked by | Cost.
+        name = clean(cells[1]).lower()
+        cost = first_number(cells[-1])
+        if cost is None or not name:
+            continue
+        out[name] = int(cost)
+    return out
+
+
+def check_new_improvements(rules, pages: dict[str, str]) -> Report:
+    """Costs for roads, bridges and the market."""
+    rep = Report()
+    text = pages.get("Buildings")
+    if not text:
+        rep.notes.append("no Buildings page cached; road/bridge/market costs unchecked")
+        return rep
+    wiki = parse_other_improvement_costs(text)
+    for wiki_name, our_name in (("roads", "road"), ("bridge", "bridge"),
+                                ("market", "market")):
+        if wiki_name in wiki and our_name in rules.imp_id:
+            _cmp(rep, f"{our_name} cost", wiki[wiki_name],
+                 int(rules.imp_cost[rules.imp_id[our_name]]))
+
+    # The Market's rate is stated differently on three pages; surface the
+    # disagreement rather than silently trusting the majority.
+    resources = pages.get("Resources", "")
+    m = re.search(r"\[\[Market\]\]\s*\|\s*(\d+) per each level", resources)
+    if m:
+        ours = int(rules.imp_income_per_level[rules.imp_id["market"]])
+        if int(m.group(1)) != ours:
+            rep.diffs.append(
+                f"market income_per_level: wiki={m.group(1)} ours={ours}")
+        else:
+            rep.ok.append("market income_per_level")
+        rep.notes.append(
+            "market rate: Resources/Trade say 2 per level, Buildings says 1; "
+            "using 2. Confirm against the live wiki.")
+    return rep
+
+
 def check_all(rules, cache: Path = DEFAULT_CACHE) -> Report:
     pages = load_cache(cache)
     if not pages:
@@ -392,7 +445,8 @@ def check_all(rules, cache: Path = DEFAULT_CACHE) -> Report:
         rep.notes.append(f"no wiki cache at {cache} — run scripts/fetch_wiki.py --all")
         return rep
     parts = [check_techs(rules, pages), check_units(rules, pages),
-             check_improvements(rules, pages), check_combat(rules, pages)]
+             check_improvements(rules, pages), check_combat(rules, pages),
+             check_new_improvements(rules, pages)]
     return Report(ok=[x for p in parts for x in p.ok],
                   diffs=[x for p in parts for x in p.diffs],
                   missing=[x for p in parts for x in p.missing],

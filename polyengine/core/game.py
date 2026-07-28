@@ -13,7 +13,8 @@ from __future__ import annotations
 
 from polyengine.core import constants as C
 from polyengine.core.actions import Action, apply_action, enumerate_actions
-from polyengine.core.economy import city_income, player_income
+from polyengine.core.economy import (city_income, player_income,
+                                     recompute_connections)
 from polyengine.core.fog import recompute_fog
 from polyengine.core.mapgen import new_game
 from polyengine.core.rules import Ruleset, load_ruleset
@@ -112,7 +113,11 @@ class Game:
                 s.alive[p] = 0
         # Income only. Cities no longer grow for free: population is bought via
         # harvests and buildings, which is what makes unit capacity scarce.
-        s.stars[player] += player_income(s, player)
+        # Roads built or lost since this player's last turn change what is
+        # connected, and connections are worth population -- so settle the
+        # network before taking income.
+        recompute_connections(s, player, self.rules)
+        s.stars[player] += player_income(s, player, self.rules)
         # Reset this player's units for the new turn.
         mine = (s.unit_owner == player) & (s.unit_type != C.U_NONE)
         s.unit_moved[mine] = 0

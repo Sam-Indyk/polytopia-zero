@@ -17,6 +17,7 @@ from polyengine.core import constants as C
 from polyengine.core.combat import resolve_attack
 from polyengine.core.economy import (
     apply_build,
+    recompute_connections,
     apply_reward,
     can_build,
     can_choose_reward,
@@ -162,7 +163,9 @@ def enumerate_actions(state, player: int, rules: Ruleset) -> list[Action]:
             actions.append(Action(C.A_RESEARCH, -1, -1, tid))
 
     for tile in range(state.n_tiles):
-        if state.owner[tile] != player:
+        # Roads and bridges may be placed on neutral ground, so this cannot
+        # pre-filter to owned territory — `can_build` makes the finer decision.
+        if state.owner[tile] != player and state.owner[tile] != C.NEUTRAL:
             continue
         for imp in range(rules.n_improvements):
             if can_build(state, tile, imp, player, rules):
@@ -208,15 +211,49 @@ def _apply_move(state, player: int, action: Action, rules: Ruleset) -> dict:
     src, dst = action.src, action.dst
     # Relocate the unit.
     for arr in ("unit_type", "unit_owner", "unit_hp", "unit_veteran",
-                "unit_kills", "unit_attacked", "unit_home"):
+                "unit_kills", "unit_attacked", "unit_home", "unit_carried"):
         getattr(state, arr)[dst] = getattr(state, arr)[src]
     state.unit_moved[dst] = 1
     _clear_unit(state, src)
 
+    boarded = _resolve_boarding(state, dst, rules)
+
     # NB: moving onto a city does NOT capture it. Capture is its own action
     # (see A_CAPTURE / capture_targets), which is why taking a village costs a
     # turn of standing on it.
-    return {"type": "move", "src": src, "dst": dst}
+    return {"type": "move", "src": src, "dst": dst, **boarded}
+
+
+def _resolve_boarding(state, tile: int, rules: Ruleset) -> dict:
+    """Turn a land unit into a hull on a Port, and back again on land.
+
+    The hull is a vehicle, not a replacement: the passenger's type is parked in
+    `unit_carried` and its HP is left untouched, which is what the wiki means by
+    listing naval health as "Varies". Boarding and landing both consume the rest
+    of the turn -- "unable to perform actions for the rest of that turn, even if
+    they had excess movement points or had not attacked".
+    """
+    utype = int(state.unit_type[tile])
+    carried = int(state.unit_carried[tile])
+    on_land = bool(rules.terrain_is_land[state.terrain[tile]])
+
+    if carried == C.U_NONE and not rules.unit_naval[utype] and not on_land:
+        # Stepping onto a Port: board a hull. A Giant is too big for a Raft and
+        # gets a Juggernaut, per the Port's description.
+        hull = C.U_JUGGERNAUT if utype == C.U_GIANT else C.U_RAFT
+        state.unit_carried[tile] = utype
+        state.unit_type[tile] = hull
+        state.unit_moved[tile] = 1
+        state.unit_attacked[tile] = 1
+        return {"embarked": rules.unit_names[hull]}
+
+    if carried != C.U_NONE and on_land:
+        state.unit_type[tile] = carried
+        state.unit_carried[tile] = C.U_NONE
+        state.unit_moved[tile] = 1
+        state.unit_attacked[tile] = 1
+        return {"disembarked": rules.unit_names[carried]}
+    return {}
 
 
 def _apply_train(state, player: int, action: Action, rules: Ruleset) -> dict:
@@ -244,7 +281,13 @@ def _apply_capture(state, player: int, action: Action, rules: Ruleset) -> dict:
     if rules.capture_ends_unit_turn:
         state.unit_moved[tile] = 1
         state.unit_attacked[tile] = 1
-    return {"type": "capture", "tile": tile, "from": previous}
+    # Taking a city can join it to the captor's road network and can sever the
+    # previous owner's, so both sides are re-settled.
+    conn = recompute_connections(state, player, rules)
+    if previous != C.NEUTRAL:
+        recompute_connections(state, previous, rules)
+    return {"type": "capture", "tile": tile, "from": previous,
+            "connected": sorted(conn["connected"])}
 
 
 def _capture_city(state, player: int, tile: int) -> None:
@@ -265,3 +308,4 @@ def _clear_unit(state, tile: int) -> None:
     state.unit_home[tile] = -1
     state.unit_veteran[tile] = 0
     state.unit_kills[tile] = 0
+    state.unit_carried[tile] = C.U_NONE

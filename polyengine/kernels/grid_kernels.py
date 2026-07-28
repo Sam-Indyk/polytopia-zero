@@ -57,8 +57,26 @@ def fog_kernel(size, player, sight_unit, sight_city,
 
 
 @njit(cache=True)
-def reachable_kernel(size, src, budget, terrain, unit_type, terr_ok, move_cost, dist):
-    """Fill `dist` (int16[N]) with movement cost from src; _INF if unreachable."""
+def reachable_kernel(size, src, budget, terrain, unit_type, passable, move_cost,
+                     rough, road_like, zoc, dist):
+    """Fill `dist` (int16[N]) with movement cost from src; _INF if unreachable.
+
+    Everything here is in HALF-moves, because roads cost 0.5: a plain step is 2,
+    a road-to-road (or road-to-city) step is 1, and `budget` is movement * 2.
+
+    Two rules make a tile *enterable but not traversable* — you may finish there
+    but not continue through it in the same turn:
+
+      * rough terrain (mountain, forest) that has no road on it
+      * zone of control: any tile adjacent to an enemy unit
+
+    Both are modelled by refusing to *expand* such a node rather than by
+    refusing to enter it. The source tile is always expandable: a unit that
+    starts its turn inside an enemy's zone of control is free to leave it.
+
+    Passability is per TILE, not per terrain: a land unit may step onto a water
+    tile if (and only if) a Port is there to carry it.
+    """
     n = size * size
     for i in range(n):
         dist[i] = _INF
@@ -68,8 +86,13 @@ def reachable_kernel(size, src, budget, terrain, unit_type, terr_ok, move_cost, 
         changed = False
         for cur in range(n):
             d = dist[cur]
-            if d >= budget:
+            if d >= budget or d == _INF:
                 continue
+            if cur != src:
+                if zoc[cur]:
+                    continue
+                if rough[terrain[cur]] and not road_like[cur]:
+                    continue
             cx = cur % size
             cy = cur // size
             for dy in (-1, 0, 1):
@@ -83,10 +106,16 @@ def reachable_kernel(size, src, budget, terrain, unit_type, terr_ok, move_cost, 
                     nb = ny * size + nx
                     if unit_type[nb] != -1:      # cannot enter/traverse occupied
                         continue
-                    t = terrain[nb]
-                    if not terr_ok[t]:
+                    if not passable[nb]:
                         continue
-                    nd = d + move_cost[t]
+                    t = terrain[nb]
+                    # A road ignores the terrain penalty entirely, but only
+                    # between two road-like tiles (a city counts as one).
+                    if road_like[cur] and road_like[nb]:
+                        step = np.int16(1)
+                    else:
+                        step = move_cost[t]
+                    nd = d + step
                     if nd <= budget and nd < dist[nb]:
                         dist[nb] = nd
                         changed = True

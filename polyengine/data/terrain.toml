@@ -4,6 +4,13 @@ ruleset_version = "current-2026.07"
 # Movement cost is in movement points. `impassable_without` names a tech that is
 # required to enter/traverse (null = always passable to land units).
 # `defense_bonus` keys index into combat.toml [defense_bonus].
+#
+# `rough` marks terrain that HALTS movement, per the wiki: "Rough terrain,
+# including mountains and forests (without roads) block movement. Units cannot
+# move through them (they can move onto them, but no further in the same turn)."
+# That is a halt, not a price: entering still costs the ordinary 1. Mountains
+# used to carry move_cost = 2 as a stand-in for this, which both overcharged
+# them and let forests be walked straight through.
 
 [terrain.ocean]
 id = 0
@@ -34,6 +41,7 @@ id = 3
 symbol = "f"
 land = true
 move_cost = 1
+rough = true                   # halts movement unless a road crosses it
 requires_tech = ""
 defense_bonus = "forest"
 
@@ -41,7 +49,8 @@ defense_bonus = "forest"
 id = 4
 symbol = "^"
 land = true
-move_cost = 2                  # halts movement; requires climbing to enter
+move_cost = 1
+rough = true                   # halts movement; roads cannot be built here
 requires_tech = "climbing"
 defense_bonus = "mountain"
 

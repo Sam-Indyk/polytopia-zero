@@ -119,7 +119,8 @@ const RES  = {fruit:['#ff8fb1','\\u25cf'],crop:['#ffd166','\\u25b2'],game:['#c58
               metal:['#c9ccd6','\\u25a0'],fish:['#7fe3e3','\\u25cf'],whale:['#8fb8ff','\\u25c6']};
 // Buildings the player paid for; population is what these buy.
 const IMP  = {lumber_hut:'L',farm:'F',mine:'M',port:'P',temple:'T',
-              sawmill:'S',windmill:'W',forge:'G'};
+              sawmill:'S',windmill:'W',forge:'G',
+              road:'=',bridge:'≡',market:'$'};
 let i = 0, timer = null, fogOf = -1, sel = -1, speed = 90;
 
 document.getElementById('meta').textContent =
@@ -347,6 +348,11 @@ function buildKey(){
     add(`<span class="chip" style="background:#222a33;color:#e9d8a6">${ch}</span>`, n);});
   add('<span class="muted" style="font-size:11px">—</span>',
       '<span class="muted">harvests (fruit/game/fish) consume the resource and leave no building</span>');
+  add('<span class="muted" style="font-size:11px">—</span>',
+      '<span class="muted">= road, ≡ bridge: halve movement between them and, when they reach '
+      + 'the capital, connect a city (+1 population to <em>both</em>). Ports connect too.</span>');
+  add('<span class="muted" style="font-size:11px">—</span>',
+      '<span class="muted">$ market: stars per turn per adjacent sawmill/windmill/forge</span>');
 
   grp('cities (square, number = level)');
   add(sw(PC[0],'2'), 'level 2 city, owner’s colour');
