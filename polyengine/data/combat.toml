@@ -27,8 +27,16 @@ capture_ends_unit_turn = true
 
 [defense_bonus]
 # Multipliers applied to defense_force based on the tile the defender stands on / its state.
+#
+# Verbatim from the wiki's damage formula (Defence_Bonus): "defenceBonus is 1
+# when there is no defence bonus, 1.5 for the standard forest/mountain/ocean/
+# city bonus, 4 for the city wall bonus."
+#
+# `city` and `city_walls` apply ONLY to a unit that owns the city and has the
+# `fortify` skill. A besieging enemy gets nothing, and neither does a Giant.
 none = 1.0
-fortified = 1.5           # inside a city with walls, or a Defender's terrain bonus
-mountain = 1.5            # defending on a mountain
-forest = 1.5              # defending in a forest (with the relevant tech)
-water = 1.0
+city = 1.5                # friendly city, no walls (fortify skill only)
+city_walls = 4.0          # friendly city with walls (fortify skill only)
+mountain = 1.5            # defending on a mountain (with Climbing)
+forest = 1.5              # defending in a forest (with Archery)
+water = 1.0               # TODO: 1.5 with Aquatism, once naval lands

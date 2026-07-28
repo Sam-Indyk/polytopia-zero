@@ -24,14 +24,37 @@ class CombatResult:
 
 
 def defense_bonus_for(state, tile: int, rules: Ruleset) -> float:
-    """Defense multiplier a unit gets standing on `tile`.
+    """Defense multiplier for the unit standing on `tile` (it is the defender).
 
-    A garrisoned city (walls, or simply owning the city tile) fortifies; else the
-    terrain's own bonus applies. City fortification takes precedence.
+    Cities are pickier than they look, and the previous version got all three
+    conditions wrong:
+
+    * A city fortifies **only its owner's** units. "Invading units besieging a
+      city do not receive any defence bonus" — so occupying an enemy city must
+      not hand the invader that city's walls, which is what used to happen and
+      made a captured city harder to take back than an open field.
+    * A city fortifies **only units with the `fortify` skill**. A Giant standing
+      in a city gets nothing (it may still get a terrain bonus elsewhere).
+    * A city **without** walls still fortifies (1.5x); walls make it 4x. We
+      previously gave unwalled cities nothing at all.
+
+    Uncaptured neutral villages never fortify anyone, which falls out of the
+    ownership test since `city_owner` is NEUTRAL for them.
     """
-    if state.city_owner[tile] != C.NEUTRAL and state.city_walls[tile]:
-        return rules.defense_bonus_map["fortified"]
-    return float(rules.terrain_defense_bonus[state.terrain[tile]])
+    utype = int(state.unit_type[tile])
+    terrain_bonus = float(rules.terrain_defense_bonus[state.terrain[tile]])
+    if utype == C.U_NONE:
+        return terrain_bonus
+
+    city_owner = int(state.city_owner[tile])
+    if state.city_level[tile] > 0 and city_owner != C.NEUTRAL:
+        garrisoned = (city_owner == int(state.unit_owner[tile])
+                      and "fortify" in rules.unit_skills[utype])
+        if not garrisoned:
+            return rules.defense_bonus_map["none"]
+        key = "city_walls" if state.city_walls[tile] else "city"
+        return rules.defense_bonus_map[key]
+    return terrain_bonus
 
 
 def resolve_attack(state, src: int, dst: int, rules: Ruleset) -> CombatResult:

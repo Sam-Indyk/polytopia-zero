@@ -233,7 +233,7 @@ Four layers, weakest to strongest:
 2. **Golden tests** — the combat formula pinned against wiki-documented cases.
 3. **Wiki reconciliation** (`scripts/check_ruleset.py`) — every unit stat, tech
    tier/prerequisite, and improvement cost diffed against cached wiki pages.
-   164 checks. This found six real errors on first run, including two entirely
+   169 checks. This found six real errors on first run, including two entirely
    missing technologies.
 4. **Differential replay** (`polyengine/testing/differential.py`) — re-simulates
    a recorded action sequence and reports the first divergent frame *and field*.

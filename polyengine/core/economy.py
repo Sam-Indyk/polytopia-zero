@@ -162,12 +162,35 @@ def add_population(state, city_tile: int, amount: int, rules: Ruleset) -> list[i
     return reached
 
 
+def is_under_siege(state, city_tile: int) -> bool:
+    """True if an enemy unit is standing on the city tile.
+
+    Sieging is just occupation: a unit that moves onto an enemy city holds it
+    without capturing (capture is its own action, and needs the unit to *start*
+    a turn there). The wiki: "Cities that are under siege by an enemy unit do
+    not produce any income."
+    """
+    utype = int(state.unit_type[city_tile])
+    if utype == C.U_NONE:
+        return False
+    owner = int(state.city_owner[city_tile])
+    return owner != C.NEUTRAL and int(state.unit_owner[city_tile]) != owner
+
+
 def city_income(state, city_tile: int) -> int:
-    """Stars per turn: one per level, +1 for the capital, +1 for a Workshop."""
+    """Stars per turn: one per level, +1 each for capital, Workshop and Park.
+
+    A besieged city produces nothing, which is what makes parking a unit on an
+    enemy city a real strategic threat rather than a slow way to lose a unit.
+    """
+    if is_under_siege(state, city_tile):
+        return 0
     income = int(state.city_level[city_tile])
     if state.city_capital[city_tile]:
         income += 1
     if state.city_workshop[city_tile]:
+        income += 1
+    if state.city_park[city_tile]:
         income += 1
     return income
 

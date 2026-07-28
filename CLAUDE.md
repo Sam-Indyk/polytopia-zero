@@ -11,7 +11,7 @@ Goal (PLAN.md): beat the game's built-in Crazy bots through the real Steam clien
 ## Environment
 
 ```bash
-.venv\Scripts\python.exe -m pytest            # 247 tests, ~4 min
+.venv\Scripts\python.exe -m pytest            # 270 tests, ~4 min
 .venv\Scripts\python.exe -m polytrain.train_league --smoke --iters 50
 ```
 
@@ -51,7 +51,7 @@ Two gotchas that will waste your time otherwise:
    `tests/test_masks.py` checks equivalence at every decision point of real games.
 
 3. **Rules come from the wiki, not from memory.** Every stat in `data/*.toml` is
-   checked by `scripts/check_ruleset.py` against cached wiki pages (164 checks,
+   checked by `scripts/check_ruleset.py` against cached wiki pages (169 checks,
    0 mismatches). Change a number → re-run it.
 
 4. **Games are deterministic.** `(map_seed, ruleset_version)` fully determines a
@@ -69,22 +69,50 @@ Fandom blocks generic scraping (WebFetch gets HTTP 402) **but its MediaWiki
 .venv\Scripts\python.exe scripts/check_ruleset.py      # diff TOMLs vs wiki
 ```
 
-Two rules were wrong for a while and each badly distorted training, so treat
-"the agent is doing something weird" as a rules bug until proven otherwise:
+Several rules were wrong for a while and each distorted training, so treat "the
+agent is doing something weird" as a rules bug until proven otherwise:
 - Capture was a side effect of moving. It is its own action: a unit must **start
   its turn** on the city, and capturing ends that unit's turn.
 - Cities had no **unit-support cap**. A city supports `level + 1` units. Without
   it, star income converted straight into army and the agent flooded the map
   with 75 warriors while ignoring the tech tree.
+- **City defence was wrong in three ways at once** (fixed 28 Jul). A city
+  fortifies *only its owner's* units, and only those with the **`fortify`
+  skill** — a skill that was present in `units.toml` but read by no code at all.
+  A besieging enemy used to inherit the defender's walls, which made a captured
+  city *harder* to retake than open ground. Unwalled cities gave nothing when
+  they should give 1.5x. And the wall multiplier was **1.5 instead of 4**.
+- **Parks produced no income**, though they are a level-up reward the agent can
+  choose — so it was being taught that a good reward was a bad one.
+- **Siege did not exist.** A city with an enemy unit standing on it produces no
+  stars. Without this the agent could neither apply nor break the central
+  pressure mechanic of the game.
+
+The last three all survived 164 wiki checks because **nothing was checking
+`combat.toml`'s multipliers**. `wiki_check.check_combat` now parses the wiki's
+damage-formula sentence and pins them; anything the combat maths reads from data
+belongs in that check.
 
 ## Current state
 
 Engine is complete for base-tribe land play: movement, combat, capture, tech,
 and the full population economy (harvests, buildings, city levels, level-up
-reward choices). **Not simulated yet:** markets/roads/city connections, naval
-embarking (the Port building exists; boarding does not), cloak infiltration and
-diplomacy, special tribes. The viewer lists these so an empty log never reads as
-"nothing happened".
+reward choices), plus **siege** (an enemy unit on a city zeroes its income).
+
+**Not simulated yet**, in roughly the order they are worth doing — all verified
+missing against the cached wiki, all CPU-only work:
+- **Roads / Bridges** (Roads, T2) and **city connections**: each connection to
+  the capital adds **+1 population to both** the capital and the connected city.
+  Population is the only route to city levels, so this is a compounding economy
+  the agent simply cannot access.
+- **Market** (Trade, T3): 2 stars/turn per *level* of adjacent Windmill, Sawmill
+  or Forge, max level 8. All three partner buildings already exist.
+- **Naval embarking**: the unit data is there (`naval = true`, `carry`) but
+  boarding is not. `check_ruleset.py` reports 4 hulls with placeholder HP until
+  this lands.
+- Cloak infiltration and diplomacy, special tribes.
+
+The viewer lists these so an empty log never reads as "nothing happened".
 
 Best trained agent (`checkpoints_11x11/`, committed), 100 mirrored games on 11×11:
 

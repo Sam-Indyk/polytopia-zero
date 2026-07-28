@@ -333,6 +333,58 @@ def check_techs(rules, pages: dict[str, str]) -> Report:
     return rep
 
 
+def parse_defence_bonuses(text: str) -> dict[str, float] | None:
+    """The three defence multipliers, stated in one sentence of Defence_Bonus.
+
+    "defenceBonus is 1 when there is no defence bonus, 1.5 for the standard
+    forest/mountain/ocean/city bonus, 4 for the city wall bonus."
+
+    Each number is anchored to the phrase that follows it rather than taken
+    positionally, so unrelated numbers elsewhere on the page cannot shift them.
+    """
+    patterns = {
+        "none": r"([\d.]+)\s+when there is no defence bonus",
+        "standard": r"([\d.]+)\s+for the standard",
+        "wall": r"([\d.]+)\s+for the city wall",
+    }
+    found = {}
+    for key, pat in patterns.items():
+        m = re.search(pat, text, re.I)
+        if m:
+            found[key] = float(m.group(1))
+    return found or None
+
+
+def check_combat(rules, pages: dict[str, str]) -> Report:
+    """Defence multipliers.
+
+    These went unchecked for a long time, and the city-wall bonus was wrong by
+    a factor of 2.7 the whole while (1.5 instead of 4) — 164 other checks passed
+    around it. Anything the combat maths reads from data belongs here.
+    """
+    rep = Report()
+    text = pages.get("Defence_Bonus") or pages.get("Combat")
+    if not text:
+        rep.notes.append("no Defence_Bonus page cached; defence bonuses unchecked")
+        return rep
+    wiki = parse_defence_bonuses(text)
+    if not wiki:
+        rep.notes.append("could not parse the defence-bonus sentence")
+        return rep
+
+    ours = rules.defense_bonus_map
+    if "none" in wiki:
+        _cmp(rep, "defence_bonus none", wiki["none"], ours["none"])
+    if "standard" in wiki:
+        # One documented value covers the standard terrain and bare-city bonus.
+        for key in ("city", "mountain", "forest"):
+            if key in ours:
+                _cmp(rep, f"defence_bonus {key}", wiki["standard"], ours[key])
+    if "wall" in wiki and "city_walls" in ours:
+        _cmp(rep, "defence_bonus city_walls", wiki["wall"], ours["city_walls"])
+    return rep
+
+
 def check_all(rules, cache: Path = DEFAULT_CACHE) -> Report:
     pages = load_cache(cache)
     if not pages:
@@ -340,7 +392,7 @@ def check_all(rules, cache: Path = DEFAULT_CACHE) -> Report:
         rep.notes.append(f"no wiki cache at {cache} — run scripts/fetch_wiki.py --all")
         return rep
     parts = [check_techs(rules, pages), check_units(rules, pages),
-             check_improvements(rules, pages)]
+             check_improvements(rules, pages), check_combat(rules, pages)]
     return Report(ok=[x for p in parts for x in p.ok],
                   diffs=[x for p in parts for x in p.diffs],
                   missing=[x for p in parts for x in p.missing],
