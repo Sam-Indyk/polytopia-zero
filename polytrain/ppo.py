@@ -33,6 +33,7 @@ class PPOConfig:
     aux_coef: float = 0.25
     max_grad_norm: float = 0.5
     normalise_adv: bool = True
+    precision: str = "fp32"           # "fp32" | "bf16" (autocast, CUDA only)
 
 
 class PPOLearner:
@@ -46,6 +47,9 @@ class PPOLearner:
                aux_targets: dict | None = None) -> dict:
         cfg = self.cfg
         device = next(self.net.parameters()).device
+        # bf16 needs no GradScaler (unlike fp16): its exponent range matches
+        # fp32, so gradients do not underflow and there is nothing to scale.
+        amp = cfg.precision == "bf16" and device.type == "cuda"
         adv = torch.as_tensor(advantages, dtype=torch.float32, device=device)
         ret = torch.as_tensor(returns, dtype=torch.float32, device=device)
 
@@ -66,19 +70,29 @@ class PPOLearner:
                 mb_t = torch.as_tensor(mb, device=device)
                 sub = {k: (v[mb_t] if torch.is_tensor(v) else v)
                        for k, v in batch.items()}
-                out = self.policy.evaluate(sub)
+                with torch.autocast("cuda", dtype=torch.bfloat16, enabled=amp):
+                    out = self.policy.evaluate(sub)
+
+                # Back to fp32 before any loss arithmetic. The trunk tolerates
+                # bf16 fine, but PPO's ratio is exp() of a *difference* of
+                # log-probs: bf16 carries ~3 significant decimal digits, so a
+                # difference near zero loses most of its precision and the
+                # clipped surrogate stops meaning what it should.
+                logp = out["logp"].float()
+                value = out["value"].float()
+                entropy_t = out["entropy"].float()
 
                 mb_adv = adv[mb_t]
                 if cfg.normalise_adv:
                     mb_adv = (mb_adv - mb_adv.mean()) / (mb_adv.std() + 1e-8)
 
-                ratio = (out["logp"] - sub["old_logp"]).exp()
+                ratio = (logp - sub["old_logp"].float()).exp()
                 unclipped = ratio * mb_adv
                 clipped = ratio.clamp(1 - cfg.clip, 1 + cfg.clip) * mb_adv
                 policy_loss = -torch.min(unclipped, clipped).mean()
 
-                value_loss = F.mse_loss(out["value"], ret_norm[mb_t])
-                entropy = out["entropy"].mean()
+                value_loss = F.mse_loss(value, ret_norm[mb_t])
+                entropy = entropy_t.mean()
 
                 loss = (policy_loss
                         + cfg.value_coef * value_loss
@@ -88,8 +102,9 @@ class PPOLearner:
                     score_t = aux_targets["score"][mb_t]
                     tech_t = aux_targets["tech"][mb_t]
                     loss = loss + cfg.aux_coef * (
-                        F.mse_loss(out["aux_score"], score_t)
-                        + F.binary_cross_entropy_with_logits(out["aux_tech"], tech_t))
+                        F.mse_loss(out["aux_score"].float(), score_t)
+                        + F.binary_cross_entropy_with_logits(
+                            out["aux_tech"].float(), tech_t))
 
                 self.opt.zero_grad(set_to_none=True)
                 loss.backward()

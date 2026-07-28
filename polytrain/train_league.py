@@ -123,7 +123,8 @@ def main() -> None:
 
     learner = PPOLearner(policy, PPOConfig(lr=args.lr, minibatch=args.minibatch,
                                            epochs=args.epochs,
-                                           entropy_coef=args.entropy))
+                                           entropy_coef=args.entropy,
+                                           precision=args.precision))
     league = League(capacity=args.league_size)
     if args.league_scripted:
         league.add_scripted("scripted", lambda s: ScriptedBot(seed=s))

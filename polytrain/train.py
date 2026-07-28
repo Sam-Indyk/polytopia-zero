@@ -152,7 +152,7 @@ def main() -> None:
 
     learner = PPOLearner(policy, PPOConfig(
         lr=args.lr, minibatch=args.minibatch, epochs=args.epochs,
-        entropy_coef=args.entropy))
+        entropy_coef=args.entropy, precision=args.precision))
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
 
