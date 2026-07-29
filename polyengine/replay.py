@@ -20,6 +20,19 @@ from polyengine.core import constants as C
 from polyengine.core.actions import Action
 
 
+# Mechanics the engine does not simulate, surfaced in the viewer so an empty
+# panel never reads as "nothing happened".
+#
+# KEEP THIS HONEST IN BOTH DIRECTIONS. It went stale once and claimed roads,
+# markets, naval embarking and cloaks were missing months after they landed,
+# which is worse than saying nothing: the one panel whose entire job is to tell
+# you what you are not seeing was the thing lying.
+NOT_SIMULATED = [
+    "special tribes (Aquarion, Polaris, Cymanti, ...) and their unique units",
+    "tribe-specific technology replacements (Waterways, Polarism, Pescetism)",
+]
+
+
 def _board(state) -> dict:
     """Mutable per-frame board data (terrain lives in the static header).
 
@@ -95,13 +108,7 @@ class ReplayRecorder:
             "agents": list(self.agent_names),
             # Mechanics the engine does not simulate yet, surfaced in the viewer
             # so an empty panel never reads as "nothing happened".
-            "not_simulated": [
-                "markets, trade routes and city connections",
-                "roads",
-                "naval embarking via ports (the Port building exists; boarding does not)",
-                "cloak infiltration and diplomacy relations",
-                "special tribes",
-            ],
+            "not_simulated": NOT_SIMULATED,
         }
 
     def capture(self, action: Action | None = None) -> None:
