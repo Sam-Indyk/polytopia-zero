@@ -148,19 +148,12 @@ this so an empty log never reads as "nothing happened".
 head grew from 8 types to 10 (Disband, Upgrade) and the observation from 64
 planes to 77. They will not load into the current network.
 
-Best trained agent (`checkpoints_11x11/`, committed), 100 mirrored games on 11×11:
-
-| | vs Random | vs Greedy-OSLA (held out) | vs ScriptedBot |
-|---|---|---|---|
-| `best.pt` (iter 275) | 100% | 96% | 55% ±5% |
-| `latest.pt` (iter 700) | 98% | 82% | 58% ±5% |
-
-It plays properly — expands, buys population, levels cities, respects capacity —
-but **it plateaued after ~iteration 275**. See "What to do next".
-
-`best.pt` is mislabelled: it was picked on a 16-game eval reading 68.8%, which at
-100 games is 55%. Selecting the max over many noisy evals overestimates. Don't
-trust a checkpoint label; re-measure with `polytrain.evaluate.play_match`.
+**There is no trained agent right now, by design.** Every checkpoint predating
+28 Jul is architecturally dead: the observation went 64 -> 77 planes and the
+action head 8 -> 10, so nothing will load. They were deleted rather than left in
+the repo to tempt someone. Training starts from scratch, and the previous
+numbers (55% vs ScriptedBot at 11x11) are not comparable to anything measured
+against the current rules.
 
 ## What to do next
 
@@ -285,6 +278,30 @@ Checkpoint promotion now uses a **held-out** gate: with `--league-scripted`,
 ScriptedBot is a training opponent, so `best.pt` is selected on the OSLA win rate
 instead (`blob["gate_name"]` records which). Selecting on an opponent you train
 against measures sparring, not strength.
+
+## Known stale: the evaluation and shaping machinery
+
+The engine grew a lot faster than the things that *judge* it, and two of those
+are now measurably out of step. Worth fixing before spending GPU-hours, because
+they define what the agent is being taught to want:
+
+- **Two different functions decide who wins at the turn cap.** `Game.winner()`
+  uses `Game.score` (cities, parks, monuments, units, tech, stars); training's
+  `rollout._score_winner` uses `agents/heuristic.evaluate` instead. Measured on
+  40 random 11x11 games capped at turn 45, **they disagree in 15%**. Since most
+  games end on the cap rather than by Domination, that is a large slice of the
+  terminal reward pointing at a different objective from the engine's.
+- **`agents/heuristic.py` predates most of the ruleset.** It scores city levels,
+  units, tech, territory and stars — and knows nothing about monuments (400
+  points each), city connections, markets or parks. It also divides by
+  `rules.unit_max_hp[type]`, which is the *placeholder* for a naval hull, so a
+  loaded boat's health fraction comes out above 1. It drives both the turn-cap
+  tiebreak above and PPO reward shaping.
+- **The scripted baselines never use the new actions.** `ScriptedBot` emits only
+  the original eight action types — no Disband, no Upgrade — and has no notion of
+  roads or monuments. Fine as a floor, but it is a weaker opponent than it used
+  to be relative to the game, so win rates against it will read higher than the
+  same agent would score against the real thing.
 
 ## Watching games
 
