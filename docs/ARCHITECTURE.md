@@ -155,7 +155,7 @@ isolation. The pure-Python paths they replaced are the reference behaviour.
 | 5 / 7 / 23 | terrain, resource, improvement (one-hot) |
 | 4 | territory: own / enemy / neutral / **off-board** |
 | 9 | city: present, own, enemy, level, pop, walls, capital, workshop, support-used |
-| 16 + 6 | unit type one-hot, then own/enemy/hp/veteran/moved/acted |
+| 17 + 6 | unit type one-hot, then own/enemy/hp/veteran/moved/acted |
 | 3 | fog: visible, explored, staleness |
 | 3 | geometry: x, y, distance to edge |
 
