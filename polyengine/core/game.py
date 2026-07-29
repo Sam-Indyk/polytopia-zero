@@ -11,6 +11,8 @@ income turning directly into an unbounded army.
 """
 from __future__ import annotations
 
+import numpy as np
+
 from polyengine.core import constants as C
 from polyengine.core.actions import Action, apply_action, enumerate_actions
 from polyengine.core.economy import (city_income, player_income,
@@ -20,6 +22,18 @@ from polyengine.core.fog import recompute_fog
 from polyengine.core.mapgen import new_game
 from polyengine.core.rules import Ruleset, load_ruleset
 from polyengine.core.state import GameState
+
+# Point values from the wiki's Score page. Kept as named constants because they
+# are now the *definition of winning* at the turn cap, not incidental weights.
+UNIT_SCORE_PER_STAR = 5
+SUPER_UNIT_SCORE = 50
+TERRITORY_SCORE = 20
+EXPLORED_SCORE = 5
+CITY_BASE_SCORE = 100
+CITY_LEVEL_SCORE = 50          # per level above 1
+PARK_SCORE = 250
+TEMPLE_SCORE = 100             # level 1; grows 100/level to a max of 500
+TECH_SCORE_PER_TIER = 100
 
 
 class Game:
@@ -73,16 +87,67 @@ class Game:
         return -1
 
     def score(self, player: int) -> int:
-        s = self.state
+        """Polytopia's own scoring formula, from the wiki's Score page.
+
+        Four categories, verbatim:
+
+          Army and Territory
+            * "Units: 5 points per star of a unit's cost. Super units are worth
+               50 points each. (They have a theoretical cost of 10 stars.)"
+            * "Territory: 20 points per tile in the player's territory."
+            * "Exploration: 5 points per explored tile."
+          Cities
+            * "Cities: 100 points plus 50 points per level above level 1."
+            * "Park: 250 points each."
+          Monuments and Temples
+            * "Monuments: 400 points each."
+            * "Temples: 100 points plus 100 points per level above level 1"
+          Science
+            * "Technology: 100 points per tier of the technology."
+
+        Note what is NOT here: stockpiled stars score nothing. The previous
+        version added them, along with a flat 5 per unit and 20 per tech, and
+        counted cities as 100 *per level* rather than 100 plus 50 per level
+        above the first. The wiki offers a checkable anchor -- "level 1 city +
+        9 tiles territory = 280 points" -- which `tests/test_score.py` pins.
+        """
+        s, r = self.state, self.rules
+        total = 0
+
+        # --- army and territory ---
+        units = (s.unit_owner == player) & (s.unit_type != C.U_NONE)
+        for tile in np.flatnonzero(units):
+            utype = int(s.unit_type[tile])
+            # A hull scores as its passenger: "Ship and battleship upgrades do
+            # not give extra score."
+            carried = int(s.unit_carried[tile])
+            if carried != C.U_NONE:
+                utype = carried
+            if utype == C.U_GIANT:
+                total += SUPER_UNIT_SCORE
+            else:
+                total += UNIT_SCORE_PER_STAR * int(r.unit_cost[utype])
+        total += TERRITORY_SCORE * int((s.owner == player).sum())
+        total += EXPLORED_SCORE * int(s.fog_explored[player].sum())
+
+        # --- cities ---
         owned = (s.city_owner == player) & (s.city_level > 0)
-        city_score = int(s.city_level[owned].sum()) * 100
-        city_score += int(s.city_park[owned].sum()) * 250
-        # "Each monument ... is worth 400 points."
-        mine = s.improvement_owner == player
-        city_score += int(self.rules.imp_score[s.improvement[mine]].sum())
-        n_units = int(((s.unit_owner == player) & (s.unit_type != C.U_NONE)).sum())
-        tech_score = bin(int(s.tech[player])).count("1") * 20
-        return city_score + n_units * 5 + tech_score + int(s.stars[player])
+        n_cities = int(owned.sum())
+        total += CITY_BASE_SCORE * n_cities
+        total += CITY_LEVEL_SCORE * int((s.city_level[owned] - 1).sum())
+        total += PARK_SCORE * int(s.city_park[owned].sum())
+
+        # --- monuments and temples (score travels with the builder) ---
+        built = np.flatnonzero(s.improvement_owner == player)
+        if len(built):
+            total += int(r.imp_score[s.improvement[built]].sum())
+            total += TEMPLE_SCORE * int((s.improvement[built] == C.IMP_TEMPLE).sum())
+
+        # --- science ---
+        for tech in range(r.n_techs):
+            if s.has_tech(player, tech):
+                total += TECH_SCORE_PER_TIER * int(r.tech_tier[tech])
+        return total
 
     # --- stepping -----------------------------------------------------------
     def step(self, action: Action) -> dict:

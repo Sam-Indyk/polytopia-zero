@@ -11,7 +11,7 @@ Goal (PLAN.md): beat the game's built-in Crazy bots through the real Steam clien
 ## Environment
 
 ```bash
-.venv\Scripts\python.exe -m pytest            # 376 tests, ~5 min
+.venv\Scripts\python.exe -m pytest            # 408 tests, ~5 min
 .venv\Scripts\python.exe -m polytrain.train_league --smoke --iters 50
 ```
 
@@ -279,29 +279,46 @@ ScriptedBot is a training opponent, so `best.pt` is selected on the OSLA win rat
 instead (`blob["gate_name"]` records which). Selecting on an opponent you train
 against measures sparring, not strength.
 
-## Known stale: the evaluation and shaping machinery
+## What "winning" means
 
-The engine grew a lot faster than the things that *judge* it, and two of those
-are now measurably out of step. Worth fixing before spending GPU-hours, because
-they define what the agent is being taught to want:
+One definition, used everywhere:
 
-- **Two different functions decide who wins at the turn cap.** `Game.winner()`
-  uses `Game.score` (cities, parks, monuments, units, tech, stars); training's
-  `rollout._score_winner` uses `agents/heuristic.evaluate` instead. Measured on
-  40 random 11x11 games capped at turn 45, **they disagree in 15%**. Since most
-  games end on the cap rather than by Domination, that is a large slice of the
-  terminal reward pointing at a different objective from the engine's.
-- **`agents/heuristic.py` predates most of the ruleset.** It scores city levels,
-  units, tech, territory and stars — and knows nothing about monuments (400
-  points each), city connections, markets or parks. It also divides by
-  `rules.unit_max_hp[type]`, which is the *placeholder* for a naval hull, so a
-  loaded boat's health fraction comes out above 1. It drives both the turn-cap
-  tiebreak above and PPO reward shaping.
-- **The scripted baselines never use the new actions.** `ScriptedBot` emits only
-  the original eight action types — no Disband, no Upgrade — and has no notion of
-  roads or monuments. Fine as a floor, but it is a weaker opponent than it used
-  to be relative to the game, so win rates against it will read higher than the
-  same agent would score against the real thing.
+> destroy every opponent, or lead on **score** when the turn cap hits.
+
+`Game.score` is Polytopia's published formula (wiki Score page): 5 points per
+star of unit cost (super units 50), 20 per territory tile, 5 per explored tile,
+100 per city plus 50 per level above 1, 250 per Park, 400 per monument, 100 per
+temple, 100 per **tier** of each technology. Stockpiled stars score **nothing**.
+The wiki supplies its own anchor — "level 1 city + 9 tiles territory = 280
+points" — which `tests/test_score_and_bot.py` pins.
+
+`Game.winner()` and `rollout._score_winner` both use it. They used to be two
+different functions and disagreed on **15%** of turn-capped games; that is now
+0%, measured the same way.
+
+`agents/heuristic.py` is the *static* eval for baselines and PPO shaping. It is
+the score lead over the strongest opponent, plus a **Domination tilt** whose
+weights come from the game's own Domination rating rather than from taste:
+
+    battle skills     (enemy killed + 1) / (friendly lost + enemy killed + 1)
+    tribes destroyed  eliminated / total opponents (with a continuous
+                      "pressure" term so a search has a slope to climb)
+    speed skills      100% at 10 turns per enemy
+
+`DOMINATION_WEIGHT = 200` caps the whole tilt at about two cities: enough to
+break an even position toward the aggressive line, not enough to buy one kill
+with an army. Battle skill being a *ratio* is the point — a raw kill count would
+call trading two units for one progress.
+
+## Bot difficulty
+
+`ScriptedBot(difficulty=...)` follows what the wiki says separates Midjiwan's
+bots: aggression and income, not a different program. Easy/normal/hard/crazy
+receive 1/2/3/5 stars per turn, so `income_bonus` carries the surplus over the 2
+a level-1 capital already makes; `ScriptedBot.crazy()` is the M5 target. Call
+`bot.apply_handicap(game, seat)` once before play, or the handicap is not
+applied. Measured over 24 mirrored games: normal beats Random 100%, crazy beats
+normal 58%, hard beats easy 67%.
 
 ## Watching games
 

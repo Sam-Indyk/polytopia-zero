@@ -195,8 +195,15 @@ def _finish(game, gi, roll, last_idx, stats, length, learner_seat=None):
 
 
 def _score_winner(game) -> int:
-    """Turn-cap tiebreak on material."""
-    scores = [evaluate(game, p) for p in range(game.state.n_players)]
+    """Turn-cap tiebreak, using the ENGINE's score and nothing else.
+
+    This used to call the material heuristic instead, which disagreed with
+    `Game.score` on 15% of turn-capped games -- so training's terminal reward
+    was pointing at a different objective from the one the engine adjudicates.
+    Most 11x11 games end on the cap rather than by Domination, so that was a
+    large slice of the signal.
+    """
+    scores = [game.score(p) for p in range(game.state.n_players)]
     best = max(scores)
     leaders = [p for p, s in enumerate(scores) if s == best]
     return leaders[0] if len(leaders) == 1 else -1

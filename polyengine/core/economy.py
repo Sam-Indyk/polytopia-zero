@@ -488,7 +488,7 @@ def player_income(state, player: int, rules: Ruleset | None = None) -> int:
     output ("This does not affect other methods of star production: the Market,
     Ice Bank or Sanctuary") — so a besieged city still earns from its Markets.
     """
-    total = 0
+    total = int(state.income_bonus[player])
     for t in range(state.n_tiles):
         if state.city_owner[t] == player and state.city_level[t] > 0:
             total += city_income(state, t)

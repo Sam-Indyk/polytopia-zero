@@ -1,0 +1,131 @@
+''The Battle of Polytopia'' has 6 '''game modes'''. There are 4 single-player game modes—Perfection, Domination, Creative, and Boot Camp—and two multiplayer game modes—Glory and Might. 
+
+==Single-Player==
+
+[[File:SingleplayerSelectMode.png|thumb|The game mode selection screen for single-player games]]
+
+There are 4 single-player game modes: Perfection, Domination, Creative, and Boot Camp. In first three modes, players play against computer-controlled bots of one of four difficulty levels: easy, normal, hard, or crazy. (In the creative mode, players may choose to have no opponents at all.)
+
+The difficulty level determines the aggressiveness and starting income of bot opponents. Bots of higher difficulties are more aggressive. For example, easy bots will almost always be peaceful until provoked, while crazy bots may be immediately hostile. The difficulty also determines the income bots receive from their capital [[city]] at the beginning of the game. Easy bots receive one [[star]] per turn (SPT), normal bots (and human players) receive two, hard bots receive three, and crazy bots receive five.
+
+===Perfection===
+
+{{Quote|Show your skills on the global hiscore in the classic 30 turns game.|In-game description}}
+
+The objective of the Perfection game mode is to obtain the highest score possible in 30 turns. Playing against more opponents and increasing the difficulty level raises the difficulty bonus applied to the player's final score. (For more details on score calculation, see [[Score]].)  A score of 3,000 points with a certain [[tribe]] grants one star for that tribe; 10,000 points grants two; and 50,000 points grants three. A score of 100,000 grants a halo around the tribe's icon. Global high scores can be found under the High Score tab of the main menu. The leaderboard is reset every Monday.  
+
+Perfection was the original game mode of Polytopia. The multiplayer counterpart of Perfection is the Glory game mode, where the first player to attain 10,000 points wins.
+
+A difficulty bonus is applied to the final score in the Perfection game mode. This bonus is equal to 100% plus 41% of the natural logarithm of the number of opponents, with an additional 20%, 40%, or 80% if the difficulty level is normal, hard, or crazy, respectively. The maximum difficulty bonus, with 15 crazy-level opponents, is 291%. 
+
+{| class="article-table"
+! colspan="16" style="text-align: center;" |Difficulty Bonus (Easy Difficulty Level)
+|-
+!Number of opponents
+|1
+|2
+|3
+|4
+|5
+|6
+|7
+|8
+|9
+|10
+|11
+|12
+|13
+|14
+|15
+|-
+!Difficulty bonus (%)
+|100
+|128
+|145
+|157
+|166
+|174
+|180
+|185
+|190
+|195
+|199
+|202
+|205
+|208
+|211
+|}
+
+===Domination===
+
+{{Quote|Play until there is only one tribe left, with no time limit.|In-game description}}
+
+The objective of the Domination game mode is to defeat all opponents. Domination players receive a rating based on four equally weighted parts:
+
+* Speed skills: Determined by how many turns the player takes to destroy all opponents. The time limit for 100% is 10 turns per enemy. Any percentage below 100% is determined by the ratio of maximum turns required for 100% to the amount of turns taken to win.
+
+*Battle skills: Determined by the ratio of enemy units killed + 1 to friendly units lost + enemy units killed + 1.
+
+<math display="inline">\text{battle skills} = \frac{\text{enemy units killed} + 1}{\text{friendly units lost} + \text{enemy units killed} + 1}</math>
+
+*Tribes destroyed: The ratio of the number of tribes destroyed (captured the last city) by the player to the total number of  opponents.
+*Difficulty rating: Determined by the difficulty level. 25% for easy, 50% for normal, 75% for hard, and 100% for crazy opponents.
+* 
+
+A rating of 20% with a certain tribe grants one star for that tribe; 70% grants two; and 95% grants three. A rating of 100% grants a halo around the tribe's icon. 
+
+Domination was released in [[Update History#1.2 May 4, 2016|update 1.2]]. The multiplayer counterpart of Domination is the Might game mode, where the win condition is capturing every enemy player's capital.
+
+===Creative===
+
+[[File:Creative Mode.png|thumb|The menu for creating a Creative mode game]]
+[[File:Creative.png|thumb|The icon for Creative mode]]
+
+{{Quote|Set up your own game and play however you like.|In-game description}}
+
+The Creative game mode allows players to customize the number of opponents, map type (amount of water), and map size (including the larger "Huge" 400-tile and "Massive" 900-tile map sizes) of the game. Within the creative game mode, players choose to play using Perfection or Domination rules and scoring or choose the endless Infinity game mode, with no win condition. 
+
+The Creative game mode was introduced in the [[Moonrise|Moonrise update]]. 
+
+=== Boot Camp ===
+The Boot Camp game mode is specialized for new comers to learn about the game rules and mechanics. When the player first starts a new game, they will automatically enter the Boot Camp game mode. You can also start a Boot Camp game by choosing the "Boot Camp" at the bottom of the game mode selection.
+
+A Boot Camp game is similar to Perfection, with the following restrictions and differences:
+
+* World generation is static.
+* Map type is Lakes, with a scale of 14 x 14.
+* Difficulty is easy.
+* The only oppoment is Xin-xi.
+* You start as Imperius and 6 stars, but no warrior.
+* On turn 0, you must follow the guide and '''harvest 2 fruits''' (guide step 1), and the only city level up bouns you can choose is Explorer which travels a certain route to another certain village, before which you can't train a unit in cities. Until you '''train a warrior''' (guide step 2) afterwards, '''End Turn''' (guide step 3) is unavalible.
+* Tech Tree can't be accessed until you '''capture a village''' (guide step 4), and the first technology you must research is Hunting.
+* Enemies do nothing and Game Stats is locked until you '''learn Hunting''' (guide step 5), which means the end of the guide and the start of your own exploration of the game.
+Actually, you can freely move your units and take action in the fourth and fifth guide, even if not towards them.
+
+==Multiplayer==
+
+[[File:Multiplayer.png|thumb|An example of a multiplayer game with only one human player (the sole opponent is a bot)]]
+
+''The Battle of Polytopia'' supports local (Pass & Play) and online multiplayer games in two game modes, Glory and Might. The host sets the game mode, number of opponents (including optional bots, which may be of different difficulty levels), and map size. Contrary to their name, Pass & Play games may have only one human player, with all opponents being bots. 
+
+Pass & Play, also called local multiplayer, consists of games played exclusively on one device (typically passed between the different players, hence the name). No purchase is required to play Pass & Play games. Pass & Play was released in the [[Update History#1.6 "Myriad" Nov 30, 2016|"Myriad" update]]. Initially, the host could set custom game names, but randomized names were introduced with online multiplayer (see below). 
+
+Online multiplayer allows the host to add players to games through random lobbies or by adding friends. At least one tribe has to be purchased in order to play multiplayer games. There are many social media sites where Polytopia players are organized, such as the [https://discord.gg/Polytopia main Discord server], competitive [https://polytopia.win/ PolyChampions] league, and [https://www.facebook.com/groups/724840274353330/permalink/1289693291201356/ Facebook 1v1 league]. Online multiplayer was released in the [[Update History#1.10 “Multitopia A” Feb 15, 2018|“Multitopia A” update]], and an [[Wikipedia:Elo rating system|Elo rating system]] was added to online multiplayer in [[Update History|update 2.0.58]].  
+
+===Glory===
+
+The objective of the Glory game mode is to be the first player to achieve a score of 10,000 points. If multiple players get 10,000 points in the same turn, the player with the most points at the end of the turn wins, even if that player was not the first to get 10,000 points. The single-player counterpart of Glory is Perfection.
+
+===Might ===
+
+The objective of the Might game mode is to capture every tribe's capital. Not all cities have to be captured to win (only the capitals do). The Might game mode is unique in that in the Game Stats menu, the number of capitals each tribe controls is shown instead of the number of cities each tribe has, and tribes are first ordered by the number of capitals they control instead of the number of points the have. The single-player counterpart of Might is Domination.
+
+===Friend Codes===
+Before [[Moonrise]], 16-alphanumeric-character friend codes were used to add friends in multiplayer. 
+
+Attempting to add yourself as a friend would produce the following message: <blockquote>'''''Me, myself & I'''''<br>Seems like you tried to add yourself as a friend. That might sound like a nice thing to do but it would add an existential layer to the game that we cannot handle at the moment. Please submit a player ID of someone else.</blockquote>
+
+Submitting an empty player ID would produce the following message:<blockquote>'''''Emptiness'''''<br>The player ID you entered was complete empty! You should not try to make friends with the void, it is a very lonely path.</blockquote>
+==Weekly Challenges==
+Weekly Challenges are repeatable single-player games where all players use the same seed, tribe, opponent, and settings. Weekly Challenges are always Perfection with a reduced turn limit of 20 turns. Every week, a new single-player challenge is made available to everyone, regardless of platform. The banner at the top of the menu will show you what tribe you'll be playing with.  Players can participate in a weekly challenge without owning that tribe or skin. Players can attempt the Weekly Challenge multiple times, and the best attempt that week is displayed on a public leaderboard.{{Navbox Game Mechanics}}
+[[Category:Game Mechanics]]

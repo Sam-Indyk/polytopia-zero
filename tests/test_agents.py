@@ -80,12 +80,29 @@ def test_evaluate_is_zero_sum_ish_at_symmetric_start():
     assert evaluate(game, 0) == pytest.approx(-evaluate(game, 1), abs=1e-6)
 
 
-def test_evaluate_prefers_more_material():
+def test_evaluate_prefers_more_territory():
+    game = Game.new(size=9, seed=2)
+    base = evaluate(game, 0)
+    bigger = game.clone()
+    free = next(t for t in range(bigger.state.n_tiles)
+                if bigger.state.owner[t] != 0)
+    bigger.state.owner[free] = 0                  # "20 points per tile"
+    assert evaluate(bigger, 0) > base
+
+
+def test_hoarding_stars_is_not_progress():
+    """Stars are NOT part of Polytopia's score.
+
+    The old heuristic gave 0.2 points per star, and a test asserted that
+    stockpiling improved your position. It does not: unspent stars are only
+    worth what they later buy, and rewarding the pile directly teaches the agent
+    to sit on it.
+    """
     game = Game.new(size=9, seed=2)
     base = evaluate(game, 0)
     richer = game.clone()
     richer.state.stars[0] += 50
-    assert evaluate(richer, 0) > base
+    assert evaluate(richer, 0) == pytest.approx(base)
 
 
 # --- relative strength ---------------------------------------------------------

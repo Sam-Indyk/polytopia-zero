@@ -33,7 +33,8 @@ _TILE_ARRAYS = (
     "unit_veteran", "unit_kills", "unit_home", "unit_carried", "unit_hidden",
 )
 _PLAYER_ARRAYS = ("stars", "tech", "tribe", "alive",
-                  "task_done", "monument_built", "kills", "calm_turns")
+                  "task_done", "monument_built", "kills", "losses",
+                  "calm_turns", "income_bonus")
 _FOG_ARRAYS = (
     "fog_explored", "fog_visible", "fog_staleness",
     "mem_unit_type", "mem_unit_owner", "mem_city_owner", "mem_city_level",
@@ -113,8 +114,17 @@ class GameState:
         self.task_done = np.zeros(p, dtype=np.int32)        # bitmask over tasks
         self.monument_built = np.zeros(p, dtype=np.int32)   # bitmask over tasks
         self.kills = np.zeros(p, dtype=np.int16)
+        # Units of ours that died. Together with `kills` this is Polytopia's
+        # own 'battle skills' ratio from the Domination rating.
+        self.losses = np.zeros(p, dtype=np.int16)
         # Consecutive turns without attacking, for the Pacifist task.
         self.calm_turns = np.zeros(p, dtype=np.int16)
+        # Extra stars per turn. This is what actually separates Polytopia's bot
+        # difficulties: "Easy bots receive one star per turn (SPT), normal bots
+        # (and human players) receive two, hard bots receive three, and crazy
+        # bots receive five" -- a level-1 capital already yields 2, so this is
+        # the surplus on top. Zero for a fair game.
+        self.income_bonus = np.zeros(p, dtype=np.int16)
 
         self.fog_explored = np.zeros((p, n), dtype=C.DT_FLAG)
         self.fog_visible = np.zeros((p, n), dtype=C.DT_FLAG)
