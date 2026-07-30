@@ -57,7 +57,7 @@ def fog_kernel(size, player, sight_unit, sight_city,
 
 
 @njit(cache=True)
-def reachable_kernel(size, src, budget, terrain, unit_type, passable, move_cost,
+def reachable_kernel(size, src, budget, terrain, occupied, passable, move_cost,
                      rough, road_like, zoc, dist):
     """Fill `dist` (int16[N]) with movement cost from src; _INF if unreachable.
 
@@ -76,6 +76,10 @@ def reachable_kernel(size, src, budget, terrain, unit_type, passable, move_cost,
 
     Passability is per TILE, not per terrain: a land unit may step onto a water
     tile if (and only if) a Port is there to carry it.
+
+    `occupied` is what the MOVING PLAYER believes blocks a tile, not ground
+    truth. A hidden Cloak must not appear here: if it did, the hole it carved in
+    the legal-move set would announce its position through the action mask.
     """
     n = size * size
     for i in range(n):
@@ -104,7 +108,7 @@ def reachable_kernel(size, src, budget, terrain, unit_type, passable, move_cost,
                     if nx < 0 or nx >= size or ny < 0 or ny >= size:
                         continue
                     nb = ny * size + nx
-                    if unit_type[nb] != -1:      # cannot enter/traverse occupied
+                    if occupied[nb]:             # cannot enter/traverse occupied
                         continue
                     if not passable[nb]:
                         continue

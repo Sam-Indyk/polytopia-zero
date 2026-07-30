@@ -191,11 +191,17 @@ function draw(){
     // unit
     if(f.unit_type[k]>=0){
       const spent=f.unit_moved[k]&&f.unit_attacked[k];
-      cx.globalAlpha=spent?.55:1;
+      // A hidden Cloak is drawn ghosted with a dashed outline: the god's-eye
+      // view still shows it (nothing is hidden from YOU), but you can tell at a
+      // glance that the opponent cannot see it.
+      const hidden=(f.unit_hidden||[])[k];
+      cx.globalAlpha=hidden?.3:(spent?.55:1);
       cx.beginPath();cx.arc(x+CELL/2,y+CELL*.62,CELL*.27,0,7);
       cx.fillStyle=PC[f.unit_owner[k]%4];cx.fill();
-      cx.strokeStyle=f.unit_veteran[k]?'#ffd166':'rgba(0,0,0,.7)';
-      cx.lineWidth=f.unit_veteran[k]?2:1;cx.stroke();cx.lineWidth=1;
+      if(hidden){cx.setLineDash([3,2]);cx.strokeStyle='#e6e9ef';cx.lineWidth=1.5;}
+      else{cx.strokeStyle=f.unit_veteran[k]?'#ffd166':'rgba(0,0,0,.7)';
+        cx.lineWidth=f.unit_veteran[k]?2:1;}
+      cx.stroke();cx.setLineDash([]);cx.lineWidth=1;
       cx.fillStyle='#0c0e13';cx.font=`bold ${Math.floor(CELL*.28)}px monospace`;
       cx.textAlign='center';cx.textBaseline='middle';
       cx.fillText(R.unit_names[f.unit_type[k]][0].toUpperCase(),x+CELL/2,y+CELL*.62+1);
@@ -277,6 +283,9 @@ function renderTile(){
        `${f.city_walls[k]?' \\u00b7 walls':''}${f.city_capital[k]?' \\u00b7 capital':''}</td></tr>`;
   if(f.unit_type[k]>=0){
     const ut=f.unit_type[k];
+    if((f.unit_hidden||[])[k])
+      h+=`<tr><th>stealth</th><td>hidden — invisible to the enemy; `+
+         `their adjacent units only see an eye symbol</td></tr>`;
     const home=f.unit_home[k];
     h+=`<tr><th>unit</th><td>P${f.unit_owner[k]} ${R.unit_names[ut]}`+
        `${home>=0?` \u00b7 from city ${home}`:' \u00b7 unsupported'}`+

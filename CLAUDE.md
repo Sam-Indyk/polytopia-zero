@@ -11,7 +11,7 @@ Goal (PLAN.md): beat the game's built-in Crazy bots through the real Steam clien
 ## Environment
 
 ```bash
-.venv\Scripts\python.exe -m pytest            # 408 tests, ~5 min
+.venv\Scripts\python.exe -m pytest            # 416 tests, ~5 min
 .venv\Scripts\python.exe -m polytrain.train_league --smoke --iters 50
 ```
 
@@ -121,10 +121,7 @@ automatically to any unit that took no action — "if a unit does not take any
 action in a given turn, it will automatically heal"), **Disband** (Free Spirit,
 refunds half cost), **naval hull upgrades** (Raft -> Scout/Rammer/Bomber; landing
 drops the upgrade), **Diplomacy** (Embassy on a rival capital paying both tribes,
-plus Capital Vision), and the **Cloak** — `hide` removes it from enemy
-observations until one of their units stands adjacent, and `infiltrate` *is* its
-attack, consuming it to damage the garrison, steal the city's income and spawn
-Daggers equal to the city level (max 5).
+plus Capital Vision), and the **Cloak** — see below.
 
 Terrain defence is tech-gated as the wiki describes: forest needs Archery,
 mountain Climbing, and shallow water / ocean Aquatism.
@@ -309,6 +306,31 @@ weights come from the game's own Domination rating rather than from taste:
 break an even position toward the aggressive line, not enough to buy one kill
 with an army. Battle skill being a *ratio* is the point — a raw kill count would
 call trading two units for one progress.
+
+## Stealth: how the Cloak actually works
+
+Getting this wrong is easy and the failure is silent, so the rules in full:
+
+- A Cloak is **visible when trained**, and hides the moment it *moves*. It is
+  revealed again by capturing a village (and, unimplemented, exploring a ruin or
+  breaking ice).
+- An adjacent enemy unit gets an **eye symbol on itself** — not the Cloak's
+  position. The wiki's illustration is three neighbouring units each showing an
+  eye; the player triangulates. The observation carries this as the
+  `cloak_sense` plane, flagged on OUR units.
+- Walking into a hidden Cloak **reveals it and cancels the move, without
+  spending the action**. So the move must be *legal to attempt*, and the mover
+  may then attack what it found.
+
+The trap: it is not enough to scrub the Cloak from the observation. Every rule
+the enemy's move generation touches has to be blind to it too. A hidden Cloak
+used to block its tile and project zone of control, which carved a five-tile
+hole in the enemy's reachable set — and the policy samples from that mask, so it
+could read the Cloak's exact position out of its own action space with the
+observation never mentioning it. `hidden_from()` / `occupied_mask()` in
+`movement.py` exist for this, and `attack_targets` filters the same way.
+`tests/test_cloak_and_actions.py` asserts the enemy's legal moves are
+byte-identical with and without a hidden Cloak nearby.
 
 ## Bot difficulty
 

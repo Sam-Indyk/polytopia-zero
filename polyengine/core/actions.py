@@ -365,6 +365,17 @@ def _apply_upgrade(state, player: int, action: Action, rules: Ruleset) -> dict:
 
 def _apply_move(state, player: int, action: Action, rules: Ruleset) -> dict:
     src, dst = action.src, action.dst
+
+    # Walking into a hidden Cloak: "the Cloak is revealed (to all players) ...
+    # the unit's movement is canceled and its action is not spent". So the
+    # mover stays put with its turn intact and may now attack the thing it just
+    # found. This is why the move had to be *legal* to attempt.
+    if (state.unit_hidden[dst] and state.unit_type[dst] != C.U_NONE
+            and int(state.unit_owner[dst]) != int(state.unit_owner[src])):
+        state.unit_hidden[dst] = 0
+        return {"type": "move", "src": src, "dst": dst, "cancelled": True,
+                "revealed": rules.unit_names[int(state.unit_type[dst])]}
+
     # Relocate the unit.
     for arr in ("unit_type", "unit_owner", "unit_hp", "unit_veteran",
                 "unit_kills", "unit_attacked", "unit_home", "unit_carried"):
@@ -451,6 +462,9 @@ def _apply_capture(state, player: int, action: Action, rules: Ruleset) -> dict:
     if not can_capture(state, tile, rules):
         raise ValueError(f"illegal capture at tile {tile}")
     previous = int(state.city_owner[tile])
+    # "the cloak is visible to enemies upon being trained, capturing a village,
+    # exploring a ruin, or breaking ice" -- taking a village blows its cover.
+    state.unit_hidden[tile] = 0
     _capture_city(state, player, tile)
     # Wiki: a unit that captures a city is supported by that city from then on.
     rehome_unit(state, tile, tile)

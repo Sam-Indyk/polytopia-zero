@@ -11,6 +11,8 @@ per-player array views; this is the single most-called hot loop in a game.
 """
 from __future__ import annotations
 
+import numpy as np
+
 from polyengine.core import constants as C
 from polyengine.kernels.grid_kernels import fog_kernel
 
@@ -33,13 +35,17 @@ def recompute_fog(state, player: int) -> None:
 def _hide_cloaks_from(state, player: int) -> None:
     """Erase hidden enemy Cloaks from `player`'s memory of the board.
 
-    "The Hide skill makes it invisible to enemies after it moves ... all units
-    can detect Cloaks on adjacent tiles."
+    Unconditional. Standing next to a hidden Cloak does NOT tell you where it
+    is: the wiki's own illustration is "a Cloak is hiding in the empty green
+    field tile, and three neighbouring units have vibrating eye symbols
+    indicating that there is a Cloak on an adjacent tile" -- the eye sits on
+    *your* unit, and you triangulate from several of them. Writing the Cloak
+    into memory would hand over the answer for free.
+
+    See `cloak_adjacent` for the flag that detection actually grants.
 
     Runs after the fog kernel, which has no concept of stealth and will happily
-    have written the Cloak in. Detection is the exception: a Cloak standing next
-    to one of our units is visible, which is what stops hiding from being an
-    unanswerable information advantage.
+    have written the Cloak in.
     """
     mem_type = state.mem_unit_type[player]
     mem_owner = state.mem_unit_owner[player]
@@ -48,13 +54,30 @@ def _hide_cloaks_from(state, player: int) -> None:
             continue
         if int(state.unit_owner[tile]) == player:
             continue
-        adjacent = any(int(state.unit_owner[nb]) == player
-                       and state.unit_type[nb] != C.U_NONE
-                       for nb in state.neighbors(tile))
-        if adjacent:
-            continue
         mem_type[tile] = C.U_NONE
         mem_owner[tile] = C.NEUTRAL
+
+
+def cloak_adjacent(state, player: int) -> np.ndarray:
+    """The eye symbol: which of `player`'s units have a hidden Cloak beside them.
+
+    "All units can detect Cloaks on adjacent tiles; a small eye symbol will
+    appear on the unit's icon if an enemy cloak is next to the unit."
+
+    Returned per tile, flagged on OUR unit rather than on the Cloak, which is
+    the whole point -- it narrows the Cloak down to eight tiles, and only a
+    second flagged unit narrows it further. That is information the player
+    genuinely has, so the observation may carry it.
+    """
+    flags = np.zeros(state.n_tiles, dtype=np.bool_)
+    for tile in range(state.n_tiles):
+        if not state.unit_hidden[tile] or int(state.unit_owner[tile]) == player:
+            continue
+        for nb in state.neighbors(tile):
+            if (int(state.unit_owner[nb]) == player
+                    and state.unit_type[nb] != C.U_NONE):
+                flags[nb] = True
+    return flags
 
 
 def _apply_capital_vision(state, player: int) -> None:

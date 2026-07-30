@@ -17,6 +17,10 @@ Layout (C x H x W float32, C = N_PLANES):
   remembered units                    n_units + 6
                                           type one-hot (from memory)
                                           own, enemy, hp fraction, veteran, moved, attacked
+  cloak_sense                         1   the eye symbol: one of OUR units has a
+                                          hidden enemy Cloak on an adjacent tile.
+                                          It narrows the Cloak to 8 tiles and no
+                                          further -- exactly what a player sees.
   fog                                 3   visible, explored, staleness (normalised)
   geometry                            3   x, y, edge distance
 
@@ -46,7 +50,8 @@ def plane_layout(rules: Ruleset) -> dict[str, tuple[int, int]]:
     blocks = [
         ("terrain", n_t), ("resource", n_r), ("improvement", n_i),
         ("territory", 4), ("city", 9),
-        ("unit_type", n_u), ("unit_attrs", 6), ("fog", 3), ("geometry", 3),
+        ("unit_type", n_u), ("unit_attrs", 6), ("cloak_sense", 1),
+        ("fog", 3), ("geometry", 3),
     ]
     out, start = {}, 0
     for name, count in blocks:
@@ -189,6 +194,11 @@ def encode_spatial(state, player: int, rules: Ruleset,
         state.fog_visible[player], state.fog_explored[player],
         state.fog_staleness[player],
         out)
+    from polyengine.core.fog import cloak_adjacent
+    sense_at = plane_layout(rules)["cloak_sense"][0]
+    sensed = cloak_adjacent(state, player)
+    if sensed.any():
+        out[sense_at, :size, :size] = sensed.reshape(size, size)
     if out_size > size:
         off = plane_layout(rules)["territory"][0] + 3
         out[off, size:, :] = 1.0

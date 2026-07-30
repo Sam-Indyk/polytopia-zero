@@ -323,15 +323,127 @@ class TestCloak:
         recompute_fog(s, 1)
         assert int(s.mem_unit_type[1][dst]) == C.U_NONE, "invariant 1"
 
-    def test_an_adjacent_enemy_detects_a_hidden_cloak(self):
-        """"all units can detect Cloaks on adjacent tiles"."""
+    def test_adjacency_flags_our_unit_but_never_gives_the_cloaks_tile(self):
+        """The eye symbol sits on YOUR unit, not on the Cloak.
+
+        The wiki's own illustration: "a Cloak is hiding in the empty green field
+        tile, and three neighbouring units have vibrating eye symbols indicating
+        that there is a Cloak on an adjacent tile." You learn it is one of eight
+        tiles; only a second flagged unit narrows it further. Writing the Cloak
+        into memory would hand over the answer.
+        """
+        from polyengine.core.fog import cloak_adjacent
         _, s = blank()
         start, dst = 5 * N + 3, 5 * N + 4
+        watcher = dst + 1
         put(s, start, C.U_CLOAK, owner=0)
-        put(s, dst + 1, C.U_WARRIOR, owner=1)
+        put(s, watcher, C.U_WARRIOR, owner=1)
         apply_action(s, Action(C.A_MOVE, start, dst), R)
         recompute_fog(s, 1)
-        assert int(s.mem_unit_type[1][dst]) == C.U_CLOAK
+
+        assert int(s.mem_unit_type[1][dst]) == C.U_NONE, "position must stay secret"
+        flags = cloak_adjacent(s, 1)
+        assert flags[watcher], "our adjacent unit should carry the eye"
+        assert not flags[dst], "the flag is on the observer, not the cloak"
+
+    def test_the_eye_is_only_raised_for_units_that_are_actually_adjacent(self):
+        from polyengine.core.fog import cloak_adjacent
+        _, s = blank()
+        start, dst = 5 * N + 3, 5 * N + 4
+        near, far = dst + 1, dst + 4
+        put(s, start, C.U_CLOAK, owner=0)
+        put(s, near, C.U_WARRIOR, owner=1)
+        put(s, far, C.U_WARRIOR, owner=1)
+        apply_action(s, Action(C.A_MOVE, start, dst), R)
+        flags = cloak_adjacent(s, 1)
+        assert flags[near] and not flags[far]
+
+    def test_the_cloaks_owner_gets_no_eye_from_their_own_cloak(self):
+        from polyengine.core.fog import cloak_adjacent
+        _, s = blank()
+        start, dst = 5 * N + 3, 5 * N + 4
+        friend = dst + 1
+        put(s, start, C.U_CLOAK, owner=0)
+        put(s, friend, C.U_WARRIOR, owner=0)
+        apply_action(s, Action(C.A_MOVE, start, dst), R)
+        assert not cloak_adjacent(s, 0).any()
+
+    # --- the leak that mattered: the action mask ----------------------------
+    def test_a_hidden_cloak_does_not_change_the_enemys_legal_moves(self):
+        """Invariant 1 through a side channel.
+
+        A hidden Cloak used to block its tile and project zone of control, which
+        carved a five-tile hole in the enemy's reachable set. The policy samples
+        from that mask, so it could read the Cloak's exact position out of its
+        own action space without the observation ever mentioning it.
+        """
+        from polyengine.core.movement import reachable
+
+        def reach(with_cloak):
+            _, s = blank()
+            enemy = 5 * N + 3
+            put(s, enemy, C.U_RIDER, owner=1)
+            if with_cloak:
+                cloak = 5 * N + 5
+                put(s, cloak, C.U_CLOAK, owner=0)
+                s.unit_hidden[cloak] = 1
+            return set(reachable(s, enemy, R))
+
+        assert reach(True) == reach(False)
+
+    def test_a_hidden_cloak_is_not_offered_as_an_attack_target(self):
+        from polyengine.core.movement import attack_targets
+        _, s = blank()
+        cloak, enemy = 5 * N + 5, 5 * N + 4
+        put(s, cloak, C.U_CLOAK, owner=0)
+        put(s, enemy, C.U_WARRIOR, owner=1)
+        assert cloak in attack_targets(s, enemy, R), "visible cloak is attackable"
+        s.unit_hidden[cloak] = 1
+        assert cloak not in attack_targets(s, enemy, R)
+
+    # --- walking into one ----------------------------------------------------
+    def test_bumping_a_hidden_cloak_reveals_it_and_cancels_the_move(self):
+        """"the unit's movement is canceled and its action is not spent"."""
+        _, s = blank()
+        cloak, enemy = 5 * N + 5, 5 * N + 4
+        put(s, cloak, C.U_CLOAK, owner=0)
+        s.unit_hidden[cloak] = 1
+        put(s, enemy, C.U_WARRIOR, owner=1)
+        info = apply_action(s, Action(C.A_MOVE, enemy, cloak), R)
+
+        assert info.get("cancelled") is True
+        assert not s.unit_hidden[cloak], "revealed"
+        assert int(s.unit_type[enemy]) == C.U_WARRIOR, "the mover stayed put"
+        assert int(s.unit_type[cloak]) == C.U_CLOAK, "the cloak stayed put"
+        assert not s.unit_moved[enemy], "its action is not spent"
+
+    def test_a_revealed_cloak_can_then_be_attacked(self):
+        from polyengine.core.movement import attack_targets
+        _, s = blank()
+        cloak, enemy = 5 * N + 5, 5 * N + 4
+        put(s, cloak, C.U_CLOAK, owner=0)
+        s.unit_hidden[cloak] = 1
+        put(s, enemy, C.U_WARRIOR, owner=1)
+        apply_action(s, Action(C.A_MOVE, enemy, cloak), R)
+        assert cloak in attack_targets(s, enemy, R)
+
+    def test_capturing_a_village_blows_a_cloaks_cover(self):
+        """"visible to enemies upon being trained, capturing a village, ..."."""
+        _, s = blank()
+        village = 5 * N + 5
+        s.city_owner[village] = C.NEUTRAL
+        s.city_level[village] = 1
+        put(s, village, C.U_CLOAK, owner=0)
+        s.unit_hidden[village] = 1
+        apply_action(s, Action(C.A_CAPTURE, village, village), R)
+        assert not s.unit_hidden[village]
+
+    def test_a_freshly_trained_cloak_is_visible(self):
+        """"the cloak is visible to enemies upon being trained"."""
+        _, s = blank()
+        tile = 5 * N + 5
+        put(s, tile, C.U_CLOAK, owner=0)
+        assert not s.unit_hidden[tile]
 
     def test_hiding_does_not_blind_the_cloaks_owner(self):
         _, s = blank()

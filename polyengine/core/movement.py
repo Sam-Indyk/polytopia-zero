@@ -53,6 +53,29 @@ def road_like_mask(state, rules: Ruleset) -> np.ndarray:
     return mask
 
 
+def hidden_from(state, player: int) -> np.ndarray:
+    """Enemy units `player` cannot see: hidden Cloaks, and nothing else.
+
+    These must be invisible to every *rule* the player's own move generation
+    touches, not just to the observation. Otherwise the shape of the legal-move
+    set gives the position away, which is the same information by a longer road.
+    """
+    return ((state.unit_hidden != 0)
+            & (state.unit_type != C.U_NONE)
+            & (state.unit_owner != player))
+
+
+def occupied_mask(state, player: int) -> np.ndarray:
+    """Tiles `player` believes are blocked by a unit.
+
+    A hidden Cloak is deliberately absent. The wiki makes this the correct
+    behaviour rather than a convenient approximation: an enemy may *attempt* the
+    move, and "the Cloak is revealed ... the unit's movement is canceled and its
+    action is not spent". So the move has to be legal to attempt.
+    """
+    return (state.unit_type != C.U_NONE) & ~hidden_from(state, player)
+
+
 def zoc_mask(state, player: int) -> np.ndarray:
     """Tiles adjacent to an enemy unit, which a mover may enter but not leave.
 
@@ -62,9 +85,12 @@ def zoc_mask(state, player: int) -> np.ndarray:
     than as an added cost.
     """
     blocked = np.zeros(state.n_tiles, dtype=np.bool_)
+    # A Cloak the player cannot see cannot stop them either: zone of control is
+    # a reaction to a visible threat, and applying it would leak the position.
     enemies = np.where((state.unit_type != C.U_NONE)
                        & (state.unit_owner != player)
-                       & (state.unit_owner != C.NEUTRAL))[0]
+                       & (state.unit_owner != C.NEUTRAL)
+                       & ~hidden_from(state, player))[0]
     for e in enemies:
         for nb in state.neighbors(int(e)):
             blocked[nb] = True
@@ -85,8 +111,9 @@ def reachable(state, src: int, rules: Ruleset) -> list[int]:
     if "creep" in rules.unit_skills[utype]:
         zoc = np.zeros_like(zoc)          # creep ignores zone of control entirely
     dist = np.empty(state.n_tiles, dtype=np.int16)
-    reachable_kernel(state.size, src, budget, state.terrain, state.unit_type,
-                     passable, (rules.terrain_move_cost * 2).astype(np.int16),
+    reachable_kernel(state.size, src, budget, state.terrain,
+                     occupied_mask(state, player), passable,
+                     (rules.terrain_move_cost * 2).astype(np.int16),
                      rules.terrain_rough, road_like, zoc, dist)
     out = [i for i in range(state.n_tiles) if i != src and 0 < dist[i] <= budget]
     return out
@@ -125,7 +152,11 @@ def attack_targets(state, src: int, rules: Ruleset) -> list[int]:
         return infiltrate_targets(state, src, rules)
     player = int(state.unit_owner[src])
     rng = int(rules.unit_range[utype])
+    # You cannot shoot what you cannot see. Offering a hidden Cloak as a target
+    # would leak its position just as surely as blocking movement did — the
+    # player is meant to reveal it by walking into it first.
+    visible_type = np.where(hidden_from(state, player), C.U_NONE, state.unit_type)
     out = np.empty(state.n_tiles, dtype=np.int32)
-    n = attack_targets_kernel(state.size, state.unit_type, state.unit_owner,
+    n = attack_targets_kernel(state.size, visible_type, state.unit_owner,
                               player, src, rng, out)
     return out[:n].tolist()
