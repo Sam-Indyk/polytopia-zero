@@ -69,6 +69,12 @@ def global_dim(rules: Ruleset) -> int:
     # own: stars, cities, units, techs-known + tech bits
     # opp: stars(known), cities seen, units seen, techs seen + tech bits
     # plus turn progress and map size
+    #
+    # Deliberately NOT here: any summary of how wet the world is, or which map
+    # type is in play. The net sees water tile by tile in the spatial planes and
+    # has to draw its own conclusion about whether this is a Ports-and-boats map
+    # or a Riders-and-roads one. Handing it an aggregate would be a shortcut the
+    # screen-reading agent of M5 has no way to reproduce.
     return 2 * (4 + rules.n_techs) + 2
 
 

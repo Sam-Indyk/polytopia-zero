@@ -266,6 +266,117 @@ class TestPlacement:
         assert all(s.improvement[t] == C.IMP_LIGHTHOUSE for t in corners)
 
 
+# --- per-map-type feature passes ------------------------------------------------
+class TestMapTypeFeatures:
+    """The wiki's feature table: which village passes each map type runs.
+
+    "Suburbs: Lakes, Archipelago / Pre-terrain villages: Lakes, Archipelago,
+    Water World / Post-terrain villages: all / Tiny island villages: Continents,
+    Pangea / Quadrants: all except Continents and Pangea."
+    """
+
+    def villages(self, state):
+        return [t for t in range(state.n_tiles)
+                if state.city_level[t] > 0 and not state.city_capital[t]]
+
+    def test_every_map_type_still_produces_villages_to_capture(self):
+        """Water World generates almost all water; "land is manually forced for
+        cities", without which the map has nothing to expand into at all."""
+        for kind in MAP_TYPES:
+            for seed in range(3):
+                s = new_game(R, size=14, tribes=["imperius", "bardur"],
+                             seed=seed, map_type=kind)
+                assert self.villages(s), f"{kind} seed {seed}: no villages"
+
+    def test_lakes_puts_suburbs_near_the_capitals(self):
+        """"After the capital city is placed, the algorithm puts up to two
+        villages nearby" -- so a Lakes capital has close neighbours a Drylands
+        one usually does not."""
+        def close_villages(kind):
+            n = 0
+            for seed in range(8):
+                s = new_game(R, size=16, tribes=["imperius", "bardur"],
+                             seed=seed, map_type=kind)
+                caps = [t for t in range(s.n_tiles) if s.city_capital[t]]
+                n += sum(1 for v in self.villages(s)
+                         if min(s.chebyshev(v, c) for c in caps) <= 4)
+            return n
+        assert close_villages("lakes") > close_villages("drylands")
+
+    def test_continents_and_pangea_place_island_villages(self):
+        """"Continents and Pangea have a fixed amount of villages that spawn in
+        the water without any land connections."""
+        for kind in ("continents", "pangea"):
+            found = 0
+            for seed in range(8):
+                s = new_game(R, size=18, tribes=["imperius", "kickoo"],
+                             seed=seed, map_type=kind)
+                for v in self.villages(s):
+                    if all(not R.terrain_is_land[s.terrain[nb]]
+                           for nb in s.neighbors(v)):
+                        found += 1
+            assert found > 0, f"{kind} produced no island villages"
+
+    def test_drylands_has_no_island_villages(self):
+        """The pass does not run there -- and there is barely any water anyway."""
+        for seed in range(6):
+            s = new_game(R, size=18, tribes=["imperius", "bardur"], seed=seed,
+                         map_type="drylands")
+            for v in self.villages(s):
+                assert any(R.terrain_is_land[s.terrain[nb]]
+                           for nb in s.neighbors(v))
+
+    def test_continents_keeps_capitals_apart_without_quadrants(self):
+        """"Continents and Pangea are the only two map types that don't use
+        quadrants for capital placement."
+
+        With two players the two placement rules are behaviourally
+        indistinguishable -- any pair of capitals six or more tiles apart is
+        already in different halves of a 16-wide map -- so what this pins is the
+        separation guarantee that survives dropping quadrants.
+        """
+        for seed in range(20):
+            for kind in ("continents", "pangea"):
+                s = new_game(R, size=16, tribes=["imperius", "bardur"],
+                             seed=seed, map_type=kind)
+                caps = [t for t in range(s.n_tiles) if s.city_capital[t]]
+                assert s.chebyshev(caps[0], caps[1]) >= 6, f"{kind} seed {seed}"
+
+    def test_a_crowded_continents_map_can_share_a_domain(self):
+        """Where the two rules DO diverge: six players on a massive map.
+
+        The quadrant path would deal one capital per 3x3 domain; scattered
+        placement only enforces spacing, so some seed should double up. If this
+        ever stops happening, `_scattered_capitals` has quietly become the
+        quadrant rule again.
+        """
+        from polyengine.core.mapgen import _scattered_capitals
+        from polyengine.core.state import GameState
+
+        shared = 0
+        for seed in range(30):
+            s = GameState(R, 30, 6, seed)
+            caps = _scattered_capitals(s, 6)
+            domains = [(s.xy(t)[0] // 10, s.xy(t)[1] // 10) for t in caps]
+            if len(set(domains)) < len(caps):
+                shared += 1
+            for i, a in enumerate(caps):
+                for b in caps[i + 1:]:
+                    assert s.chebyshev(a, b) >= 6
+        assert shared > 0, "scattered placement is behaving like quadrants"
+
+    def test_the_pre_terrain_village_formula(self):
+        """"(([map width]/3)^2 - [capitals and suburbs]) * (density coefficient)",
+        "rounded down before being squared"."""
+        from polyengine.core.mapgen import _pre_terrain_village_count
+
+        class Fake:
+            size = 16
+        assert _pre_terrain_village_count(Fake(), 0, 0.3) == int((16 // 3) ** 2 * 0.3)
+        assert _pre_terrain_village_count(Fake(), 4, 0.3) == int(((16 // 3) ** 2 - 4) * 0.3)
+        assert _pre_terrain_village_count(Fake(), 1000, 0.3) == 0
+
+
 # --- starting position ---------------------------------------------------------
 class TestStartingPosition:
     def test_starting_stars_come_from_the_tribe(self):

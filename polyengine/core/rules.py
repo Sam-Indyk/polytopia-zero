@@ -35,6 +35,7 @@ class Ruleset:
 
     resource_names: tuple[str, ...]
     resource_symbol: tuple[str, ...]
+    resource_terrains: tuple[frozenset, ...]   # terrain ids it may sit on
 
     # units (indexed by unit id)
     unit_names: tuple[str, ...]
@@ -199,6 +200,13 @@ def load_ruleset(name: str = "current") -> Ruleset:
     _assert_dense_ids((e["id"] for e in res_entries.values()), n_res, "resource")
     resource_names = tuple(sorted(res_entries, key=lambda k: res_entries[k]["id"]))
     resource_symbol = _symbols(res_entries, n_res)
+    # A resource may name one terrain or several (Starfish: water and ocean).
+    terr_index_early = {name: i for i, name in enumerate(terrain_names)}
+    res_terrains: list[frozenset] = [frozenset()] * n_res
+    for e in res_entries.values():
+        names = e.get("terrains") or ([e["terrain"]] if e.get("terrain") else [])
+        res_terrains[e["id"]] = frozenset(terr_index_early[n] for n in names)
+    resource_terrains = tuple(res_terrains)
 
     # --- units ---
     unit_entries = units["unit"]
@@ -310,6 +318,7 @@ def load_ruleset(name: str = "current") -> Ruleset:
         terrain_defense_tech=terrain_defense_tech,
         resource_names=resource_names,
         resource_symbol=resource_symbol,
+        resource_terrains=resource_terrains,
         unit_names=unit_names,
         unit_id=unit_id,
         unit_symbol=unit_symbol,

@@ -22,7 +22,7 @@ R_CROP = 2
 R_GAME = 3
 R_METAL = 4
 R_FISH = 5
-R_WHALE = 6
+R_STARFISH = 6
 
 # --- Unit ids (see data/units.toml) ---
 U_NONE = -1
@@ -72,6 +72,7 @@ IMP_GRAND_BAZAAR = 19
 IMP_PARK_OF_FORTUNE = 20
 IMP_TOWER_OF_WISDOM = 21
 IMP_LIGHTHOUSE = 22
+IMP_RUIN = 23
 
 # --- Task ids (see data/improvements.toml `requires_task`) ---
 # "A monument is a building awarded for completing a task." Each task is a
@@ -99,6 +100,16 @@ NETWORK_CITIES = 5
 METROPOLIS_LEVEL = 5
 MONUMENT_SCORE = 400
 
+# "The number of ruins is based on the size of the map."
+RUINS_BY_SIZE = {11: 4, 14: 5, 16: 7, 18: 9, 20: 11, 30: 23}
+# "Continents and Pangea have a fixed amount of villages that spawn in the water
+# without any land connections."
+ISLAND_VILLAGES_BY_SIZE = {11: 0, 14: 1, 16: 2, 18: 3, 20: 4, 30: 9}
+STARFISH_PER_WATER_TILES = 25      # "one starfish for every 25 water tiles"
+STARFISH_STARS = 8                 # "gives 8 stars"
+RUIN_STARS = 10                    # "Resources | Grants 10 Stars"
+RUIN_POPULATION = 3                # "Adds 3 free Population to the capital"
+
 # Tiles that carry a city connection. Ports count (the wiki's Port description
 # says so explicitly), and city tiles conduct implicitly — see economy.py.
 CONNECTORS = frozenset({IMP_ROAD, IMP_BRIDGE, IMP_PORT})
@@ -124,7 +135,11 @@ A_BUILD = 6            # harvest a resource or place a building
 A_CHOOSE_REWARD = 7    # pick one of two rewards after a city levels up
 A_DISBAND = 8          # remove a unit, refund half its cost (needs Free Spirit)
 A_UPGRADE = 9          # pay to turn a naval hull into a better one
-N_ACTION_TYPES = 10
+# Ruins and Starfish share one mechanic: "requires a unit to start the turn on
+# the ruin and consumes the unit's actions for that turn (like capturing a
+# village)", and Starfish harvesting is "much like if it were examining a ruin".
+A_EXAMINE = 10
+N_ACTION_TYPES = 11
 
 ACTION_NAMES = {
     A_END_TURN: "END_TURN",
@@ -137,6 +152,7 @@ ACTION_NAMES = {
     A_CHOOSE_REWARD: "REWARD",
     A_DISBAND: "DISBAND",
     A_UPGRADE: "UPGRADE",
+    A_EXAMINE: "EXAMINE",
 }
 
 # Naval hulls a Raft can be bought up to, and the tech that unlocks each.

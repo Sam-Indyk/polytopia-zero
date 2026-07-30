@@ -77,11 +77,28 @@ class Rollout:
         return out
 
 
+DEFAULT_MAP_TYPES = ("drylands", "lakes", "continents", "archipelago")
+
+
+def _make_game(size: int, seed: int, map_types) -> Game:
+    """One game, with its map type chosen from the rotation by seed.
+
+    Cycling map types across the batch is what teaches the policy that the plan
+    depends on the world: fishing, Ports and boats on an archipelago, Riders and
+    roads on drylands. Nothing announces the type: the observation carries water
+    tile by tile and the policy has to infer the shape of the world from that,
+    the same way a player does on turn one with most of the map still dark.
+    """
+    kind = map_types[seed % len(map_types)]
+    return Game.new(size=size, seed=seed, map_type=kind)
+
+
 def collect(policy, n_games: int, rollout_steps: int, size: int = 9,
             seed: int = 0, gamma: float = 0.999, lam: float = 0.95,
             shaping: float = 0.0, max_turns: int = 100,
             games: list[Game] | None = None,
-            opponent=None, learner_seats: list[int] | None = None
+            opponent=None, learner_seats: list[int] | None = None,
+            map_types=DEFAULT_MAP_TYPES
             ) -> tuple[Rollout, dict, list[Game]]:
     """Play `rollout_steps` micro-steps across `n_games` games.
 
@@ -94,7 +111,8 @@ def collect(policy, n_games: int, rollout_steps: int, size: int = 9,
     """
     rules = policy.rules
     if games is None:
-        games = [Game.new(size=size, seed=seed + i) for i in range(n_games)]
+        games = [_make_game(size, seed + i, map_types)
+                 for i in range(n_games)]
     if opponent is not None and learner_seats is None:
         learner_seats = [i % 2 for i in range(len(games))]
     roll = Rollout()
@@ -158,8 +176,9 @@ def collect(policy, n_games: int, rollout_steps: int, size: int = 9,
             if game.is_terminal() or game.state.turn >= max_turns:
                 seat = learner_seats[gi] if opponent is not None else None
                 _finish(game, gi, roll, last_idx, stats, steps_played[gi], seat)
-                games[gi] = Game.new(size=size, seed=seed + 10_000 + gi * 7919
-                                     + stats["episodes"])
+                games[gi] = _make_game(
+                    size, seed + 10_000 + gi * 7919 + stats["episodes"],
+                    map_types)
                 steps_played[gi] = 0
                 for p in range(game.state.n_players):
                     last_idx.pop((gi, p), None)

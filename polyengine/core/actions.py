@@ -141,6 +141,27 @@ def upgrade_options(state, tile: int, player: int, rules: Ruleset) -> list[int]:
     return out
 
 
+def can_examine(state, tile: int, player: int, rules: Ruleset) -> bool:
+    """Can the unit on `tile` examine a ruin, or harvest a starfish, right now?
+
+    Both share one mechanic: "Examining a ruin requires a unit to start the turn
+    on the ruin and consumes the unit's actions for that turn (like capturing a
+    village)", and starfish harvesting is "much like if it were examining a
+    ruin". So the same freshness rule as capture applies.
+    """
+    if int(state.unit_owner[tile]) != player or state.unit_type[tile] == C.U_NONE:
+        return False
+    if state.unit_moved[tile] or state.unit_attacked[tile]:
+        return False
+    if int(state.improvement[tile]) == C.IMP_RUIN:
+        return True
+    if int(state.resource[tile]) == C.R_STARFISH:
+        # "The ability is unlocked by the Navigation technology."
+        nav = rules.tech_id.get("navigation", -1)
+        return nav >= 0 and state.has_tech(player, nav)
+    return False
+
+
 def capture_targets(state, player: int, rules: Ruleset) -> list[int]:
     """Tiles where one of `player`'s units can capture a city this turn."""
     return [t for t in _player_units(state, player) if can_capture(state, t, rules)]
@@ -171,6 +192,8 @@ def enumerate_actions(state, player: int, rules: Ruleset) -> list[Action]:
             actions.append(Action(C.A_MOVE, src, dst))
         if can_disband(state, src, player, rules):
             actions.append(Action(C.A_DISBAND, src, src))
+        if can_examine(state, src, player, rules):
+            actions.append(Action(C.A_EXAMINE, src, src))
         for hull in upgrade_options(state, src, player, rules):
             actions.append(Action(C.A_UPGRADE, src, -1, hull))
 
@@ -239,6 +262,8 @@ def apply_action(state, action: Action, rules: Ruleset) -> dict:
         return _apply_train(state, player, action, rules)
     if at == C.A_DISBAND:
         return _apply_disband(state, player, action, rules)
+    if at == C.A_EXAMINE:
+        return _apply_examine(state, player, action, rules)
     if at == C.A_UPGRADE:
         return _apply_upgrade(state, player, action, rules)
     if at == C.A_RESEARCH:
@@ -335,6 +360,135 @@ def _spawn_daggers(state, player: int, city: int, count: int,
         state.unit_attacked[tile] = 1
         out.append(tile)
     return out
+
+
+RUIN_REWARDS = ("stars", "technology", "population", "explorer", "unit")
+
+
+def _apply_examine(state, player: int, action: Action, rules: Ruleset) -> dict:
+    """Examine a ruin, or harvest a starfish. Either way the turn is spent."""
+    tile = action.src
+    if not can_examine(state, tile, player, rules):
+        raise ValueError(f"illegal examine at {tile}")
+    state.unit_moved[tile] = 1
+    state.unit_attacked[tile] = 1
+
+    if int(state.improvement[tile]) != C.IMP_RUIN:
+        # "removes the Starfish from the tile, and gives the player 8 stars"
+        state.resource[tile] = C.R_NONE
+        state.stars[player] += C.STARFISH_STARS
+        return {"type": "examine", "tile": tile, "reward": "starfish",
+                "stars": C.STARFISH_STARS}
+
+    state.improvement[tile] = C.IMP_NONE
+    return {"type": "examine", "tile": tile,
+            **_ruin_reward(state, player, tile, rules)}
+
+
+def _ruin_reward(state, player: int, tile: int, rules: Ruleset) -> dict:
+    """One of the ruin rewards, uniformly.
+
+    "The rewards for ruins are chosen randomly, with no special weighting
+    accorded to any one option." Each has a condition, so the pool is filtered
+    first and then drawn from evenly. The Aquarion-only Lost City is excluded
+    along with the rest of the special tribes.
+    """
+    on_water = not rules.terrain_is_land[state.terrain[tile]]
+    capitals = [t for t in range(state.n_tiles)
+                if state.city_capital[t] and int(state.city_owner[t]) == player]
+    researchable = [k for k in range(rules.n_techs)
+                    if not state.has_tech(player, k)
+                    and state.has_tech(player, int(rules.tech_requires[k]))]
+
+    pool = ["stars"]                                  # "Always available"
+    if researchable:
+        pool.append("technology")
+    if capitals:
+        pool.append("population")
+    # "Explorer | Grants a free Explorer | Any tile within a 5x5 area centered
+    # on the ruin is not explored". A ruin in already-mapped country therefore
+    # cannot pay out an Explorer, which is why examining early is worth more.
+    if _has_unexplored_within(state, player, tile, 2):
+        pool.append("explorer")
+    # "New Friends ... Ruin is NOT on Shallow Water or Ocean tile" /
+    # "Rammer ... Ruin is on Shallow Water or Ocean tile"
+    pool.append("unit")
+
+    pick = pool[int(state.rng.integers(len(pool)))]
+    if pick == "stars":
+        state.stars[player] += C.RUIN_STARS
+        return {"reward": "stars", "stars": C.RUIN_STARS}
+    if pick == "technology":
+        tech = researchable[int(state.rng.integers(len(researchable)))]
+        state.grant_tech(player, tech)
+        return {"reward": "technology", "tech": rules.tech_names[tech]}
+    if pick == "population":
+        from polyengine.core.economy import add_population
+        best = max(capitals, key=lambda t: int(state.city_level[t]))
+        add_population(state, best, C.RUIN_POPULATION, rules)
+        return {"reward": "population", "city": best}
+
+    if pick == "explorer":
+        from polyengine.core.economy import _explore
+        _explore(state, tile, player)
+        from polyengine.core.fog import recompute_all
+        recompute_all(state)
+        return {"reward": "explorer", "tile": tile}
+
+    # "New Friends | Spawns a Veteran Swordsman" on land; on water a "Veteran
+    # Rammer (Carries a Warrior)".
+    if on_water:
+        utype, carried = C.U_RAMMER, C.U_WARRIOR
+    else:
+        utype, carried = C.U_SWORDSMAN, C.U_NONE
+    # "If the ruin provides a unit as a reward, the examining unit is pushed in a
+    # forced unit spawn." The examiner is always standing here — it had to start
+    # its turn on the ruin — so without the push this reward could never once be
+    # paid, and the pool would silently be one option short.
+    if state.unit_type[tile] != C.U_NONE and not _push_unit(state, tile, rules):
+        state.stars[player] += C.RUIN_STARS       # genuinely nowhere to go
+        return {"reward": "stars", "stars": C.RUIN_STARS}
+    state.unit_type[tile] = utype
+    state.unit_owner[tile] = player
+    state.unit_carried[tile] = carried
+    source = carried if carried != C.U_NONE else utype
+    state.unit_hp[tile] = int(rules.unit_max_hp[source])
+    state.unit_veteran[tile] = 1
+    state.unit_home[tile] = -1
+    state.unit_moved[tile] = 1
+    state.unit_attacked[tile] = 1
+    return {"reward": "unit", "unit": rules.unit_names[utype]}
+
+
+def _has_unexplored_within(state, player: int, tile: int, radius: int) -> bool:
+    """Is any tile in the (2*radius+1)^2 box around `tile` still unexplored?"""
+    explored = state.fog_explored[player]
+    return any(explored[t] == 0 for t in range(state.n_tiles)
+               if state.chebyshev(tile, t) <= radius)
+
+
+def _push_unit(state, tile: int, rules: Ruleset) -> bool:
+    """Shove the unit on `tile` to a neighbouring tile it could legally stand on.
+
+    A "forced unit spawn" in the game's own terminology. Returns False if the
+    unit is boxed in, in which case the caller must not overwrite it.
+    """
+    from polyengine.core.movement import passable_mask
+    owner = int(state.unit_owner[tile])
+    utype = int(state.unit_type[tile])
+    ok = passable_mask(state, owner, utype, rules)
+    for nb in state.neighbors(tile):
+        nb = int(nb)
+        if state.unit_type[nb] != C.U_NONE or not ok[nb]:
+            continue
+        for field in ("unit_type", "unit_owner", "unit_carried", "unit_hp",
+                      "unit_veteran", "unit_kills", "unit_moved",
+                      "unit_attacked", "unit_home", "unit_hidden"):
+            arr = getattr(state, field)
+            arr[nb] = arr[tile]
+        _clear_unit(state, tile)
+        return True
+    return False
 
 
 def _apply_disband(state, player: int, action: Action, rules: Ruleset) -> dict:
@@ -499,3 +653,6 @@ def _clear_unit(state, tile: int) -> None:
     state.unit_veteran[tile] = 0
     state.unit_kills[tile] = 0
     state.unit_carried[tile] = C.U_NONE
+    # A stale stealth flag would make the NEXT unit to stand here invisible:
+    # `hidden_from` only checks the flag and that the tile is occupied.
+    state.unit_hidden[tile] = 0

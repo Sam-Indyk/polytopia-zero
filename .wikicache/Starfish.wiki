@@ -1,0 +1,18 @@
+{{Infobox Ability
+| image1   = Starfish.png
+| caption1 = A Starfish
+| unlock   = [[Navigation]]
+| cost     = 
+| effect   = Gives 8 stars
+}}
+
+'''Starfish Harvesting''' is an ability that can only be used on a tile with a Starfish, removes the Starfish from the tile, and gives the player 8 [[stars]]. The ability is unlocked by the [[Navigation]] [[technology]].
+
+Moving any naval unit onto a Starfish, even in neutral or enemy territory, will allow it to collect 8 stars by removing the Starfish the next turn. This consumes the unit's turn, much like if it were examining a [[ruin]].
+
+== Trivia ==
+
+* Starfish were introduced in the [[Map Generation|Path of the Ocean]] update to replace [[Whale Hunting|Whales]] as the new aquatic resource harvested for stars. 
+* In the subsequent Patch of the Ocean update, Starfish were changed to provide 8 stars instead of 10.
+{{Navbox Abilities}}
+[[Category:Abilities]]

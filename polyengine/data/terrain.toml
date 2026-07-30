@@ -88,7 +88,10 @@ id = 5
 symbol = "s"
 terrain = "water"
 
-[resource.whale]
+# "Starfish were introduced in the Path of the Ocean update to replace Whales as
+# the new aquatic resource harvested for stars." The Terrain page lists Whale as
+# "(removed)". Starfish sit on shallow water AND ocean.
+[resource.starfish]
 id = 6
-symbol = "w"
-terrain = "ocean"
+symbol = "*"
+terrains = ["water", "ocean"]

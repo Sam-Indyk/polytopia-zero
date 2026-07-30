@@ -35,16 +35,17 @@ from polyengine.core.economy import (
     pending_reward_cities,
     rewards_for_level,
 )
-from polyengine.core.actions import can_disband, upgrade_options
+from polyengine.core.actions import can_disband, can_examine, upgrade_options
 from polyengine.core.movement import attack_targets, reachable
 from polyengine.core.rules import Ruleset
 
 NEEDS_SOURCE = frozenset({C.A_MOVE, C.A_ATTACK, C.A_CAPTURE, C.A_TRAIN,
                           C.A_BUILD, C.A_CHOOSE_REWARD, C.A_DISBAND,
-                          C.A_UPGRADE})
+                          C.A_UPGRADE, C.A_EXAMINE})
 # DISBAND follows CAPTURE's convention of dst == src: it keeps every
 # source-bearing action the same shape for the sampler.
-NEEDS_TARGET = frozenset({C.A_MOVE, C.A_ATTACK, C.A_CAPTURE, C.A_DISBAND})
+NEEDS_TARGET = frozenset({C.A_MOVE, C.A_ATTACK, C.A_CAPTURE, C.A_DISBAND,
+                          C.A_EXAMINE})
 NEEDS_SUBTYPE = frozenset({C.A_TRAIN, C.A_RESEARCH, C.A_BUILD,
                            C.A_CHOOSE_REWARD, C.A_UPGRADE})
 # Sub-types that depend on WHICH source was picked (a tile's buildable set, a
@@ -122,6 +123,10 @@ def legal_sources(state, player: int, rules: Ruleset, atype: int) -> np.ndarray:
         for t in own[state.unit_type[own] == C.U_RAFT]:
             if upgrade_options(state, int(t), player, rules):
                 mask[t] = True
+    elif atype == C.A_EXAMINE:
+        for t in own:
+            if can_examine(state, int(t), player, rules):
+                mask[t] = True
     return mask
 
 
@@ -135,7 +140,7 @@ def legal_targets(state, player: int, rules: Ruleset, atype: int,
     elif atype == C.A_ATTACK:
         for t in attack_targets(state, src, rules):
             mask[t] = True
-    elif atype in (C.A_CAPTURE, C.A_DISBAND):
+    elif atype in (C.A_CAPTURE, C.A_DISBAND, C.A_EXAMINE):
         mask[src] = True
     return mask
 
@@ -239,6 +244,8 @@ class ActionMasks:
                 mask[C.A_BUILD] = True
             if self.sources(C.A_DISBAND).any():
                 mask[C.A_DISBAND] = True
+            if self.sources(C.A_EXAMINE).any():
+                mask[C.A_EXAMINE] = True
             if self.sources(C.A_UPGRADE).any() and self.subtypes(C.A_UPGRADE).any():
                 mask[C.A_UPGRADE] = True
             self._types = mask

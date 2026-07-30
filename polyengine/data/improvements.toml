@@ -324,3 +324,15 @@ population = 0
 requires_tech = ""
 map_feature = true
 terrains = ["ocean", "water"]
+
+# A ruin is a map feature, not a build: "A ruin provides a reward when examined
+# by a unit." It blocks the tile until cleared -- "Tiles with ruins cannot be
+# developed until the ruin is examined" -- which falls out of occupying the
+# improvement slot.
+[improvement.ruin]
+id = 23
+kind = "building"
+cost = 0
+population = 0
+requires_tech = ""
+map_feature = true

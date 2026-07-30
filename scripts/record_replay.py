@@ -32,6 +32,9 @@ def main() -> None:
     ap.add_argument("--p1", default="random")
     ap.add_argument("--size", type=int, default=11)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--map-type", default="drylands",
+                    help="drylands|lakes|continents|pangea|archipelago|"
+                         "waterworld -- how much water the map gets")
     ap.add_argument("--max-steps", type=int, default=4000)
     ap.add_argument("--out", default="replays/game")
     ap.add_argument("--open", action="store_true", help="open the viewer in a browser")
@@ -50,7 +53,8 @@ def main() -> None:
             ap.error(f"unknown agent {name!r}; choose from {sorted(AGENTS)}"
                      + ("" if args.net else " (pass --net PATH to enable 'net')"))
 
-    game = Game.new(size=args.size, seed=args.seed)
+    game = Game.new(size=args.size, seed=args.seed,
+                    map_type=args.map_type)
     names = [args.p0, args.p1]
     agents = [AGENTS[names[p % 2]](args.seed * 17 + p)
               for p in range(game.state.n_players)]

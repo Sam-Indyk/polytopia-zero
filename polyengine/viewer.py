@@ -116,10 +116,12 @@ const CELL = Math.floor(cv.width / S);
 const PC = ['#4da3ff','#ff6b6b','#5fd68a','#ffd166'];
 const TERR = {ocean:'#0f2b4d',water:'#1a5286',field:'#33512f',forest:'#1e3d22',mountain:'#4d4d56'};
 const RES  = {fruit:['#ff8fb1','\\u25cf'],crop:['#ffd166','\\u25b2'],game:['#c58b5a','\\u25c6'],
-              metal:['#c9ccd6','\\u25a0'],fish:['#7fe3e3','\\u25cf'],whale:['#8fb8ff','\\u25c6']};
-// Buildings the player paid for; population is what these buy.
+              metal:['#c9ccd6','\\u25a0'],fish:['#7fe3e3','\\u25cf'],
+              starfish:['#ffb3d9','\\u2731']};
+// Buildings the player paid for; population is what these buy. The ruin is the
+// exception -- nobody built it, and it is examined rather than harvested.
 const IMP  = {lumber_hut:'L',farm:'F',mine:'M',port:'P',temple:'T',
-              sawmill:'S',windmill:'W',forge:'G',
+              sawmill:'S',windmill:'W',forge:'G',ruin:'\\u2302',
               road:'=',bridge:'≡',market:'$',embassy:'E',lighthouse:'✶',
               altar_of_peace:'♈',emperors_tomb:'♈',eye_of_god:'♈',
               gate_of_power:'♈',grand_bazaar:'♈',park_of_fortune:'♈',
@@ -365,6 +367,10 @@ function buildKey(){
       + 'the capital, connect a city (+1 population to <em>both</em>). Ports connect too.</span>');
   add('<span class="muted" style="font-size:11px">—</span>',
       '<span class="muted">$ market: stars per turn per adjacent sawmill/windmill/forge</span>');
+  add('<span class="muted" style="font-size:11px">—</span>',
+      '<span class="muted">\\u2302 ruin: a unit that <em>starts</em> its turn here may examine it '
+      + 'for stars, a free tech, population, an explorer or a veteran unit. '
+      + '\\u2731 starfish: harvested the same way for 8 stars, once Navigation is in.</span>');
 
   grp('cities (square, number = level)');
   add(sw(PC[0],'2'), 'level 2 city, owner’s colour');

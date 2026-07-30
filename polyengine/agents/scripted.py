@@ -89,6 +89,12 @@ class ScriptedBot:
         if by_type.get(C.A_CAPTURE):
             return self._pick(by_type[C.A_CAPTURE])
 
+        # 1b. Examine the ruin (or harvest the starfish) we are standing on.
+        # Free value, and it has to happen before the march or the unit walks
+        # off the tile it needs to *start* a turn on to claim anything.
+        if by_type.get(C.A_EXAMINE):
+            return self._pick(by_type[C.A_EXAMINE])
+
         # 2. Attacks, infiltration included.
         attack = self._best_attack(s, rules, by_type.get(C.A_ATTACK, []))
         if attack is not None:
@@ -221,6 +227,12 @@ class ScriptedBot:
                    or (s.city_level[t] > 0 and s.city_owner[t] != player)]
         if not targets:
             return self._pick(moves)
+        # Step onto a ruin for free if one is on the way: examining costs a turn
+        # but pays a tech or a veteran Swordsman, and "examine ruins that
+        # otherwise may be taken by enemies".
+        onto_ruin = [a for a in moves if s.improvement[a.dst] == C.IMP_RUIN]
+        if onto_ruin:
+            return self._pick(onto_ruin)
         return min(moves, key=lambda a: min(s.chebyshev(a.dst, t) for t in targets))
 
     def _pop_cost(self, state, action: Action, rules: Ruleset) -> float:

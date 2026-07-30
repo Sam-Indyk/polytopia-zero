@@ -11,7 +11,7 @@ Goal (PLAN.md): beat the game's built-in Crazy bots through the real Steam clien
 ## Environment
 
 ```bash
-.venv\Scripts\python.exe -m pytest            # 457 tests, ~6 min
+.venv\Scripts\python.exe -m pytest            # 491 tests, ~7 min
 .venv\Scripts\python.exe -m polytrain.train_league --smoke --iters 50
 ```
 
@@ -155,6 +155,20 @@ order — capitals, villages, terrain, resources, lighthouses:
   quadrants alone were not enough, since two capitals either side of a shared
   border landed 2 tiles apart, so each is now placed furthest from those already
   down. Villages keep 2 tiles from the edge and 2 from each other.
+  **Continents and Pangea are the two types the wiki exempts from quadrants**:
+  there capitals are drawn uniformly from the tiles at least `size // 4` (never
+  fewer than 6) from every capital already placed. Taking the *furthest* tile
+  there, as the quadrant path does, silently reimposes quadrants — with two
+  players it returns opposite corners every time.
+- **Which village passes run depends on the map type**, per the wiki's feature
+  table: suburbs (up to two beside each capital) on Lakes and Archipelago,
+  pre-terrain villages on those plus Water World at the documented density
+  coefficient, post-terrain villages everywhere, and **tiny island villages** —
+  villages with no land neighbour at all — on Continents and Pangea.
+- **Ruins** (4/5/7/9/11/23 by size) spawn on any terrain but shallow water, never
+  beside a capital or another ruin, and **starfish** at one per 25 water tiles,
+  never beside a city, lighthouse or another starfish. Both are examined by the
+  same action — see below.
 
 All **12 regular tribes** are in, with their real starting tech, unit and stars
 (Luxidoor has no starting tech and a level-3 capital instead). The spawn
@@ -162,22 +176,48 @@ multipliers are load-bearing, not decoration: Bardur land grows **zero** crop,
 Vengir is metal-rich and fruit-barren, Xin-xi's 1.5x mountain and 1.5x metal
 compound.
 
-Not generated yet: ruins, starfish, tiny island villages, and the pre-terrain /
-suburb village passes that Lakes and Archipelago use.
+Still simplified, and deliberately: Continents uses smoothed noise rather than
+real seeded landmass growth, Pangea is not centre-seeded, capitals are not
+preferentially coastal, and a ruin never shares a tile with a resource (the wiki
+allows it, but the resource is meant to be *invisible* until the ruin is cleared,
+and we have no way to hide it from the observation).
+
+## EXAMINE: ruins and starfish are one action
+
+`A_EXAMINE` covers both, because the game gives them one mechanic: "Examining a
+ruin requires a unit to **start the turn** on the ruin and consumes the unit's
+actions for that turn (like capturing a village)", and a starfish is harvested
+"much like if it were examining a ruin". Starfish need **Navigation** and pay 8
+stars. Ruin rewards are drawn uniformly from those whose condition holds:
+
+| reward | effect | condition |
+|---|---|---|
+| Resources | 10 stars | always |
+| Scrolls of Wisdom | a free tech | something is researchable |
+| Population | 3 population to the best capital | you own a capital |
+| Explorer | reveals the map around the ruin | a tile in the 5x5 box is dark |
+| New Friends / Rammer | veteran Swordsman on land, veteran Rammer carrying a Warrior on water | by terrain |
+
+Two of those were silently unreachable when first written, which is the kind of
+bug that shows up as "the agent ignores ruins" rather than as a crash:
+
+- **Explorer was never in the pool at all.** It is listed in `RUIN_REWARDS` and
+  was simply never appended.
+- **The unit reward could never once be paid.** A unit must be standing on the
+  ruin to examine it, so the spawn tile was always occupied and the code fell
+  back to stars — every single time. The wiki's own trivia has the answer: "If
+  the ruin provides a unit as a reward, the examining unit is **pushed** in a
+  forced unit spawn." `_push_unit` in `actions.py` does that.
 
 **Not simulated yet:** special tribes only (excluded by choice). The viewer lists
 this so an empty log never reads as "nothing happened".
 
-**Checkpoints from before 28 Jul are architecturally incompatible**: the action
-head grew from 8 types to 10 (Disband, Upgrade) and the observation from 64
-planes to 77. They will not load into the current network.
-
 **There is no trained agent right now, by design.** Every checkpoint predating
-28 Jul is architecturally dead: the observation went 64 -> 77 planes and the
-action head 8 -> 10, so nothing will load. They were deleted rather than left in
-the repo to tempt someone. Training starts from scratch, and the previous
-numbers (55% vs ScriptedBot at 11x11) are not comparable to anything measured
-against the current rules.
+28 Jul is architecturally dead: the observation went 64 -> **79** planes and the
+action head 8 -> **11** (Disband, Upgrade, Examine), so nothing will load. They
+were deleted rather than left in the repo to tempt someone. Training starts from
+scratch, and the previous numbers (55% vs ScriptedBot at 11x11) are not
+comparable to anything measured against the current rules.
 
 ## What to do next
 
@@ -218,8 +258,25 @@ single-process. The architecture that scales is workers doing env/encode/mask
 over shared memory with one process batching GPU inference. See the table in
 `polytrain/parallel.py` and the hardware section of `PLAN.md`.
 
-Deferred by explicit decision: **map-generation fidelity** (cities never on the
-border, corner lighthouses, real village spacing). Fine while maps are small;
+## Training across map types
+
+Rollouts and evals both **rotate map types** — `--map-types` on
+`train_league.py`, default `drylands,lakes,continents,archipelago`, picked per
+game by seed in `rollout._make_game` and per pair in `evaluate.play_match`. An
+agent that only learned dry maps now shows it in the eval line instead of looking
+fine until someone puts it on water.
+
+**The map type is never told to the network.** It reads water tile by tile out of
+the terrain planes, through fog, and has to conclude for itself that this world
+wants Ports and boats rather than Riders and roads. There was briefly a "wetness"
+scalar in the global vector; it is gone, because it is a shortcut M5's
+screen-reading agent could not reproduce and it makes the strategy switch a
+lookup instead of an inference. `tests/test_obs.py` pins the global vector as
+identical between a drylands and a water-world map of the same seed.
+
+Deferred by explicit decision: the remaining **map-generation fidelity** gaps
+(Continents' smoothed noise instead of seeded landmass growth, Pangea not
+centre-seeded, capitals not preferentially coastal). Fine while maps are small;
 required before M5. Rationale is in `PLAN.md`.
 
 ## Traps that have already bitten
@@ -373,7 +430,7 @@ normal 58%, hard beats easy 67%.
 
 ```bash
 .venv\Scripts\python.exe scripts/record_replay.py --net checkpoints_11x11/best.pt \
-    --p0 net --p1 scripted --size 11 --open
+    --p0 net --p1 scripted --size 11 --map-type continents --open
 ```
 
 Writes a **self-contained HTML** viewer — no server. It has a built-in key

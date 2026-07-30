@@ -70,6 +70,12 @@ def main() -> None:
     ap.add_argument("--eval-pairs", type=int, default=12,
                     help="mirrored seed pairs per eval (2 games each)")
     ap.add_argument("--max-turns", type=int, default=100)
+    ap.add_argument("--map-types", default="drylands,lakes,continents,archipelago",
+                    help="comma-separated rotation. Games cycle through these, so "
+                         "the policy has to plan for water as well as land: "
+                         "fishing/Ports/boats on an archipelago, Riders/roads on "
+                         "drylands. The type is never told to the net -- it has to "
+                         "read the water off the board like a player does.")
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     ap.add_argument("--small", action="store_true")
     ap.add_argument("--channels", type=int)
@@ -112,6 +118,7 @@ def main() -> None:
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
     rules = load_ruleset()
+    map_types = tuple(m.strip() for m in args.map_types.split(",") if m.strip())
     device = torch.device(args.device)
     policy, cfg = build_policy(rules, device, args.small,
                                getattr(args, 'channels', None), getattr(args, 'blocks', None))
@@ -195,14 +202,16 @@ def main() -> None:
             roll, stats, games_self = collect(
                 policy, args.games, args.rollout, size=args.size,
                 seed=args.seed + it * 1000, shaping=shaping,
-                max_turns=args.max_turns, games=games_self)
+                max_turns=args.max_turns, games=games_self,
+                map_types=map_types)
             label = "self"
         else:
             opp_fn = make_opponent_fn(member, policy, rules, device)
             roll, stats, games_vs = collect(
                 policy, args.games, args.rollout, size=args.size,
                 seed=args.seed + it * 1000, shaping=shaping,
-                max_turns=args.max_turns, games=games_vs, opponent=opp_fn)
+                max_turns=args.max_turns, games=games_vs, opponent=opp_fn,
+                map_types=map_types)
             label = member.name
             league.record_results(member, stats.get("learner_result", []))
             if member.kind == "snapshot":
@@ -234,12 +243,17 @@ def main() -> None:
 
         if it % args.eval_every == 0 or it == args.iters:
             agent = NetAgent(policy)
+            # Eval rotates the same map types training saw, so a policy that
+            # only learned dry maps cannot hide behind a dry-only eval.
             vs_rand = play_match(agent, RandomAgent(seed=7), args.eval_pairs,
-                                 args.size, seed=4242, max_steps=400)
+                                 args.size, seed=4242, max_steps=400,
+                                 map_types=map_types)
             vs_osla = play_match(agent, GreedyOSLA(seed=7), args.eval_pairs,
-                                 args.size, seed=5353, max_steps=400)
+                                 args.size, seed=5353, max_steps=400,
+                                 map_types=map_types)
             vs_scr = play_match(agent, ScriptedBot(seed=7), args.eval_pairs,
-                                args.size, seed=6464, max_steps=400)
+                                args.size, seed=6464, max_steps=400,
+                                map_types=map_types)
             print(f"  eval@{it}: Random {vs_rand.win_rate:5.1%}+-{vs_rand.stderr:.1%} | "
                   f"OSLA {vs_osla.win_rate:5.1%}+-{vs_osla.stderr:.1%} (held out) | "
                   f"Scripted {vs_scr.win_rate:5.1%}+-{vs_scr.stderr:.1%} | "
