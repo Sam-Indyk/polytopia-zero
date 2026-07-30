@@ -44,10 +44,14 @@ class Game:
         self._begin_turn(state.current_player)
 
     @classmethod
-    def new(cls, size: int = 11, tribes: list[str] | None = None,
-            seed: int = 0, ruleset: str = "current") -> "Game":
+    def new(cls, size: int | None = 11, tribes: list[str] | None = None,
+            seed: int = 0, ruleset: str = "current",
+            map_type: str = "drylands") -> "Game":
+        """A fresh game. `size=None` picks what Domination would for this many
+        opponents; `map_type` selects a wetness band (see mapgen.MAP_TYPES)."""
         rules = load_ruleset(ruleset)
-        state = new_game(rules, size=size, tribes=tribes, seed=seed)
+        state = new_game(rules, size=size, tribes=tribes, seed=seed,
+                         map_type=map_type)
         return cls(state, rules)
 
     def clone(self) -> "Game":

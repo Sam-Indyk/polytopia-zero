@@ -11,7 +11,7 @@ Goal (PLAN.md): beat the game's built-in Crazy bots through the real Steam clien
 ## Environment
 
 ```bash
-.venv\Scripts\python.exe -m pytest            # 416 tests, ~5 min
+.venv\Scripts\python.exe -m pytest            # 457 tests, ~6 min
 .venv\Scripts\python.exe -m polytrain.train_league --smoke --iters 50
 ```
 
@@ -133,10 +133,37 @@ Each monument is free to place, yields 3 population and 400 points, and only one
 may be built per task. **Pirates** too: a Dagger on a Port becomes one and
 reverts to a Dagger on landing.
 
-The four **corner lighthouses** are the only piece of Polytopia's real map
-generation implemented so far. They exist because the Explorer task ("find all
-lighthouses") is otherwise unreachable and the Eye of God would be dead data.
-The rest of mapgen fidelity is still deferred — see `PLAN.md`.
+**Map generation follows the real algorithm** (wiki: Map Generation), in its
+order — capitals, villages, terrain, resources, lighthouses:
+
+- **All six sizes**: tiny 11, small 14, normal 16, large 18, huge 20, massive 30.
+  `size=None` picks what Domination would for the opponent count (1 -> 11,
+  2 -> 14, 3 -> 16, 4+ -> 18).
+- **Six water amounts** via `map_type`: drylands 0-10% ... waterworld 90-100%.
+  Until this landed the generator produced **no water at all**, which silently
+  made Ports, embarking, Bridges, Pirates and Aquatism unreachable. On a
+  `continents` map the Port is now the most-built improvement.
+- **Terrain is per tribe.** The map is partitioned between capitals and each
+  region generated at its owner's rates. Base (Luxidoor) is 48% field / 38%
+  forest / 14% mountain, and tribe multipliers apply in the documented order:
+  mountain first (rescaling forest and field), then forest (rescaling field),
+  then field is the remainder.
+- **Resources only spawn within two tiles of a city**, and a tile *adjacent* to
+  one is ~3x richer than one two away (18% fruit vs 6%). Expansion is how you
+  reach resources at all.
+- **Capitals go one per quadrant** and never within two tiles of the border;
+  quadrants alone were not enough, since two capitals either side of a shared
+  border landed 2 tiles apart, so each is now placed furthest from those already
+  down. Villages keep 2 tiles from the edge and 2 from each other.
+
+All **12 regular tribes** are in, with their real starting tech, unit and stars
+(Luxidoor has no starting tech and a level-3 capital instead). The spawn
+multipliers are load-bearing, not decoration: Bardur land grows **zero** crop,
+Vengir is metal-rich and fruit-barren, Xin-xi's 1.5x mountain and 1.5x metal
+compound.
+
+Not generated yet: ruins, starfish, tiny island villages, and the pre-terrain /
+suburb village passes that Lakes and Archipelago use.
 
 **Not simulated yet:** special tribes only (excluded by choice). The viewer lists
 this so an empty log never reads as "nothing happened".

@@ -1,7 +1,23 @@
-# The 4 base tribes. Special tribes (Aquarion, Elyrion, Polaris, Cymanti) are
-# deferred to M4 because they modify core rules. Tribes share unit/tech stats and
-# differ only in starting tech, terrain/resource weighting, and flavour.
-# Source: Battle of Polytopia wiki, tribe pages.
+# The twelve REGULAR tribes. All share one tech tree, units and buildings; they
+# differ only in what they start with and in how their land generates.
+#
+# The four SPECIAL tribes (Aquarion, Elyrion, Polaris, Cymanti) are excluded by
+# decision -- they replace parts of the tech tree and add unique units.
+#
+# Sources, both cached in .wikicache/:
+#   Tribes           -- starting technology, starting unit, starting stars
+#   Map Generation   -- "Spawn Rate Modifiers by Tribe"
+#
+# SPAWN MODIFIERS are multipliers on the base rate, not absolute shares, and the
+# base rate IS Luxidoor. They apply in a fixed order, because each renormalises
+# what follows:
+#
+#   1. mountain -- rescales forest and field proportionally
+#   2. forest   -- rescales field only (mountain is already fixed)
+#   3. field    -- whatever remains: 100% - mountain% - forest%
+#
+# Resource modifiers are separate: they scale the chance of a resource appearing
+# ON its terrain, so Xin-xi's 1.5x mountain and 1.5x metal compound.
 
 ruleset_version = "current-2026.07"
 
@@ -9,27 +25,111 @@ ruleset_version = "current-2026.07"
 id = 0
 symbol = "X"
 starting_tech = "climbing"
-# Relative spawn weights for terrain around this tribe's territory.
-terrain_weights = { field = 0.45, forest = 0.25, mountain = 0.30 }
-resource_weights = { fruit = 0.30, crop = 0.15, game = 0.20, metal = 0.35 }
+starting_unit = "warrior"
+starting_stars = 7
+terrain_mult = { mountain = 1.5 }
+resource_mult = { metal = 1.5 }
 
 [tribe.imperius]
 id = 1
 symbol = "I"
 starting_tech = "organization"
-terrain_weights = { field = 0.60, forest = 0.25, mountain = 0.15 }
-resource_weights = { fruit = 0.45, crop = 0.30, game = 0.15, metal = 0.10 }
+starting_unit = "warrior"
+starting_stars = 5
+terrain_mult = {}
+resource_mult = { game = 0.5, fruit = 2.0 }
 
 [tribe.bardur]
 id = 2
 symbol = "B"
 starting_tech = "hunting"
-terrain_weights = { field = 0.35, forest = 0.50, mountain = 0.15 }
-resource_weights = { fruit = 0.15, crop = 0.10, game = 0.55, metal = 0.20 }
+starting_unit = "warrior"
+starting_stars = 5
+terrain_mult = { forest = 0.8 }
+resource_mult = { crop = 0.0 }        # Bardur land grows no crop at all
 
 [tribe.oumaji]
 id = 3
 symbol = "O"
 starting_tech = "riding"
-terrain_weights = { field = 0.75, forest = 0.10, mountain = 0.15 }
-resource_weights = { fruit = 0.35, crop = 0.35, game = 0.10, metal = 0.20 }
+starting_unit = "rider"
+starting_stars = 6
+terrain_mult = { forest = 0.2, mountain = 0.5 }
+resource_mult = { game = 0.2 }
+# Oumaji's 0.5x water modifier "is found in the source code but is not
+# translated into the world generation", so it is deliberately not applied.
+
+[tribe.kickoo]
+id = 4
+symbol = "K"
+starting_tech = "fishing"
+starting_unit = "warrior"
+starting_stars = 5
+terrain_mult = { mountain = 0.5 }
+resource_mult = { fish = 1.5 }
+water_mult = 2.0
+
+[tribe.hoodrick]
+id = 5
+symbol = "H"
+starting_tech = "archery"
+starting_unit = "archer"
+starting_stars = 7
+terrain_mult = { mountain = 0.5, forest = 1.5 }
+resource_mult = {}
+
+[tribe.luxidoor]
+id = 6
+symbol = "L"
+# "None" -- Luxidoor trades its starting technology for a level THREE capital.
+starting_tech = ""
+starting_unit = "warrior"
+starting_stars = 2
+starting_city_level = 3
+terrain_mult = {}
+resource_mult = {}                    # Luxidoor IS the base rate
+
+[tribe.vengir]
+id = 7
+symbol = "V"
+starting_tech = "smithery"
+starting_unit = "swordsman"
+starting_stars = 5
+terrain_mult = {}
+resource_mult = { metal = 2.0, game = 0.1, fruit = 0.1, fish = 0.1 }
+
+[tribe.zebasi]
+id = 8
+symbol = "Z"
+starting_tech = "farming"
+starting_unit = "warrior"
+starting_stars = 5
+terrain_mult = { mountain = 0.5, forest = 0.5 }
+resource_mult = { fruit = 0.5 }
+
+[tribe.ai_mo]
+id = 9
+symbol = "A"
+starting_tech = "philosophy"
+starting_unit = "mind_bender"
+starting_stars = 5
+terrain_mult = { mountain = 1.5 }
+resource_mult = { crop = 0.1 }
+
+[tribe.quetzali]
+id = 10
+symbol = "Q"
+starting_tech = "strategy"
+starting_unit = "defender"
+starting_stars = 7
+terrain_mult = {}
+resource_mult = { fruit = 2.0, crop = 0.1 }
+
+[tribe.yadakk]
+id = 11
+symbol = "Y"
+starting_tech = "roads"
+starting_unit = "warrior"
+starting_stars = 7
+terrain_mult = { mountain = 0.5, forest = 0.5 }
+resource_mult = { fruit = 1.5 }
