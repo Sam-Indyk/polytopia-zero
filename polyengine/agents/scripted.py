@@ -89,11 +89,26 @@ class ScriptedBot:
         if by_type.get(C.A_CAPTURE):
             return self._pick(by_type[C.A_CAPTURE])
 
+        # 1a. Cash in a promotion on a unit that is actually hurt. Promoting
+        # costs nothing and heals completely, so the only mistake is spending it
+        # at full health -- "a player may choose to not immediately promote a
+        # unit ... because the promotion can be used as a 'free' heal later".
+        promote = [a for a in by_type.get(C.A_PROMOTE, [])
+                   if int(s.unit_hp[a.src]) * 2 <= effective_max_hp(s, a.src, rules)]
+        if promote:
+            return min(promote, key=lambda a: int(s.unit_hp[a.src]))
+
         # 1b. Examine the ruin (or harvest the starfish) we are standing on.
         # Free value, and it has to happen before the march or the unit walks
         # off the tile it needs to *start* a turn on to claim anything.
         if by_type.get(C.A_EXAMINE):
             return self._pick(by_type[C.A_EXAMINE])
+
+        # 1c. A Mind Bender beside wounded friends is worth more healing than
+        # walking; its attack converts rather than kills, so it is never the
+        # aggressor of choice.
+        if by_type.get(C.A_HEAL_OTHERS):
+            return self._pick(by_type[C.A_HEAL_OTHERS])
 
         # 2. Attacks, infiltration included.
         attack = self._best_attack(s, rules, by_type.get(C.A_ATTACK, []))
@@ -121,6 +136,14 @@ class ScriptedBot:
         research = by_type.get(C.A_RESEARCH, [])
         if research and int(s.stars[player]) >= 8:
             return self._pick(research)
+
+        # 4b. Clear a forest for a star when there is nothing better to buy.
+        # The other three tile abilities cost stars for a long-run payoff a
+        # heuristic cannot price, so the bot leaves them to the network.
+        clear = [a for a in by_type.get(C.A_TILE_ABILITY, [])
+                 if a.subtype == C.TA_CLEAR_FOREST]
+        if clear and not build and int(s.stars[player]) < 3:
+            return self._pick(clear)
 
         # 5. Over target and Free Spirit researched: cash in the weakest unit.
         disband = by_type.get(C.A_DISBAND, [])

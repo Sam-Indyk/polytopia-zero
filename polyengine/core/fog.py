@@ -20,7 +20,7 @@ from polyengine.kernels.grid_kernels import fog_kernel
 def recompute_fog(state, player: int) -> None:
     """Recompute `player`'s visibility and refresh their memory snapshots."""
     fog_kernel(
-        state.size, player, C.SIGHT_RADIUS_UNIT, C.SIGHT_RADIUS_CITY,
+        state.size, player, state.rules.unit_sight, C.SIGHT_RADIUS_CITY,
         state.unit_owner, state.unit_type, state.city_owner, state.city_level,
         state.owner,
         state.fog_visible[player], state.fog_explored[player],

@@ -13,6 +13,8 @@ from __future__ import annotations
 
 from typing import NamedTuple
 
+import numpy as np
+
 from polyengine.core import constants as C
 from polyengine.core.combat import resolve_attack
 from polyengine.core.economy import (
@@ -162,6 +164,81 @@ def can_examine(state, tile: int, player: int, rules: Ruleset) -> bool:
     return False
 
 
+def can_promote(state, tile: int, player: int, rules: Ruleset) -> bool:
+    """"A unit can be promoted to a veteran after it kills three enemy units
+    (through attacks or retaliation)."
+
+    Deliberately *not* automatic. "Promoting a unit increases its maximum health
+    by five and then heals the unit completely. Therefore, a player may choose to
+    not immediately promote a unit when it becomes eligible to do so, because the
+    promotion can be used as a 'free' heal later." Making it automatic would
+    delete a real decision and quietly cost the player a full heal.
+    """
+    utype = int(state.unit_type[tile])
+    if utype == C.U_NONE or int(state.unit_owner[tile]) != player:
+        return False
+    if state.unit_veteran[tile]:
+        return False
+    # "Static: prevents a unit from becoming a veteran."
+    if "static" in rules.unit_skills[utype]:
+        return False
+    return int(state.unit_kills[tile]) >= C.VETERAN_KILLS
+
+
+def can_heal_others(state, tile: int, player: int, rules: Ruleset) -> bool:
+    """The Mind Bender's Heal Others action: is there anyone adjacent to heal?"""
+    utype = int(state.unit_type[tile])
+    if utype == C.U_NONE or int(state.unit_owner[tile]) != player:
+        return False
+    if "heal" not in rules.unit_skills[utype]:
+        return False
+    if state.unit_moved[tile] or state.unit_attacked[tile]:
+        return False
+    from polyengine.core.combat import effective_max_hp
+    for nb in state.neighbors(tile):
+        nb = int(nb)
+        if state.unit_type[nb] == C.U_NONE or int(state.unit_owner[nb]) != player:
+            continue
+        if int(state.unit_hp[nb]) < effective_max_hp(state, nb, rules):
+            return True
+    return False
+
+
+def can_use_tile_ability(state, tile: int, ability: int, player: int,
+                         rules: Ruleset) -> bool:
+    """Is this tile-modifying ability legal on this tile, for this player?
+
+    All four need the tile to be inside the player's own borders — these are
+    improvements to your own land, not sabotage of someone else's.
+    """
+    tech = rules.tech_id.get(C.TILE_ABILITY_TECH.get(ability, ""), -1)
+    if tech < 0 or not state.has_tech(player, tech):
+        return False
+    if int(state.owner[tile]) != player:
+        return False
+    if state.city_level[tile] > 0:
+        return False                      # never reshape a city tile
+    terrain = int(state.terrain[tile])
+    imp = int(state.improvement[tile])
+    stars = int(state.stars[player])
+
+    if ability == C.TA_DESTROY:
+        # "removes a building and its benefits at no cost". Ruins and
+        # lighthouses are not buildings anyone put there.
+        return imp not in (C.IMP_NONE, C.IMP_RUIN, C.IMP_LIGHTHOUSE)
+    if imp != C.IMP_NONE:
+        return False                      # terrain edits need a bare tile
+    if ability == C.TA_CLEAR_FOREST:
+        return terrain == C.T_FOREST
+    if ability == C.TA_GROW_FOREST:
+        return terrain == C.T_FIELD and stars >= C.GROW_FOREST_COST
+    if ability == C.TA_BURN_FOREST:
+        # "replaces an *empty* Forest with a field with crop"
+        return (terrain == C.T_FOREST and int(state.resource[tile]) == C.R_NONE
+                and stars >= C.BURN_FOREST_COST)
+    return False
+
+
 def capture_targets(state, player: int, rules: Ruleset) -> list[int]:
     """Tiles where one of `player`'s units can capture a city this turn."""
     return [t for t in _player_units(state, player) if can_capture(state, t, rules)]
@@ -194,6 +271,10 @@ def enumerate_actions(state, player: int, rules: Ruleset) -> list[Action]:
             actions.append(Action(C.A_DISBAND, src, src))
         if can_examine(state, src, player, rules):
             actions.append(Action(C.A_EXAMINE, src, src))
+        if can_promote(state, src, player, rules):
+            actions.append(Action(C.A_PROMOTE, src, src))
+        if can_heal_others(state, src, player, rules):
+            actions.append(Action(C.A_HEAL_OTHERS, src, src))
         for hull in upgrade_options(state, src, player, rules):
             actions.append(Action(C.A_UPGRADE, src, -1, hull))
 
@@ -230,6 +311,12 @@ def enumerate_actions(state, player: int, rules: Ruleset) -> list[Action]:
             if can_build(state, tile, imp, player, rules):
                 actions.append(Action(C.A_BUILD, tile, -1, imp))
 
+    for tile in np.flatnonzero(state.owner == player):
+        tile = int(tile)
+        for ability in range(C.N_TILE_ABILITIES):
+            if can_use_tile_ability(state, tile, ability, player, rules):
+                actions.append(Action(C.A_TILE_ABILITY, tile, -1, ability))
+
     return actions
 
 
@@ -264,6 +351,12 @@ def apply_action(state, action: Action, rules: Ruleset) -> dict:
         return _apply_disband(state, player, action, rules)
     if at == C.A_EXAMINE:
         return _apply_examine(state, player, action, rules)
+    if at == C.A_PROMOTE:
+        return _apply_promote(state, player, action, rules)
+    if at == C.A_HEAL_OTHERS:
+        return _apply_heal_others(state, player, action, rules)
+    if at == C.A_TILE_ABILITY:
+        return _apply_tile_ability(state, player, action, rules)
     if at == C.A_UPGRADE:
         return _apply_upgrade(state, player, action, rules)
     if at == C.A_RESEARCH:
@@ -591,6 +684,91 @@ def push_unit(state, tile: int, rules: Ruleset, spawner: int = -1) -> int:
     return -1
 
 
+def _apply_promote(state, player: int, action: Action, rules: Ruleset) -> dict:
+    """Promote a unit to veteran: +5 max HP, then a full heal.
+
+    **Costs the unit nothing.** It does not spend the move or the attack, which
+    is precisely why holding the promotion back is a real strategy: a hurt
+    veteran-eligible unit can promote *and still fight this turn*, getting a full
+    heal that the Recover action would have charged a whole turn for. Confirmed
+    by the project owner: "it also fully revives the unit's health up to the
+    promoted value ... a common strat to leave the unit unpromoted until it is
+    damaged and then promote later on to regain the health without taking up an
+    action."
+    """
+    tile = action.src
+    if not can_promote(state, tile, player, rules):
+        raise ValueError(f"illegal promotion at {tile}")
+    from polyengine.core.combat import effective_max_hp
+    state.unit_veteran[tile] = 1
+    state.unit_hp[tile] = effective_max_hp(state, tile, rules)
+    return {"type": "promote", "tile": tile, "hp": int(state.unit_hp[tile])}
+
+
+def _apply_heal_others(state, player: int, action: Action, rules: Ruleset) -> dict:
+    """"Heals all adjacent friendly units by up to 4 HP." Consumes the turn."""
+    tile = action.src
+    if not can_heal_others(state, tile, player, rules):
+        raise ValueError(f"illegal heal at {tile}")
+    from polyengine.core.combat import effective_max_hp
+    healed = []
+    for nb in state.neighbors(tile):
+        nb = int(nb)
+        if state.unit_type[nb] == C.U_NONE or int(state.unit_owner[nb]) != player:
+            continue
+        cap = effective_max_hp(state, nb, rules)
+        amount = min(C.HEAL_OTHERS_AMOUNT, cap - int(state.unit_hp[nb]))
+        if amount > 0:
+            state.unit_hp[nb] += amount
+            healed.append((nb, amount))
+    state.unit_moved[tile] = 1
+    state.unit_attacked[tile] = 1
+    return {"type": "heal_others", "tile": tile, "healed": healed}
+
+
+def _apply_tile_ability(state, player: int, action: Action,
+                        rules: Ruleset) -> dict:
+    """Clear / Grow / Burn Forest, or Destroy a building."""
+    tile, ability = action.src, action.subtype
+    if not can_use_tile_ability(state, tile, ability, player, rules):
+        raise ValueError(f"illegal tile ability {ability} at {tile}")
+    name = C.TILE_ABILITY_NAMES[ability]
+
+    if ability == C.TA_DESTROY:
+        # "removes a building and its benefits at no cost" -- including the
+        # population it was paying, which is what makes this a real decision
+        # rather than free tidying.
+        imp = int(state.improvement[tile])
+        pop = int(rules.imp_population[imp])
+        from polyengine.core.economy import (nearest_owned_city,
+                                             recompute_connections,
+                                             remove_population)
+        city = nearest_owned_city(state, tile, player)
+        state.improvement[tile] = C.IMP_NONE
+        state.improvement_owner[tile] = C.NEUTRAL
+        state.improvement_turn[tile] = -1
+        if city >= 0 and pop > 0:
+            remove_population(state, city, pop, rules)
+        recompute_connections(state, player, rules)
+        return {"type": "tile_ability", "ability": name, "tile": tile,
+                "removed": rules.imp_names[imp]}
+
+    if ability == C.TA_CLEAR_FOREST:
+        state.terrain[tile] = C.T_FIELD
+        state.stars[player] += C.CLEAR_FOREST_STARS
+        return {"type": "tile_ability", "ability": name, "tile": tile,
+                "stars": C.CLEAR_FOREST_STARS}
+    if ability == C.TA_GROW_FOREST:
+        state.terrain[tile] = C.T_FOREST
+        state.stars[player] -= C.GROW_FOREST_COST
+        return {"type": "tile_ability", "ability": name, "tile": tile}
+    # Burn Forest: "replaces an empty Forest with a field with crop".
+    state.terrain[tile] = C.T_FIELD
+    state.resource[tile] = C.R_CROP
+    state.stars[player] -= C.BURN_FOREST_COST
+    return {"type": "tile_ability", "ability": name, "tile": tile}
+
+
 def _apply_disband(state, player: int, action: Action, rules: Ruleset) -> dict:
     """Remove a unit and refund half its cost, rounded down."""
     tile = action.src
@@ -646,10 +824,19 @@ def _apply_move(state, player: int, action: Action, rules: Ruleset) -> dict:
 
     boarded = _resolve_boarding(state, dst, rules)
 
+    # "Stomp: causes a unit to deal damage to all adjacent enemy units when it
+    # moves." Applied after boarding, so a Juggernaut that just landed does not
+    # stomp as the unit it turned into.
+    from polyengine.core.combat import apply_stomp
+    stomped = apply_stomp(state, dst, rules)
+
     # NB: moving onto a city does NOT capture it. Capture is its own action
     # (see A_CAPTURE / capture_targets), which is why taking a village costs a
     # turn of standing on it.
-    return {"type": "move", "src": src, "dst": dst, **boarded}
+    out = {"type": "move", "src": src, "dst": dst, **boarded}
+    if stomped:
+        out["stomped"] = stomped
+    return out
 
 
 def _resolve_boarding(state, tile: int, rules: Ruleset) -> dict:

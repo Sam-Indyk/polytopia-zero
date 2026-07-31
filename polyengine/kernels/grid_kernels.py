@@ -15,10 +15,12 @@ _INF = np.int16(32000)
 
 
 @njit(cache=True)
-def fog_kernel(size, player, sight_unit, sight_city,
+def fog_kernel(size, player, unit_sight, sight_city,
                unit_owner, unit_type, city_owner, city_level, owner,
                visible, explored, stale,
                mem_unit_type, mem_unit_owner, mem_city_owner, mem_city_level):
+    """`unit_sight` is indexed by unit type, not a single radius: the scout skill
+    "allows a unit to explore a 5x5 area instead of a 3x3 area"."""
     n = size * size
     for i in range(n):
         visible[i] = 0
@@ -30,7 +32,7 @@ def fog_kernel(size, player, sight_unit, sight_city,
     for i in range(n):
         reveal = -1
         if unit_owner[i] == player and unit_type[i] != -1:
-            reveal = sight_unit
+            reveal = unit_sight[unit_type[i]]
         if city_owner[i] == player and city_level[i] > 0 and sight_city > reveal:
             reveal = sight_city
         if reveal >= 0:

@@ -1,0 +1,147 @@
+{{Infobox Building
+| image1                 = Temple level 1.png
+| caption1               = A level 1 Temple
+| preresquite_technology = Varies
+| cost                   = 20 stars (15 stars for the Forest Temple)
+| benefits               = Produces one population and is worth 100 points; point value increases over time
+}}'''Temples''' are [[buildings]] that produce 1 [[population]] and are worth 100 [[Score|points]] at time of construction. Temples increase in point value by 100 points every two turns. This feature is useful in the Perfection and Glory [[Game Modes|game modes]]. 
+
+There are five types of temples, the '''Temple''', the '''Forest Temple''', the '''Mountain Temple''', the '''Water Temple''', and the '''Ice Temple'''. Each type of temple can only be built in specific [[terrain]] types. 
+
+All types of temples cost 20 [[stars]], except for the Forest Temple, which costs only 15 stars.  
+
+==List of Temples==
+{| class="article-table"
+|+
+! Image
+!Name
+!Terrain
+! Unlocked by
+!Cost (stars)
+|-
+|[[File:Temple level 5.png|thumb|center|75px]]
+|Temple
+|Field
+|[[Free Spirit]]
+|20
+|-
+|[[File:Forest temple level 5.png|thumb|center|75px]]
+|Forest Temple
+|Forest
+|[[Spiritualism]]
+| 15
+|-
+|[[File:Mountain temple level 5.png|thumb|center|75px]]
+|Mountain Temple
+|Mountain
+|[[Meditation]]
+|20
+|-
+|[[File:Water temple level 5.png|thumb|center|75px]]
+|Water Temple
+|Shallow water, ocean
+|[[Aquatism]]
+|20
+|-
+|[[File:Ice temple level 5.png|thumb|center|75px]]
+|Ice Temple
+|Ice
+|[[Polarism]]
+|20
+|}
+
+==Leveling==
+Temples level up based on how many turns have passed since their construction, including the turn of their construction. All Temples level up every two turns. With each level, its point value is increased by 50 points, and it becomes more visually complex. 
+{| class="article-table"
+!Level
+!Point value
+!Turns since construction
+|-
+|1
+|100
+|0-2
+|-
+|2
+|150
+|3-5
+|-
+|3
+|200
+|6-8
+|-
+| 4
+|250
+|9-11
+|-
+|5
+|300
+|12+
+|}
+
+==Strategy==
+
+*Temples take a while to achieve maximum level and maximum [[points]], so when playing [[Perfection]], try to build all your temples before turn 19 for them to reach their maximum point value. However, for maximum star production, wait until turn 21 if you can build [[Port]]s next to a [[Customs House]] instead.
+*Because score doesn't matter in [[Singleplayer#Domination|Domination]] mode, temples are considered poor investments in most Domination games.
+*Place water temples only on ocean tiles instead of water tiles so that you can still create [[Port]]s.
+*Don't rely on temples the primary method of growing your [[cities]], since temples only give 1 [[population]] and are very costly.
+*Think carefully about where you place your temples, as you may give up an opportunity for taking resources and growing cities by placing temples.
+*Forest temples are cheaper at 15 [[Resources|stars]] instead of 20, but this only helps if you build them in natural forests because the [[Grow Forest]] ability costs 5 stars.
+**The net cost of a Forest Temple is the same as any other temple if you use Grow Forest.
+**Clearing a natural Forest provides a star, so a Forest Temple in a natural Forest only saves 4 stars compared to a different temple.
+**You should buy all of the technologies in Perfection late-game (for the points the technologies themselves provide), regardless of how useless the technologies are, so you will end up purchasing Spiritualism anyway.
+
+==Gallery==
+===Temples===
+<gallery>
+Temple level 1.png|Level 1 Temple
+Temple level 2.png|Level 2 Temple
+Temple level 3.png|Level 3 Temple
+Temple level 4.png|Level 4 Temple
+Temple level 5.png|Level 5 Temple
+</gallery>
+
+=== Forest Temples===
+<gallery>
+Forest temple level 1.png|Level 1 Forest Temple
+Forest temple level 2.png|Level 2 Forest Temple
+Forest temple level 3.png|Level 3 Forest Temple
+Forest temple level 4.png|Level 4 Forest Temple
+Forest temple level 5.png|Level 5 Forest Temple
+</gallery>
+
+===Mountain Temples===
+<gallery>
+Mountain temple level 1.png|Level 1 Mountain Temple
+Mountain temple level 2.png|Level 2 Mountain Temple
+Mountain temple level 3.png|Level 3 Mountain Temple
+Mountain temple level 4.png|Level 4 Mountain Temple
+Mountain temple level 5.png|Level 5 Mountain Temple
+</gallery>
+
+===Water Temples===
+<gallery>
+Water temple level 1.png|Level 1 Water Temple
+Water temple level 2.png|Level 2 Water Temple
+Water temple level 3.png|Level 3 Water Temple
+Water temple level 4.png|Level 4 Water Temple
+Water temple level 5.png|Level 5 Water Temple
+</gallery>
+
+===Ice Temples===
+<gallery>
+Ice temple level 1.png|Level 1 Ice Temple
+Ice temple level 2.png|Level 2 Ice Temple
+Ice temple level 3.png|Level 3 Ice Temple
+Ice temple level 4.png|Level 4 Ice Temple
+Ice temple level 5.png|Level 5 Ice Temple
+</gallery>
+
+==Trivia==
+
+*[[File:Forest Temple Inspiration.jpg|thumb|220x220px|The temple-like gazebo that is the basis for the design of the Forest Temple]]The design of the Forest Temple is based off a small temple-like gazebo found in [[Wikipedia:Pildammsparken|Pildammsparken]], a park in [[Wikipedia:Malmö|Malmö, Sweden]].<ref>Midjiwan on [https://www.instagram.com/p/BF3V-h6n1W7/ Instagram]</ref>
+
+==References==
+<references />
+
+[[Category:Buildings]]
+[[ru:Храмы]]

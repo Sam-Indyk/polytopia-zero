@@ -16,7 +16,8 @@ import numpy as np
 from polyengine.core import constants as C
 from polyengine.core.actions import Action, apply_action, enumerate_actions
 from polyengine.core.economy import (city_income, player_income,
-                                     recompute_connections, update_tasks)
+                                     recompute_connections, temple_score,
+                                     update_tasks)
 from polyengine.core.combat import recover_idle_units
 from polyengine.core.fog import recompute_fog
 from polyengine.core.mapgen import new_game
@@ -32,8 +33,10 @@ EXPLORED_SCORE = 5
 CITY_BASE_SCORE = 100
 CITY_LEVEL_SCORE = 50          # per level above 1
 PARK_SCORE = 250
-TEMPLE_SCORE = 100             # level 1; grows 100/level to a max of 500
 TECH_SCORE_PER_TIER = 100
+# Temples score dynamically -- see economy.temple_score. This is the id list the
+# score function uses to route them away from the flat improvement table.
+TEMPLE_IDS = np.array(sorted(C.TEMPLES), dtype=np.int8)
 
 
 class Game:
@@ -144,8 +147,14 @@ class Game:
         # --- monuments and temples (score travels with the builder) ---
         built = np.flatnonzero(s.improvement_owner == player)
         if len(built):
-            total += int(r.imp_score[s.improvement[built]].sum())
-            total += TEMPLE_SCORE * int((s.improvement[built] == C.IMP_TEMPLE).sum())
+            imps = s.improvement[built]
+            # A temple's worth grows with age -- 100 at construction, +50 every
+            # two turns to a maximum of 300 -- so it cannot come from the flat
+            # per-improvement table the way a monument's 400 does.
+            is_temple = np.isin(imps, TEMPLE_IDS)
+            total += int(r.imp_score[imps[~is_temple]].sum())
+            for tile in built[is_temple]:
+                total += temple_score(s, int(tile))
 
         # --- science ---
         for tech in range(r.n_techs):

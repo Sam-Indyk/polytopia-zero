@@ -259,12 +259,20 @@ class Report:
 
 
 def _cmp(report: Report, label: str, wiki, ours, tol: float = 1e-6) -> None:
+    """Compare a wiki value with ours. Numbers within `tol`, anything else by
+    equality — the temple and skill checks compare names and terrain sets."""
     if wiki is None:
         return
-    if abs(float(wiki) - float(ours)) <= tol:
+    try:
+        same = abs(float(wiki) - float(ours)) <= tol
+        detail = f"wiki={float(wiki):g} ours={float(ours):g}"
+    except (TypeError, ValueError):
+        same = wiki == ours
+        detail = f"wiki={wiki!r} ours={ours!r}"
+    if same:
         report.ok.append(label)
     else:
-        report.diffs.append(f"{label}: wiki={wiki:g} ours={ours:g}")
+        report.diffs.append(f"{label}: {detail}")
 
 
 def check_units(rules, pages: dict[str, str]) -> Report:
@@ -436,6 +444,105 @@ def check_new_improvements(rules, pages: dict[str, str]) -> Report:
     return rep
 
 
+def check_temples(rules, pages: dict[str, str]) -> Report:
+    """The four temples: terrain, unlocking technology and cost.
+
+    The Population page lists them with `rowspan`s the generic table parser
+    cannot follow, which is exactly how three of the four temples sat missing
+    from the ruleset without a single check complaining. The Temples page has
+    the same data in a flat table, so it is read directly.
+    """
+    rep = Report()
+    text = pages.get("Temples")
+    if not text:
+        rep.notes.append("no Temples page cached; temple costs unchecked")
+        return rep
+
+    # Rows read: | Name | Terrain | [[Tech]] | cost
+    pattern = re.compile(
+        r"\|\s*([A-Za-z ]*Temple)\s*\n"
+        r"\|\s*([A-Za-z, ]+)\s*\n"
+        r"\|\s*\[\[([^\]|]+)(?:\|[^\]]*)?\]\]\s*\n"
+        r"\|\s*(\d+)")
+    seen = 0
+    for name, terrain, tech, cost in pattern.findall(text):
+        key = name.strip().lower().replace(" ", "_")
+        if key not in rules.imp_id:
+            # Ice Temple is Polaris-only, and special tribes are excluded.
+            if "ice" not in key:
+                rep.missing.append(f"{name} on the wiki but not in "
+                                   f"improvements.toml")
+            continue
+        seen += 1
+        imp = rules.imp_id[key]
+        _cmp(rep, f"{key} cost", int(cost), int(rules.imp_cost[imp]))
+        wiki_tech = tech.strip().lower().replace(" ", "_")
+        our_tech = int(rules.imp_requires_tech[imp])
+        our_name = rules.tech_names[our_tech] if our_tech >= 0 else "-"
+        _cmp(rep, f"{key} tech", wiki_tech, our_name)
+        # Terrain, as named in the same row.
+        wiki_terrains = {t.strip().lower() for t in terrain.split(",")}
+        wiki_terrains = {"water" if t == "shallow water" else t
+                         for t in wiki_terrains}
+        ours = {rules.terrain_names[t] for t in rules.imp_terrains[imp]}
+        _cmp(rep, f"{key} terrain", sorted(wiki_terrains), sorted(ours))
+    if seen == 0:
+        rep.notes.append("Temples table parsed to nothing (format changed?)")
+    return rep
+
+
+def check_unit_skills(rules, pages: dict[str, str]) -> Report:
+    """Which units carry which skill, against the Unit Skills page's own table.
+
+    Eleven skills once sat in `units.toml` read by no code, and nothing noticed
+    because nothing compared the *skill lists* to the wiki. This checks the
+    assignment; `tests/test_unit_skills.py` checks that each one does something.
+    """
+    rep = Report()
+    text = pages.get("Unit Skills")
+    if not text:
+        rep.notes.append("no Unit Skills page cached; skills unchecked")
+        return rep
+
+    ours = {name: set() for name in rules.unit_names}
+    for uid, name in enumerate(rules.unit_names):
+        ours[name] = set(rules.unit_skills[uid])
+
+    # Each block is: |'''Skill''' ... | description | list of [[Unit]] links.
+    blocks = re.split(r"\n\|-\n", text)
+    checked = 0
+    for block in blocks:
+        m = re.match(r"\|'''([A-Za-z ]+)'''", block.strip())
+        if not m:
+            continue
+        skill = m.group(1).strip().lower()
+        if skill not in {s for skills in ours.values() for s in skills}:
+            continue                       # a skill no base unit has
+        listed = set()
+        for target, shown in re.findall(
+                r"\*\s*\[\[([^\]|]+)(?:\|([^\]]*))?\]\]", block):
+            # `[[Swordsman|Mantis]]` is Cymanti's unit linked through the
+            # Swordsman page — the *display* name is the unit, so a piped link
+            # must never be credited to its target. Special tribes are excluded,
+            # so those names simply match nothing.
+            name = (shown or target).strip()
+            key = name.lower().replace(" ", "_").replace("-", "_")
+            if key in ours:
+                listed.add(key)
+        if not listed:
+            continue
+        checked += 1
+        for unit in listed:
+            if skill not in ours[unit]:
+                rep.diffs.append(
+                    f"{unit}.{skill}: wiki lists it, units.toml does not")
+            else:
+                rep.ok.append(f"{unit}.{skill}")
+    if checked == 0:
+        rep.notes.append("Unit Skills table parsed to nothing (format changed?)")
+    return rep
+
+
 def check_all(rules, cache: Path = DEFAULT_CACHE) -> Report:
     pages = load_cache(cache)
     if not pages:
@@ -444,7 +551,8 @@ def check_all(rules, cache: Path = DEFAULT_CACHE) -> Report:
         return rep
     parts = [check_techs(rules, pages), check_units(rules, pages),
              check_improvements(rules, pages), check_combat(rules, pages),
-             check_new_improvements(rules, pages)]
+             check_new_improvements(rules, pages), check_temples(rules, pages),
+             check_unit_skills(rules, pages)]
     return Report(ok=[x for p in parts for x in p.ok],
                   diffs=[x for p in parts for x in p.diffs],
                   missing=[x for p in parts for x in p.missing],

@@ -47,7 +47,17 @@ def can_train_at(state, city_tile: int, player: int) -> bool:
 
 
 def rehome_unit(state, tile: int, city_tile: int) -> None:
-    """Point a unit at the city that supports it (used on train and capture)."""
+    """Point a unit at the city that supports it (used on train and capture).
+
+    "Independent: units with this skill do not take up a population slot in or
+    belong to any city." The Daggers a Cloak's infiltration spawns are the point
+    -- a revolt that also cost the raider army capacity would not be a revolt.
+    """
+    rules = state.rules
+    utype = int(state.unit_type[tile])
+    if utype != C.U_NONE and "independent" in rules.unit_skills[utype]:
+        state.unit_home[tile] = -1
+        return
     state.unit_home[tile] = city_tile
 
 
@@ -164,6 +174,28 @@ def can_build(state, tile: int, imp_id: int, player: int, rules: Ruleset) -> boo
     return True
 
 
+def temple_level(state, tile: int) -> int:
+    """"Temples level up based on how many turns have passed since their
+    construction, including the turn of their construction. All Temples level up
+    every two turns", to a maximum of five.
+
+    The wiki's own table: level 1 at 0-2 turns, 2 at 3-5, 3 at 6-8, 4 at 9-11,
+    5 at 12 or more.
+    """
+    built = int(state.improvement_turn[tile])
+    if built < 0:
+        return 1
+    elapsed = max(0, int(state.turn) - built)
+    return min(C.TEMPLE_MAX_LEVEL, 1 + elapsed // C.TEMPLE_TURNS_PER_LEVEL)
+
+
+def temple_score(state, tile: int) -> int:
+    """"Temples ... are worth 100 points at time of construction ... With each
+    level, its point value is increased by 50 points"."""
+    return (C.TEMPLE_BASE_SCORE
+            + C.TEMPLE_LEVEL_SCORE * (temple_level(state, tile) - 1))
+
+
 def nearest_owned_city(state, tile: int, player: int) -> int:
     """The player's city that a tile's population should feed (closest wins)."""
     best, best_d = -1, 1 << 30
@@ -188,6 +220,7 @@ def apply_build(state, tile: int, imp_id: int, player: int, rules: Ruleset) -> d
     else:
         state.improvement[tile] = imp_id
         state.improvement_owner[tile] = player
+        state.improvement_turn[tile] = int(state.turn)
         task = int(rules.imp_requires_task[imp_id])
         if task >= 0:
             state.monument_built[player] |= (1 << task)   # one monument per task
@@ -568,11 +601,57 @@ def _grow_border(state, city_tile: int, player: int) -> None:
             state.owner[t] = player
 
 
-def _explore(state, city_tile: int, player: int) -> None:
-    """Reveal a patch of map, as the Explorer reward does."""
-    for t in range(state.n_tiles):
-        if state.chebyshev(city_tile, t) <= 4:
-            state.fog_explored[player][t] = 1
+EXPLORER_MOVES = 15
+
+
+def _explore(state, start: int, player: int) -> list[int]:
+    """Send out an Explorer, which walks the map revealing it.
+
+    "The Explorer is a figure that moves automatically to clear fog tiles and
+    reveal terrain ... Each Explorer moves 15 times", and it "can only move onto
+    mountain, shallow water, or ocean tiles if the appropriate technology has
+    been researched (Climbing, Sailing, or Navigation)". It walks over other
+    units, friend or enemy, so occupancy is not a constraint.
+
+    Modelled as the walk itself rather than as a radius-N blob, because the two
+    are not the same shape: an Explorer follows the fog, so it strings out along
+    the unexplored frontier and reveals far more on an open map than a cramped
+    one. It heads for "the closest fog tile to uncover" each step.
+
+    Returns the path, for the replay log.
+    """
+    rules = state.rules
+    explored = state.fog_explored[player]
+    ok = np.ones(rules.n_terrain, dtype=bool)
+    for t in range(rules.n_terrain):
+        ok[t] = state.has_tech(player, int(rules.terrain_requires_tech[t]))
+
+    def reveal(tile: int) -> None:
+        for nb in list(state.neighbors(tile)) + [tile]:
+            explored[int(nb)] = 1
+
+    here = start
+    reveal(here)
+    path = [here]
+    for _ in range(EXPLORER_MOVES):
+        # Step towards the nearest tile that is still dark, preferring the step
+        # that uncovers the most.
+        dark = [t for t in range(state.n_tiles)
+                if explored[t] == 0 and ok[int(state.terrain[t])]]
+        if not dark:
+            break
+        target = min(dark, key=lambda t: (state.chebyshev(here, t), t))
+        options = [int(nb) for nb in state.neighbors(here)
+                   if ok[int(state.terrain[int(nb)])]]
+        if not options:
+            break
+        here = min(options,
+                   key=lambda t: (state.chebyshev(t, target),
+                                  -sum(1 for nb in state.neighbors(t)
+                                       if explored[int(nb)] == 0), t))
+        reveal(here)
+        path.append(here)
+    return path
 
 
 def _spawn_super_unit(state, city_tile: int, player: int, rules: Ruleset) -> None:

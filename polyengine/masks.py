@@ -35,22 +35,32 @@ from polyengine.core.economy import (
     pending_reward_cities,
     rewards_for_level,
 )
-from polyengine.core.actions import can_disband, can_examine, upgrade_options
+from polyengine.core.actions import (
+    can_disband,
+    can_examine,
+    can_heal_others,
+    can_promote,
+    can_use_tile_ability,
+    upgrade_options,
+)
 from polyengine.core.movement import attack_targets, reachable
 from polyengine.core.rules import Ruleset
 
 NEEDS_SOURCE = frozenset({C.A_MOVE, C.A_ATTACK, C.A_CAPTURE, C.A_TRAIN,
                           C.A_BUILD, C.A_CHOOSE_REWARD, C.A_DISBAND,
-                          C.A_UPGRADE, C.A_EXAMINE})
+                          C.A_UPGRADE, C.A_EXAMINE, C.A_PROMOTE,
+                          C.A_HEAL_OTHERS, C.A_TILE_ABILITY})
 # DISBAND follows CAPTURE's convention of dst == src: it keeps every
 # source-bearing action the same shape for the sampler.
 NEEDS_TARGET = frozenset({C.A_MOVE, C.A_ATTACK, C.A_CAPTURE, C.A_DISBAND,
-                          C.A_EXAMINE})
+                          C.A_EXAMINE, C.A_PROMOTE, C.A_HEAL_OTHERS})
 NEEDS_SUBTYPE = frozenset({C.A_TRAIN, C.A_RESEARCH, C.A_BUILD,
-                           C.A_CHOOSE_REWARD, C.A_UPGRADE})
+                           C.A_CHOOSE_REWARD, C.A_UPGRADE, C.A_TILE_ABILITY})
 # Sub-types that depend on WHICH source was picked (a tile's buildable set, a
-# city's offered rewards) rather than being uniform across sources.
-SUBTYPE_DEPENDS_ON_SOURCE = frozenset({C.A_BUILD, C.A_CHOOSE_REWARD})
+# city's offered rewards, which abilities a tile admits) rather than being
+# uniform across sources.
+SUBTYPE_DEPENDS_ON_SOURCE = frozenset({C.A_BUILD, C.A_CHOOSE_REWARD,
+                                       C.A_TILE_ABILITY})
 
 
 def subtype_dim(rules: Ruleset) -> int:
@@ -92,6 +102,15 @@ def legal_sources(state, player: int, rules: Ruleset, atype: int) -> np.ndarray:
                    for imp in range(rules.n_improvements)):
                 mask[t] = True
         return mask
+    if atype == C.A_TILE_ABILITY:
+        # Clearing, growing and burning forest, and destroying a building, all
+        # act on land you already own.
+        for t in np.flatnonzero(state.owner == player):
+            t = int(t)
+            if any(can_use_tile_ability(state, t, ab, player, rules)
+                   for ab in range(C.N_TILE_ABILITIES)):
+                mask[t] = True
+        return mask
     if atype not in NEEDS_SOURCE:
         return mask
     # Only the player's own occupied tiles can be a source; the per-unit checks
@@ -127,6 +146,14 @@ def legal_sources(state, player: int, rules: Ruleset, atype: int) -> np.ndarray:
         for t in own:
             if can_examine(state, int(t), player, rules):
                 mask[t] = True
+    elif atype == C.A_PROMOTE:
+        for t in own:
+            if can_promote(state, int(t), player, rules):
+                mask[t] = True
+    elif atype == C.A_HEAL_OTHERS:
+        for t in own:
+            if can_heal_others(state, int(t), player, rules):
+                mask[t] = True
     return mask
 
 
@@ -140,7 +167,8 @@ def legal_targets(state, player: int, rules: Ruleset, atype: int,
     elif atype == C.A_ATTACK:
         for t in attack_targets(state, src, rules):
             mask[t] = True
-    elif atype in (C.A_CAPTURE, C.A_DISBAND, C.A_EXAMINE):
+    elif atype in (C.A_CAPTURE, C.A_DISBAND, C.A_EXAMINE, C.A_PROMOTE,
+                   C.A_HEAL_OTHERS):
         mask[src] = True
     return mask
 
@@ -183,6 +211,11 @@ def legal_subtypes(state, player: int, rules: Ruleset, atype: int,
             req = int(rules.unit_requires_tech[hull])
             if int(rules.unit_cost[hull]) <= stars and (req < 0 or known[req]):
                 mask[hull] = True
+    elif atype == C.A_TILE_ABILITY:
+        if src >= 0:
+            for ability in range(C.N_TILE_ABILITIES):
+                if can_use_tile_ability(state, src, ability, player, rules):
+                    mask[ability] = True
     return mask
 
 
@@ -246,6 +279,12 @@ class ActionMasks:
                 mask[C.A_DISBAND] = True
             if self.sources(C.A_EXAMINE).any():
                 mask[C.A_EXAMINE] = True
+            if self.sources(C.A_PROMOTE).any():
+                mask[C.A_PROMOTE] = True
+            if self.sources(C.A_HEAL_OTHERS).any():
+                mask[C.A_HEAL_OTHERS] = True
+            if self.sources(C.A_TILE_ABILITY).any():
+                mask[C.A_TILE_ABILITY] = True
             if self.sources(C.A_UPGRADE).any() and self.subtypes(C.A_UPGRADE).any():
                 mask[C.A_UPGRADE] = True
             self._types = mask

@@ -51,6 +51,7 @@ def plane_layout(rules: Ruleset) -> dict[str, tuple[int, int]]:
         ("terrain", n_t), ("resource", n_r), ("improvement", n_i),
         ("territory", 4), ("city", 9),
         ("unit_type", n_u), ("unit_attrs", 6), ("cloak_sense", 1),
+        ("promote_ready", 1),
         ("fog", 3), ("geometry", 3),
     ]
     out, start = {}, 0
@@ -201,10 +202,22 @@ def encode_spatial(state, player: int, rules: Ruleset,
         state.fog_staleness[player],
         out)
     from polyengine.core.fog import cloak_adjacent
-    sense_at = plane_layout(rules)["cloak_sense"][0]
+    layout = plane_layout(rules)
+    sense_at = layout["cloak_sense"][0]
     sensed = cloak_adjacent(state, player)
     if sensed.any():
         out[sense_at, :size, :size] = sensed.reshape(size, size)
+
+    # Which of OUR units are sitting on an unclaimed promotion. The real client
+    # shows this as a star on the unit, and it is a live decision every turn --
+    # promoting is a free full heal, so the policy needs to see when one is
+    # banked. Own units only: an enemy's kill count is not on screen.
+    from polyengine.core.actions import can_promote
+    ready_at = layout["promote_ready"][0]
+    for tile in np.flatnonzero((state.unit_owner == player)
+                               & (state.unit_type != C.U_NONE)):
+        if can_promote(state, int(tile), player, rules):
+            out[ready_at, int(tile) // size, int(tile) % size] = 1.0
     if out_size > size:
         off = plane_layout(rules)["territory"][0] + 3
         out[off, size:, :] = 1.0

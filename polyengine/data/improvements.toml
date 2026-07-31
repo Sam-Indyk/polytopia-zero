@@ -82,6 +82,12 @@ requires_tech = "sailing"
 resource = ""
 terrain = "water"
 
+# ---------------- Temples ----------------
+# Four temples, one per terrain, each behind its own technology. All produce one
+# population and start at 100 points, "and increase in point value by 50 points
+# every two turns" up to level 5 -- see `temple_score` in economy.py.
+# "All types of temples cost 20 stars, except for the Forest Temple, which costs
+# only 15 stars."
 [improvement.temple]
 id = 7
 kind = "building"
@@ -90,6 +96,37 @@ population = 1
 requires_tech = "free_spirit"
 resource = ""
 terrain = "field"
+score = 100
+
+[improvement.mountain_temple]
+id = 24
+kind = "building"
+cost = 20
+population = 1
+requires_tech = "meditation"
+resource = ""
+terrain = "mountain"
+score = 100
+
+[improvement.forest_temple]
+id = 25
+kind = "building"
+cost = 15
+population = 1
+requires_tech = "spiritualism"
+resource = ""
+terrain = "forest"
+score = 100
+
+[improvement.water_temple]
+id = 26
+kind = "building"
+cost = 20
+population = 1
+requires_tech = "aquatism"
+resource = ""
+terrains = ["water", "ocean"]
+score = 100
 
 # ---------------- Adjacency buildings ----------------
 # Population scales with friendly adjacent buildings of `adjacent_to`.

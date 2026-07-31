@@ -1,0 +1,85 @@
+{{For|the Explorer task|Eye of God|the explorer unit}}
+
+[[File:Explorer Sprite.png|thumb|The sprite for an Explorer]]
+
+The '''Explorer''' is a figure that moves automatically to clear fog tiles and reveal [[terrain]]. It may be obtained by upgrading a [[city]] to level 2 or as a [[ruin]] reward.  
+
+Each Explorer moves 15 times. 
+
+Explorers can only move onto mountain, shallow water, or ocean tiles if the appropriate [[technology]] has been researched ([[Climbing]], [[Sailing]], or [[Navigation]], respectively). Explorers are allowed to move on top of other units, including enemy units.
+
+The sprite for the Explorer is translucent and colored based on the tribe it belongs to; however, unlike many other units, its head does not change along with its tribe color. The Explorer is nearly identical to the sprite of the removed [[Scout (Removed)|Scout]] unit except it does not hold a staff. 
+
+== Movement Details ==
+
+As of version 115, explorers move according to the following priorities:
+
+# Looking for closest fog tile to uncover
+# Clearing the most tiles of fog up to 4 fog tiles, assuming the distance covered is the same. A fog tile with a light house counts gets priority. The fog revealed by climbing a mountain doesn't count.
+# If the above factors are equal, the explorer picks a randomly between equal options
+# Explorers will avoid direct backtracking
+# If there are no available steps at all, then the explorer go poof, but this is extremely rare, like spawning on a 1 tile island in waterworld
+Tiles on the map are given scores from 0 to 1000.  A breadth first search is performed where in each step the score of a tile is increased by 100 (iterations for BFS are capped at 3).  If the explorer is currently next to any tile that got scored, then the explorer will pick one of the tiles with the lowest score.
+
+* 110 = 4/5 tiles + lighthouse 
+* 120 = 3 tiles + lighthouse 
+* 130 = 2 tiles + lighthouse 
+* 140 = 1 tile + lighthouse 
+* 143 = 4/5 tiles 
+* 153 = 3 tiles 
+* 163 = 2 tiles 
+* 173 = 1 tile 
+
+From these values, a BreadthFirstSearch that runs 3 iterations is used to find further available tiles for explorers and gives unexplored neighbors the score x+100.
+
+=== Reference ===
+
+From Midjiate:
+
+<blockquote>
+
+A bit more elaborate... 
+
+The explorer will try to move 15 times. For every move it will do a full re-evaluation of the fog tiles around it. The evaluation follows these rules:
+
+# Scan the area around the explorer for fog tiles to uncover within a movement range of 4 steps, this means the vision range of the explorer is actually 5 tiles, (nerdy trivia #1 we actually scan from each fog tile towards the explorer, not the other way around)
+# Move 1 step towards the closest fog tile
+# If there are several tiles that will uncover fog at the same move distance we apply a score so the explorer will prefer one path over the other:,
+
+3a. check which one of them will uncover the most fog tiles. Clearing more is better than clearing fewer. The maximum possible number of fog tiles one can uncover is 5, but this will almost always force the explorer to move diagonally, so we cap it at 4 (meaning that internally we give the same "score" for clearing 4 as clearing 5 fog tiles). 
+
+3b. check if any of the fog tiles hides a light house, this will increase the score by a little over "clear 3 fog tiles". (in most cases a light house will also have neighbouring fog tiles on top of this bonus). 
+
+3c. we also apply a small penalty to the steps we've just taken before. This will become relevant in step 4a in a bit
+
+4. If, after the distance and the scoring, we still have two equal tiles we can move towards, one of them is randomly chosen.,
+
+4a. If no fog tiles can be reached, then every adjacant tile will have the same score EXCEPT the tiles we just moved over, which have a small penalty. This means that the explorer will try to avoid backtracking if it can, but still do it if there's no other available options.
+
+</blockquote>
+
+== Gallery ==
+
+<gallery>
+
+File:Xin-xi Explorer.png|The Xin-xi Explorer
+File:Imperius Explorer.png|The Imperius Explorer
+File:Bardur Explorer.png|The Bardur Explorer
+File:Oumaji Explorer.png|The Oumaji Explorer
+File:Kickoo Explorer.png|The Kickoo Explorer
+File:Hoodrick Explorer.png|The Hoodrick Explorer
+File:Luxidoor Explorer.png|The Luxidoor Explorer
+File:Vengir Explorer.png|The Vengir Explorer
+File:Zebasi Explorer.png|The Zebasi Explorer
+File:Ai-mo Explorer.png|The Ai-Mo Explorer
+File:Quetzali Explorer.png|The Quetzali Explorer
+File:Yădakk Explorer.png|The Yădakk Explorer
+File:Aquarion Explorer.png|The Aquarion Explorer
+File:∑∫ỹriȱŋ Explorer.png|The ∑∫ỹriȱŋ Explorer
+File:Polaris Explorer.png|The Polaris Explorer
+File:Cymanti Explorer.png|The Cymanti Explorer
+
+</gallery>
+
+{{Navbox City Upgrades}}
+[[Category:City Upgrades]]

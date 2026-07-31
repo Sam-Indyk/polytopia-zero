@@ -5,7 +5,7 @@ death, and moving the attacker into a vacated tile on a killing melee blow.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from polyengine.core import constants as C
 from polyengine.core.rules import Ruleset
@@ -21,6 +21,8 @@ class CombatResult:
     defender_died: bool
     attacker_died: bool
     attacker_advanced: bool  # melee kill on an adjacent tile -> attacker moved in
+    converted: bool = False                     # Mind Bender took the defender
+    splashed: list = field(default_factory=list)   # (tile, damage) from a Bomber
 
 
 def _terrain_bonus_for(state, tile: int, rules: Ruleset) -> float:
@@ -88,8 +90,13 @@ def effective_max_hp(state, tile: int, rules: Ruleset) -> int:
     utype = int(state.unit_type[tile])
     carried = int(state.unit_carried[tile])
     if carried != C.U_NONE and rules.unit_hull_hp_varies[utype]:
-        return int(rules.unit_max_hp[carried])
-    return int(rules.unit_max_hp[utype])
+        base = int(rules.unit_max_hp[carried])
+    else:
+        base = int(rules.unit_max_hp[utype])
+    # "The health stat of veteran units is increased by 5 HP."
+    if state.unit_veteran[tile]:
+        base += C.VETERAN_BONUS_HP
+    return base
 
 
 HEAL_FRIENDLY = 4
@@ -164,8 +171,28 @@ def resolve_attack(state, src: int, dst: int, rules: Ruleset) -> CombatResult:
     defender_died = False
     attacker_died = False
     attacker_advanced = False
+    converted = False
+    splashed: list[tuple[int, int]] = []
+
+    a_skills = rules.unit_skills[a_type]
+    d_skills = rules.unit_skills[d_type]
+
+    # "Convert: allows a unit to convert an enemy unit into a friendly unit by
+    # attacking it." The Mind Bender deals no damage at all -- its attack value
+    # is zero -- so this replaces the damage step rather than following it.
+    if "convert" in a_skills:
+        _convert_unit(state, src, dst, rules)
+        state.unit_moved[src] = 1
+        state.unit_attacked[src] = 1
+        return CombatResult(src, dst, 0, 0, False, False, False, converted=True)
 
     state.unit_hp[dst] -= atk_res
+    # "Splash: allows a unit to damage or poison enemy units adjacent to the
+    # targeted unit." Resolved before the target's death so the blast is not
+    # skipped when the primary shot kills.
+    if "splash" in a_skills:
+        splashed = _apply_splash(state, src, dst, atk_res, rules)
+
     if state.unit_hp[dst] <= 0:
         defender_died = True
         state.unit_kills[src] += 1
@@ -177,30 +204,123 @@ def resolve_attack(state, src: int, dst: int, rules: Ruleset) -> CombatResult:
             _move_unit(state, src, dst)
             attacker_advanced = True
     else:
-        # Retaliation only for melee attacks against a surviving defender.
-        if a_range == 1:
+        # Retaliation is melee-only, and two skills switch it off:
+        #   "Stiff: prevents a unit from being able to do retaliation attacks
+        #    when attacked by an enemy unit."
+        #   "Surprise: prevents a unit from triggering retaliation attacks when
+        #    attacking an enemy unit."
+        if (a_range == 1 and "stiff" not in d_skills
+                and "surprise" not in a_skills):
             state.unit_hp[src] -= def_res
             if state.unit_hp[src] <= 0:
                 attacker_died = True
+                # A retaliation kill counts, and it can promote the defender.
+                state.unit_kills[dst] += 1
                 state.kills[state.unit_owner[dst]] += 1
                 state.losses[state.unit_owner[src]] += 1
                 _clear_unit(state, src)
+        else:
+            def_res = 0
 
-    # An attack always consumes the attacker's turn.
-    if not attacker_died and not attacker_advanced:
-        state.unit_moved[src] = 1
-        state.unit_attacked[src] = 1
+    # An attack consumes the attacker's turn -- unless `persist` earned it
+    # another one, or `escape` leaves the move available.
+    #   "Persist: allows a unit to attack again immediately after killing an
+    #    enemy unit. There is no limit on the number of kills in a single turn."
+    #   "Escape: allows a unit to move after attacking in the same turn. The
+    #    unit cannot attack again in the same turn if they have dash."
+    tile = dst if attacker_advanced else src
+    if not attacker_died:
+        keeps_attack = defender_died and "persist" in a_skills
+        state.unit_attacked[tile] = 0 if keeps_attack else 1
+        state.unit_moved[tile] = 0 if "escape" in a_skills else 1
+        if "escape" in a_skills and "dash" in a_skills:
+            # An escaping unit that also has dash may move but not attack again,
+            # so persist and escape cannot be combined into an endless turn.
+            state.unit_attacked[tile] = 1
         # "Ranged units get pushed in the direction of their last move or last
         # attack." A melee attacker either advanced (which set its facing) or
         # never left its tile, so only shooting needs recording here.
         if a_range > 1:
             state.unit_facing[src] = _facing_toward(state, src, dst)
-    elif attacker_advanced:
-        state.unit_moved[dst] = 1
-        state.unit_attacked[dst] = 1
 
     return CombatResult(src, dst, atk_res, def_res if not defender_died else 0,
-                        defender_died, attacker_died, attacker_advanced)
+                        defender_died, attacker_died, attacker_advanced,
+                        converted=converted, splashed=splashed)
+
+
+def _apply_splash(state, src: int, dst: int, primary: int,
+                  rules: Ruleset) -> list[tuple[int, int]]:
+    """Bomber blast: the same damage again to enemies neighbouring the target."""
+    owner = int(state.unit_owner[src])
+    hit = []
+    for nb in list(state.neighbors(dst)):
+        nb = int(nb)
+        if nb == src or state.unit_type[nb] == C.U_NONE:
+            continue
+        if int(state.unit_owner[nb]) == owner:
+            continue
+        state.unit_hp[nb] -= primary
+        hit.append((nb, int(primary)))
+        if state.unit_hp[nb] <= 0:
+            state.unit_kills[src] += 1
+            state.kills[owner] += 1
+            state.losses[int(state.unit_owner[nb])] += 1
+            _clear_unit(state, nb)
+    return hit
+
+
+def apply_stomp(state, tile: int, rules: Ruleset) -> list[tuple[int, int]]:
+    """"Stomp: causes a unit to deal damage to all adjacent enemy units when it
+    moves." The Juggernaut's signature, and how it clears a coastline."""
+    utype = int(state.unit_type[tile])
+    if utype == C.U_NONE or "stomp" not in rules.unit_skills[utype]:
+        return []
+    owner = int(state.unit_owner[tile])
+    damage = int(rules.unit_attack[utype])
+    hit = []
+    for nb in list(state.neighbors(tile)):
+        nb = int(nb)
+        if state.unit_type[nb] == C.U_NONE or int(state.unit_owner[nb]) == owner:
+            continue
+        state.unit_hp[nb] -= damage
+        hit.append((nb, damage))
+        if state.unit_hp[nb] <= 0:
+            state.unit_kills[tile] += 1
+            state.kills[owner] += 1
+            state.losses[int(state.unit_owner[nb])] += 1
+            _clear_unit(state, nb)
+    return hit
+
+
+def _convert_unit(state, src: int, dst: int, rules: Ruleset) -> None:
+    """Turn the enemy on `dst` into a unit of the attacker's tribe.
+
+    "Converted units take up population in the mind bender's capital (except
+    units with Independent skill). If no capital is owned, then a random city
+    starting from the southernmost to northernmost city is chosen."
+    """
+    owner = int(state.unit_owner[src])
+    state.unit_owner[dst] = owner
+    state.unit_moved[dst] = 1
+    state.unit_attacked[dst] = 1
+    state.unit_kills[dst] = 0
+    state.unit_veteran[dst] = 0
+    state.unit_hidden[dst] = 0
+    if "independent" in rules.unit_skills[int(state.unit_type[dst])]:
+        state.unit_home[dst] = -1
+        return
+    home = -1
+    for tile in range(state.n_tiles):
+        if int(state.city_owner[tile]) == owner and state.city_capital[tile]:
+            home = tile
+            break
+    if home < 0:
+        # "starting from the southernmost to northernmost city": tile index runs
+        # north to south, so the southernmost owned city is the highest index.
+        owned = [t for t in range(state.n_tiles)
+                 if int(state.city_owner[t]) == owner and state.city_level[t] > 0]
+        home = owned[-1] if owned else -1
+    state.unit_home[dst] = home
 
 
 def _clear_unit(state, tile: int) -> None:

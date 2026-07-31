@@ -121,6 +121,7 @@ const RES  = {fruit:['#ff8fb1','\\u25cf'],crop:['#ffd166','\\u25b2'],game:['#c58
 // Buildings the player paid for; population is what these buy. The ruin is the
 // exception -- nobody built it, and it is examined rather than harvested.
 const IMP  = {lumber_hut:'L',farm:'F',mine:'M',port:'P',temple:'T',
+              mountain_temple:'T',forest_temple:'T',water_temple:'T',
               sawmill:'S',windmill:'W',forge:'G',ruin:'\\u2302',
               road:'=',bridge:'≡',market:'$',embassy:'E',lighthouse:'✶',
               altar_of_peace:'♈',emperors_tomb:'♈',eye_of_god:'♈',
@@ -309,8 +310,11 @@ function renderTile(){
     const home=f.unit_home[k];
     h+=`<tr><th>unit</th><td>P${f.unit_owner[k]} ${R.unit_names[ut]}`+
        `${home>=0?` \u00b7 from city ${home}`:' \u00b7 unsupported'}`+
-       ` \\u00b7 ${f.unit_hp[k]}/${R.unit_max_hp[ut]} hp`+
-       `${f.unit_veteran[k]?' \\u00b7 veteran':''}${f.unit_kills[k]?' \\u00b7 '+f.unit_kills[k]+' kills':''}`+
+       ` \\u00b7 ${f.unit_hp[k]}/${R.unit_max_hp[ut]+(f.unit_veteran[k]?5:0)} hp`+
+       `${f.unit_veteran[k]?' \\u00b7 veteran (+5 hp)':''}`+
+       `${f.unit_kills[k]?' \\u00b7 '+f.unit_kills[k]+' kills':''}`+
+       `${(!f.unit_veteran[k]&&f.unit_kills[k]>=3)
+           ? ' \\u00b7 <b>promotion available</b> (free full heal)' : ''}`+
        `<br><span class="muted">${f.unit_moved[k]?'moved':'can move'} \\u00b7 `+
        `${f.unit_attacked[k]?'acted':'can act'}</span></td></tr>`;
   }

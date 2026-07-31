@@ -27,7 +27,7 @@ _NEIGHBOR_OFFSETS = ((-1, -1), (0, -1), (1, -1),
 # Arrays that define ground truth (hashed for determinism / differential replay).
 _TILE_ARRAYS = (
     "terrain", "resource", "tile_tribe", "owner", "improvement",
-    "improvement_owner",
+    "improvement_owner", "improvement_turn",
     "city_owner", "city_level", "city_pop", "city_walls", "city_capital",
     "city_workshop", "city_park", "city_pending_reward", "city_conn_pop",
     "unit_type", "unit_owner", "unit_hp", "unit_moved", "unit_attacked",
@@ -93,6 +93,10 @@ class GameState:
         # Who built it. Only differs from the tile owner for the Embassy,
         # which is placed on someone else's capital and pays them both.
         self.improvement_owner = np.full(n, C.NEUTRAL, dtype=C.DT_OWNER)
+        # Turn a building was placed, or -1. Only temples read it: "temples level
+        # up based on how many turns have passed since their construction", and
+        # every level is another 50 points.
+        self.improvement_turn = np.full(n, -1, dtype=np.int16)
         self.unit_type = np.full(n, C.U_NONE, dtype=C.DT_UNIT_TYPE)
         self.unit_owner = np.full(n, C.NEUTRAL, dtype=C.DT_OWNER)
         self.unit_hp = np.zeros(n, dtype=C.DT_HP)

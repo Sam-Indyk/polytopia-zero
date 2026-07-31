@@ -73,6 +73,23 @@ IMP_PARK_OF_FORTUNE = 20
 IMP_TOWER_OF_WISDOM = 21
 IMP_LIGHTHOUSE = 22
 IMP_RUIN = 23
+IMP_MOUNTAIN_TEMPLE = 24
+IMP_FOREST_TEMPLE = 25
+IMP_WATER_TEMPLE = 26
+
+# All four temples score alike: 100 points at construction, +50 per level, and
+# "all Temples level up every two turns" to a maximum of level 5.
+TEMPLES = frozenset({IMP_TEMPLE, IMP_MOUNTAIN_TEMPLE, IMP_FOREST_TEMPLE,
+                     IMP_WATER_TEMPLE})
+TEMPLE_BASE_SCORE = 100
+TEMPLE_LEVEL_SCORE = 50
+# The prose says "all Temples level up every two turns", but the page's own
+# table gives three-turn bands -- level 1 at 0-2 turns since construction, 2 at
+# 3-5, 3 at 6-8, 4 at 9-11, 5 at 12+. The reconciliation is in the same
+# paragraph: levels count "how many turns have passed since their construction,
+# **including the turn of their construction**". The table is what is implemented.
+TEMPLE_TURNS_PER_LEVEL = 3
+TEMPLE_MAX_LEVEL = 5
 
 # --- Task ids (see data/improvements.toml `requires_task`) ---
 # "A monument is a building awarded for completing a task." Each task is a
@@ -148,7 +165,17 @@ A_UPGRADE = 9          # pay to turn a naval hull into a better one
 # the ruin and consumes the unit's actions for that turn (like capturing a
 # village)", and Starfish harvesting is "much like if it were examining a ruin".
 A_EXAMINE = 10
-N_ACTION_TYPES = 11
+# "A unit can be promoted to a veteran after it kills three enemy units."
+# Promotion is deliberately *not* automatic: it heals the unit completely, so
+# holding it back until the unit is hurt is a standard play. See _apply_promote.
+A_PROMOTE = 11
+# "Heal Others ... heals all adjacent friendly units by up to 4 HP." Mind Bender.
+A_HEAL_OTHERS = 12
+# Tile-modifying abilities, each unlocked by a technology. One action type with
+# four sub-types rather than four types: they share a source (a tile you own)
+# and differ only in what they do to it.
+A_TILE_ABILITY = 13
+N_ACTION_TYPES = 14
 
 ACTION_NAMES = {
     A_END_TURN: "END_TURN",
@@ -162,7 +189,44 @@ ACTION_NAMES = {
     A_DISBAND: "DISBAND",
     A_UPGRADE: "UPGRADE",
     A_EXAMINE: "EXAMINE",
+    A_PROMOTE: "PROMOTE",
+    A_HEAL_OTHERS: "HEAL_OTHERS",
+    A_TILE_ABILITY: "TILE_ABILITY",
 }
+
+# --- tile abilities (sub-types of A_TILE_ABILITY) ---
+# "Clear Forest ... removes a forest and gives the player one star" (Forestry)
+# "Grow Forest ... turns a field tile into a forest tile at a cost of 5 stars"
+#   (Spiritualism)
+# "Burn Forest ... replaces an empty Forest with a field with crop at a cost of
+#   5 stars" (Construction)
+# "Destroy ... removes a building and its benefits at no cost" (Chivalry)
+TA_CLEAR_FOREST = 0
+TA_GROW_FOREST = 1
+TA_BURN_FOREST = 2
+TA_DESTROY = 3
+N_TILE_ABILITIES = 4
+
+TILE_ABILITY_NAMES = {
+    TA_CLEAR_FOREST: "clear_forest",
+    TA_GROW_FOREST: "grow_forest",
+    TA_BURN_FOREST: "burn_forest",
+    TA_DESTROY: "destroy",
+}
+TILE_ABILITY_TECH = {
+    TA_CLEAR_FOREST: "forestry",
+    TA_GROW_FOREST: "spiritualism",
+    TA_BURN_FOREST: "construction",
+    TA_DESTROY: "chivalry",
+}
+CLEAR_FOREST_STARS = 1        # gained
+GROW_FOREST_COST = 5
+BURN_FOREST_COST = 5
+
+# "A unit can be promoted to a veteran after it kills three enemy units."
+VETERAN_KILLS = 3
+VETERAN_BONUS_HP = 5          # "increases its maximum health by five"
+HEAL_OTHERS_AMOUNT = 4
 
 # Naval hulls a Raft can be bought up to, and the tech that unlocks each.
 # "A Raft can be upgraded into a Scout for five stars, once Sailing is
@@ -187,6 +251,8 @@ POP_PER_LEVEL = 2  # population required to advance one level (level N needs N+1
 
 # Fog: how far units and cities see (Chebyshev radius).
 SIGHT_RADIUS_UNIT = 1
+# "Scout: allows a unit to explore a 5x5 area instead of a 3x3 area."
+SIGHT_RADIUS_SCOUT = 2
 SIGHT_RADIUS_CITY = 1
 
 # Domination turn cap; ties broken by score().

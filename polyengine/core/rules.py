@@ -52,6 +52,7 @@ class Ruleset:
     unit_naval: np.ndarray               # bool[U]
     unit_hull_hp_varies: np.ndarray      # bool[U]  (HP comes from the passenger)
     unit_skills: tuple[frozenset, ...]   # frozenset[str] per unit
+    unit_sight: np.ndarray               # int16[U] — Chebyshev sight radius
 
     # techs
     tech_names: tuple[str, ...]
@@ -222,15 +223,25 @@ def load_ruleset(name: str = "current") -> Ruleset:
     unit_movement = _fill_by_id(unit_entries, n_units, "movement", np.int8)
     unit_range = _fill_by_id(unit_entries, n_units, "range", np.int8)
     unit_trainable = _fill_by_id(unit_entries, n_units, "trainable", bool, False)
-    unit_naval = _fill_by_id(unit_entries, n_units, "naval", bool, False)
-    unit_hull_hp_varies = _fill_by_id(unit_entries, n_units, "hull_hp_varies",
-                                      bool, False)
     unit_requires_tech = np.full(n_units, -1, dtype=np.int8)
     skills_by_id: list[frozenset] = [frozenset()] * n_units
     for e in unit_entries.values():
         unit_requires_tech[e["id"]] = tech_or_none(e["requires_tech"])
         skills_by_id[e["id"]] = frozenset(e.get("skills", []))
     unit_skills = tuple(skills_by_id)
+    # Both of these ARE skills, so they are derived from the skill list rather
+    # than duplicated as separate TOML flags. Two sources of truth for one rule
+    # is how a skill ends up present in the data and read by nobody.
+    #   "Water: restricts a unit to only being able to move on water tiles."
+    #   "Carry: allows a unit to carry another unit inside" -- and a hull has no
+    #   health of its own, which is why the wiki lists naval HP as "Varies".
+    unit_naval = np.array(["water" in s for s in unit_skills], dtype=bool)
+    unit_hull_hp_varies = np.array(["carry" in s for s in unit_skills],
+                                   dtype=bool)
+    # "Scout: allows a unit to explore a 5x5 area instead of a 3x3 area."
+    unit_sight = np.array(
+        [C.SIGHT_RADIUS_SCOUT if "scout" in s else C.SIGHT_RADIUS_UNIT
+         for s in unit_skills], dtype=np.int16)
 
     # --- improvements ---
     imp_entries = improvements["improvement"]
@@ -333,6 +344,7 @@ def load_ruleset(name: str = "current") -> Ruleset:
         unit_naval=unit_naval,
         unit_hull_hp_varies=unit_hull_hp_varies,
         unit_skills=unit_skills,
+        unit_sight=unit_sight,
         tech_names=tech_names,
         tech_id=tech_id,
         tech_tier=tech_tier,

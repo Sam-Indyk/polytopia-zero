@@ -11,7 +11,7 @@ Goal (PLAN.md): beat the game's built-in Crazy bots through the real Steam clien
 ## Environment
 
 ```bash
-.venv\Scripts\python.exe -m pytest            # 582 tests, ~8 min
+.venv\Scripts\python.exe -m pytest            # 659 tests, ~9 min
 .venv\Scripts\python.exe -m polytrain.train_league --smoke --iters 50
 ```
 
@@ -51,7 +51,7 @@ Two gotchas that will waste your time otherwise:
    `tests/test_masks.py` checks equivalence at every decision point of real games.
 
 3. **Rules come from the wiki, not from memory.** Every stat in `data/*.toml` is
-   checked by `scripts/check_ruleset.py` against cached wiki pages (177 checks,
+   checked by `scripts/check_ruleset.py` against cached wiki pages (237 checks,
    0 mismatches). Change a number → re-run it.
 
 4. **Games are deterministic.** `(map_seed, ruleset_version)` fully determines a
@@ -113,7 +113,7 @@ reward choices), **siege**, the **roads/trade economy**, and **naval embarking**
 Movement now implements the real rules rather than approximations: costs run in
 **half-moves** because a road step costs 0.5, rough terrain (forest, mountain) is
 *enterable but not traversable*, and **zone of control** stops a unit that steps
-next to an enemy (`creep` bypasses it). A Rider gets exactly the wiki's 2 -> 4
+next to an enemy (`hide` bypasses it — see the skill table below). A Rider gets exactly the wiki's 2 -> 4
 tiles on roads.
 
 Also implemented: **healing** (4 HP in friendly territory, 2 elsewhere, applied
@@ -125,6 +125,96 @@ plus Capital Vision), and the **Cloak** — see below.
 
 Terrain defence is tech-gated as the wiki describes: forest needs Archery,
 mountain Climbing, and shallow water / ocean Aquatism.
+
+## Unit skills are the rules, and they were nearly all missing
+
+**`.wikicache/Unit Skills.wiki` is the reference. Read it before touching
+combat.** Eleven skills sat in `units.toml` and were read by *no code at all*
+(31 Jul) — a failure with no symptom, because the game still runs and the agent
+still trains; the Catapult is simply a better unit than the real one.
+
+| skill | who | what it does |
+|---|---|---|
+| `dash` | warrior, archer, rider, swordsman, knight, cloak, dagger, scout, rammer, pirate | may attack *after moving* |
+| `escape` | rider | may move *after attacking* — but not attack again if it also has dash |
+| `persist` | knight | attacks again immediately after a kill, no limit |
+| `stiff` | catapult, mind bender, cloak, raft, bomber, juggernaut | does not retaliate when attacked |
+| `surprise` | dagger, pirate | its attacks draw no retaliation |
+| `splash` | bomber | damages enemies adjacent to the target |
+| `stomp` | juggernaut | damages every adjacent enemy when it moves |
+| `convert` | mind bender | attacking takes the unit instead of hurting it |
+| `heal` | mind bender | Heal Others: +4 HP to every adjacent friendly |
+| `scout` | cloak, scout | sees 5x5 instead of 3x3 |
+| `independent` | dagger, pirate | costs no city support slot |
+| `static` | giant, cloak, dagger, all hulls | can never become a veteran |
+| `fortify` | warrior, archer, rider, defender, knight | gets the city defence bonus |
+| `creep` | cloak | ignores rough terrain **except mountains** |
+| `hide` | cloak | invisible after moving; ignores ZoC and walks *through* enemies |
+| `carry` / `water` | hulls | derived into `unit_naval` / `unit_hull_hp_varies` |
+
+Two of those needed the wiki to settle a contradiction:
+
+- **`dash` was inverted.** Every unit could attack after moving, which is the
+  skill's *absence* being the special case. A Catapult must now choose between
+  repositioning and firing.
+- **`creep` was wrong twice over.** The Movement page says creep bypasses zone
+  of control; the Unit Skills page says it ignores terrain "except mountains"
+  and that ZoC "cannot be negated". The skill's own history decides it: Sneak
+  originally did terrain, was removed, Creep replaced it, and Sneak returned as
+  the ZoC skill. The Cloak's ZoC immunity comes from **`hide`**, which also lets
+  it move *through* enemy units.
+
+`carry` and `water` used to be duplicated as separate `naval` / `hull_hp_varies`
+TOML flags; they are now derived from the skill list, because two sources of
+truth for one rule is exactly how a skill ends up read by nobody.
+`tests/test_unit_skills.py` ends with a guard that fails if any skill in the data
+is not mentioned anywhere in `polyengine/`, and `wiki_check.check_unit_skills`
+diffs the whole skill-to-unit assignment against the wiki's table.
+
+## Veterans: a promotion is a free heal you can bank
+
+"A unit can be promoted to a veteran after it kills three enemy units (through
+attacks or retaliation). Promoting a unit increases its maximum health by five
+and then heals the unit completely."
+
+It is **an action, not an automatic consequence**, and it **costs the unit
+nothing** — it does not spend the move or the attack. That is what makes the
+standard play work, confirmed by the project owner: leave a unit unpromoted,
+let it take damage, then promote to get a full heal *and still fight this turn*.
+Promoting at full health throws the heal away. `A_PROMOTE`, `can_promote`, and a
+`promote_ready` observation plane so the policy can see a banked promotion the
+way the client's star icon shows it.
+
+Before this, `unit_kills` was counted and read by nothing, nothing ever
+promoted, and `effective_max_hp` never added the +5 — so the veteran flag was
+inert, including on the veteran Swordsman a ruin hands out.
+
+## Tile abilities and the four temples
+
+`A_TILE_ABILITY` carries four sub-types, each behind its own technology, all
+acting on land you already own:
+
+| ability | tech | effect |
+|---|---|---|
+| Clear Forest | Forestry | forest -> field, **+1 star** |
+| Grow Forest | Spiritualism | field -> forest, 5 stars |
+| Burn Forest | Construction | *empty* forest -> field with crop, 5 stars |
+| Destroy | Chivalry | removes a building **and the population it paid**, free |
+
+There are **four temples**, not one: Temple (field, Free Spirit, 20),
+**Mountain** (Meditation, 20), **Forest** (Spiritualism, **15**), **Water**
+(Aquatism, 20). Until these landed, Spiritualism unlocked *nothing whatsoever*
+and Meditation only the Pacifist task. A temple is worth 100 points when built
+and gains 50 every three turns to a maximum of 300 — the page's prose says "every
+two turns" but its own table gives three-turn bands, reconciled by "including
+the turn of their construction". `state.improvement_turn` records when each
+building went down; `economy.temple_score` reads it.
+
+The **Explorer** (level-2 reward, and a ruin reward) is now the walking figure
+the game has: it takes 15 steps towards the nearest fog, revealing as it goes,
+and cannot cross mountain, water or ocean without Climbing, Sailing or
+Navigation. It used to be an instant radius-4 blob, which is a different shape —
+a real Explorer strings out along the frontier.
 
 **Tasks and monuments** are in: all seven non-tribe tasks (Pacifist, Wealth,
 Explorer, Killer, Network, Metropolis, Genius) are checked once a turn and
@@ -327,8 +417,9 @@ nothing in the log to say why.
 this so an empty log never reads as "nothing happened".
 
 **There is no trained agent right now, by design.** Every checkpoint predating
-28 Jul is architecturally dead: the observation went 64 -> **79** planes and the
-action head 8 -> **11** (Disband, Upgrade, Examine), so nothing will load. They
+28 Jul is architecturally dead: the observation went 64 -> **82** planes and the
+action head 8 -> **14** (Disband, Upgrade, Examine, Promote, Heal Others, Tile
+Ability), so nothing will load. They
 were deleted rather than left in the repo to tempt someone. Training starts from
 scratch, and the previous numbers (55% vs ScriptedBot at 11x11) are not
 comparable to anything measured against the current rules.

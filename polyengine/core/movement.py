@@ -103,20 +103,44 @@ def reachable(state, src: int, rules: Ruleset) -> list[int]:
     if utype == C.U_NONE or state.unit_moved[src]:
         return []
     player = int(state.unit_owner[src])
+    skills = rules.unit_skills[utype]
     # Half-moves throughout, so a road's 0.5 is an integer. See reachable_kernel.
     budget = int(rules.unit_movement[utype]) * 2
     passable = passable_mask(state, player, int(utype), rules)
     road_like = road_like_mask(state, rules)
     zoc = zoc_mask(state, player)
-    if "creep" in rules.unit_skills[utype]:
-        zoc = np.zeros_like(zoc)          # creep ignores zone of control entirely
+    rough = rules.terrain_rough
+    occupied = occupied_mask(state, player)
+    blocked = occupied
+
+    # "Creep: allows a unit to ignore movement barriers imposed by terrain
+    # **except mountains**." Note the two wiki pages disagree about creep and
+    # zone of control; the Unit Skills page is the one that matches the skill's
+    # own history (Sneak did terrain, was removed, Creep replaced it, and Sneak
+    # came back later as the zone-of-control skill).
+    if "creep" in skills:
+        rough = rough.copy()
+        for t in range(rules.n_terrain):
+            if t != C.T_MOUNTAIN:
+                rough[t] = False
+
+    # "Hide ... such units also ignore zone of control and can move through
+    # enemy units", and "Sneak: allows a unit to ignore movement barriers (zone
+    # of control) imposed by enemy units."
+    if "hide" in skills or "sneak" in skills:
+        zoc = np.zeros_like(zoc)
+    if "hide" in skills:
+        # Move *through* but not *onto*: the kernel is told nothing blocks, and
+        # occupied tiles are filtered back out of the destinations below.
+        blocked = np.zeros_like(occupied)
+
     dist = np.empty(state.n_tiles, dtype=np.int16)
     reachable_kernel(state.size, src, budget, state.terrain,
-                     occupied_mask(state, player), passable,
+                     blocked, passable,
                      (rules.terrain_move_cost * 2).astype(np.int16),
-                     rules.terrain_rough, road_like, zoc, dist)
-    out = [i for i in range(state.n_tiles) if i != src and 0 < dist[i] <= budget]
-    return out
+                     rough, road_like, zoc, dist)
+    return [i for i in range(state.n_tiles)
+            if i != src and 0 < dist[i] <= budget and not occupied[i]]
 
 
 def infiltrate_targets(state, src: int, rules: Ruleset) -> list[int]:
@@ -147,6 +171,12 @@ def attack_targets(state, src: int, rules: Ruleset) -> list[int]:
     """Enemy-occupied tiles the unit on `src` can attack this turn."""
     utype = state.unit_type[src]
     if utype == C.U_NONE or state.unit_attacked[src]:
+        return []
+    # "Dash: allows a unit to attack ... after moving in the same turn." Without
+    # the skill, having moved ends the unit's turn for attacking purposes -- so
+    # a Catapult must choose between repositioning and firing, which is the
+    # whole reason siege units are placed carefully rather than shuffled.
+    if state.unit_moved[src] and "dash" not in rules.unit_skills[int(utype)]:
         return []
     if "infiltrate" in rules.unit_skills[int(utype)]:
         return infiltrate_targets(state, src, rules)
