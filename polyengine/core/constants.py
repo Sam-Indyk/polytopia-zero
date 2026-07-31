@@ -44,6 +44,18 @@ U_BOMBER = 14
 U_JUGGERNAUT = 15
 U_PIRATE = 16
 
+# Resources that are INVISIBLE until a technology reveals them, and the techs
+# that do it. "Crop is hidden until Organization or Farming has been researched"
+# (Terrain page); "Climbing ... reveals metal, a resource used by the Mine".
+# This is an observation rule, not a legality one -- the buildings that consume
+# them sit behind the same techs anyway -- but it is load-bearing for invariant
+# 1: a player planning expansion cannot see crop they have not unlocked, so
+# neither may the network.
+HIDDEN_RESOURCE_TECHS = {
+    R_CROP: ("organization", "farming"),
+    R_METAL: ("climbing", "mining"),
+}
+
 # --- Ownership sentinels ---
 NEUTRAL = -1  # unowned territory / neutral (village) city
 
@@ -253,6 +265,8 @@ POP_PER_LEVEL = 2  # population required to advance one level (level N needs N+1
 SIGHT_RADIUS_UNIT = 1
 # "Scout: allows a unit to explore a 5x5 area instead of a 3x3 area."
 SIGHT_RADIUS_SCOUT = 2
+# "Mountain: all units on this terrain have a sight radius of two tiles."
+SIGHT_RADIUS_MOUNTAIN = 2
 SIGHT_RADIUS_CITY = 1
 
 # Domination turn cap; ties broken by score().

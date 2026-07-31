@@ -53,6 +53,7 @@ class Ruleset:
     unit_hull_hp_varies: np.ndarray      # bool[U]  (HP comes from the passenger)
     unit_skills: tuple[frozenset, ...]   # frozenset[str] per unit
     unit_sight: np.ndarray               # int16[U] — Chebyshev sight radius
+    terrain_sight: np.ndarray            # int16[T] — sight from this terrain
 
     # techs
     tech_names: tuple[str, ...]
@@ -242,6 +243,9 @@ def load_ruleset(name: str = "current") -> Ruleset:
     unit_sight = np.array(
         [C.SIGHT_RADIUS_SCOUT if "scout" in s else C.SIGHT_RADIUS_UNIT
          for s in unit_skills], dtype=np.int16)
+    # "Mountain: all units on this terrain have a sight radius of two tiles."
+    terrain_sight = np.full(n_terr, C.SIGHT_RADIUS_UNIT, dtype=np.int16)
+    terrain_sight[C.T_MOUNTAIN] = C.SIGHT_RADIUS_MOUNTAIN
 
     # --- improvements ---
     imp_entries = improvements["improvement"]
@@ -345,6 +349,7 @@ def load_ruleset(name: str = "current") -> Ruleset:
         unit_hull_hp_varies=unit_hull_hp_varies,
         unit_skills=unit_skills,
         unit_sight=unit_sight,
+        terrain_sight=terrain_sight,
         tech_names=tech_names,
         tech_id=tech_id,
         tech_tier=tech_tier,

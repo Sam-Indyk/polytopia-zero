@@ -201,8 +201,24 @@ def encode_spatial(state, player: int, rules: Ruleset,
         state.fog_visible[player], state.fog_explored[player],
         state.fog_staleness[player],
         out)
-    from polyengine.core.fog import cloak_adjacent
     layout = plane_layout(rules)
+
+    # Resources the player has not unlocked are not on their screen at all:
+    # "crop is hidden until Organization or Farming has been researched", and
+    # Climbing "reveals metal". Scrubbing the plane is not enough -- the
+    # one-hot has to fall back to "no resource", or the absence of every flag
+    # would itself mark the tile as interesting.
+    res_at = layout["resource"][0]
+    for rid, techs in C.HIDDEN_RESOURCE_TECHS.items():
+        if any(state.has_tech(player, rules.tech_id[t])
+               for t in techs if t in rules.tech_id):
+            continue
+        concealed = out[res_at + rid] > 0
+        if concealed.any():
+            out[res_at + rid][concealed] = 0.0
+            out[res_at + C.R_NONE][concealed] = 1.0
+
+    from polyengine.core.fog import cloak_adjacent
     sense_at = layout["cloak_sense"][0]
     sensed = cloak_adjacent(state, player)
     if sensed.any():

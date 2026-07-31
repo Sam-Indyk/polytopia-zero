@@ -21,6 +21,7 @@ def recompute_fog(state, player: int) -> None:
     """Recompute `player`'s visibility and refresh their memory snapshots."""
     fog_kernel(
         state.size, player, state.rules.unit_sight, C.SIGHT_RADIUS_CITY,
+        state.terrain, state.rules.terrain_sight,
         state.unit_owner, state.unit_type, state.city_owner, state.city_level,
         state.owner,
         state.fog_visible[player], state.fog_explored[player],

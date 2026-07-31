@@ -39,17 +39,25 @@ def passable_mask(state, player: int, utype: int, rules: Ruleset) -> np.ndarray:
     return ok
 
 
-def road_like_mask(state, rules: Ruleset) -> np.ndarray:
-    """Tiles a road-speed step can run between.
+def road_like_mask(state, rules: Ruleset, player: int = -1) -> np.ndarray:
+    """Tiles a road-speed step can run between, from `player`'s point of view.
 
     The wiki: "Movement between two tiles with Roads (or a Road and a city)
     requires only 0.5 moves" — so cities act as road nodes, and bridges are
     roads that happen to sit on water.
+
+    But: "This only applies to Roads in friendly territory or in neutral
+    territory, but **not** when moving onto Roads in enemy territory." An
+    invader does not get to use the defender's road network, which is what stops
+    a Rider from running the length of an enemy empire in one turn — and it is
+    why roads are worth building at home rather than a liability.
     """
     mask = np.zeros(state.n_tiles, dtype=np.bool_)
     for imp in (C.IMP_ROAD, C.IMP_BRIDGE):
         mask |= state.improvement == imp
     mask |= state.city_level > 0
+    if player >= 0:
+        mask &= (state.owner == player) | (state.owner == C.NEUTRAL)
     return mask
 
 
@@ -107,7 +115,7 @@ def reachable(state, src: int, rules: Ruleset) -> list[int]:
     # Half-moves throughout, so a road's 0.5 is an integer. See reachable_kernel.
     budget = int(rules.unit_movement[utype]) * 2
     passable = passable_mask(state, player, int(utype), rules)
-    road_like = road_like_mask(state, rules)
+    road_like = road_like_mask(state, rules, player)
     zoc = zoc_mask(state, player)
     rough = rules.terrain_rough
     occupied = occupied_mask(state, player)

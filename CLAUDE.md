@@ -11,7 +11,7 @@ Goal (PLAN.md): beat the game's built-in Crazy bots through the real Steam clien
 ## Environment
 
 ```bash
-.venv\Scripts\python.exe -m pytest            # 659 tests, ~9 min
+.venv\Scripts\python.exe -m pytest            # 675 tests, ~9 min
 .venv\Scripts\python.exe -m polytrain.train_league --smoke --iters 50
 ```
 
@@ -125,6 +125,37 @@ plus Capital Vision), and the **Cloak** — see below.
 
 Terrain defence is tech-gated as the wiki describes: forest needs Archery,
 mountain Climbing, and shallow water / ocean Aquatism.
+
+## Terrain does four things, not one
+
+Easy to forget, because only the first is obvious:
+
+1. **Movement cost / rough terrain**, and mountains need Climbing to enter.
+2. **Defence bonus**, tech-gated as above.
+3. **Sight.** "Mountain: all units on this terrain have a sight radius of two
+   tiles." Taking the high ground is worth a turn, and `rules.terrain_sight`
+   feeds the fog kernel alongside `unit_sight` (a unit takes the better of the
+   two, so a Scout on a mountain still sees 5x5, not 7x7).
+4. **Hidden resources.** "Crop is hidden until Organization or Farming has been
+   researched"; Climbing "reveals metal". This is an **invariant 1** rule, not
+   decoration — the encoder was showing crop and metal the acting player could
+   not see, so the policy could learn to expand toward resources that are not on
+   its screen and M5's screen reader could never reproduce the tensor. `obs.py`
+   scrubs the plane *and* sets the `R_NONE` plane, because an all-zero column
+   would itself mark the tile as interesting. Ground truth is untouched;
+   `C.HIDDEN_RESOURCE_TECHS` is the table.
+
+Two movement rules from the Movement page that are equally easy to miss:
+
+- **Costs round up.** "Even if you have 0.5 movement points remaining, you can
+  still move onto a tile costing 1 or even 3." So any movement left is enough to
+  enter one more tile; the unit simply arrives spent.
+- **Roads do not work in enemy territory.** "This only applies to Roads in
+  friendly territory or in neutral territory." An invader gets no use of the
+  defender's network — which is what stops a Rider crossing an empire in a turn,
+  and why roads at home are an asset rather than a liability. `road_like_mask`
+  takes the moving player for this reason; cities are road nodes and obey the
+  same rule.
 
 ## Unit skills are the rules, and they were nearly all missing
 

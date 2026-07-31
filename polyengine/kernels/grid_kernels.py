@@ -15,12 +15,17 @@ _INF = np.int16(32000)
 
 
 @njit(cache=True)
-def fog_kernel(size, player, unit_sight, sight_city,
+def fog_kernel(size, player, unit_sight, sight_city, terrain, terrain_sight,
                unit_owner, unit_type, city_owner, city_level, owner,
                visible, explored, stale,
                mem_unit_type, mem_unit_owner, mem_city_owner, mem_city_level):
-    """`unit_sight` is indexed by unit type, not a single radius: the scout skill
-    "allows a unit to explore a 5x5 area instead of a 3x3 area"."""
+    """`unit_sight` is indexed by unit type and `terrain_sight` by terrain, and a
+    unit gets the better of the two.
+
+    "Scout: allows a unit to explore a 5x5 area instead of a 3x3 area", and of
+    mountains: "all units on this terrain have a sight radius of two tiles" --
+    which is why taking the high ground is worth a turn.
+    """
     n = size * size
     for i in range(n):
         visible[i] = 0
@@ -33,6 +38,8 @@ def fog_kernel(size, player, unit_sight, sight_city,
         reveal = -1
         if unit_owner[i] == player and unit_type[i] != -1:
             reveal = unit_sight[unit_type[i]]
+            if terrain_sight[terrain[i]] > reveal:
+                reveal = terrain_sight[terrain[i]]
         if city_owner[i] == player and city_level[i] > 0 and sight_city > reveal:
             reveal = sight_city
         if reveal >= 0:
@@ -121,8 +128,16 @@ def reachable_kernel(size, src, budget, terrain, occupied, passable, move_cost,
                         step = np.int16(1)
                     else:
                         step = move_cost[t]
+                    # "When calculating movement cost of a tile, the game rounds
+                    # up - meaning even if you have 0.5 movement points
+                    # remaining, you can still move onto a tile costing 1 or
+                    # even 3." Any movement left is enough to enter; the unit
+                    # simply arrives spent, which `nd = budget` expresses (a
+                    # node at exactly `budget` is never expanded from).
                     nd = d + step
-                    if nd <= budget and nd < dist[nb]:
+                    if nd > budget:
+                        nd = np.int16(budget)
+                    if nd < dist[nb]:
                         dist[nb] = nd
                         changed = True
     return dist
