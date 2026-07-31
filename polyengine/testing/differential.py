@@ -26,6 +26,7 @@ from polyengine.core.game import Game
 # Frame fields that must match exactly, in the order they're checked.
 COMPARED_FIELDS = (
     "turn", "cur", "stars", "tech", "alive",
+    "peace", "peace_offer", "attacked_now", "attacked_prev",
     "owner", "resource", "improvement",
     "city_owner", "city_level", "city_pop", "city_walls", "city_capital",
     "city_workshop", "city_park", "city_pending_reward", "city_conn_pop",

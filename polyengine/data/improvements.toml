@@ -263,14 +263,16 @@ income_max_levels = 8
 [improvement.embassy]
 id = 14
 kind = "building"
-cost = 4
+cost = 5
 population = 0
 requires_tech = "diplomacy"
-# "Provides income to both the tribe that builds and the tribe that hosts the
-# Embassy" and is built on "Other tribes' capitals" -- the only improvement that
-# goes on a city tile, and on someone else's at that.
+# "It produces two stars per turn for the creator of the Embassy as well as the
+# tribe whose capital it was built in. The income from Embassies is doubled to
+# four stars per turn to each party if they have a Peace Treaty active."
+# Built on "other tribes' capitals" -- the only improvement that goes on a city
+# tile, and on someone else's at that. See core/diplomacy.embassy_income.
 on_enemy_capital = true
-income_flat = 1
+income_flat = 2
 
 # ---------------- Monuments ----------------
 # "A monument is a building awarded for completing a task. Each monument

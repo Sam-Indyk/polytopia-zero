@@ -43,6 +43,7 @@ from polyengine.core.actions import (
     can_use_tile_ability,
     upgrade_options,
 )
+from polyengine.core.diplomacy import can_break_peace, can_offer_peace
 from polyengine.core.movement import attack_targets, reachable
 from polyengine.core.rules import Ruleset
 
@@ -55,7 +56,8 @@ NEEDS_SOURCE = frozenset({C.A_MOVE, C.A_ATTACK, C.A_CAPTURE, C.A_TRAIN,
 NEEDS_TARGET = frozenset({C.A_MOVE, C.A_ATTACK, C.A_CAPTURE, C.A_DISBAND,
                           C.A_EXAMINE, C.A_PROMOTE, C.A_HEAL_OTHERS})
 NEEDS_SUBTYPE = frozenset({C.A_TRAIN, C.A_RESEARCH, C.A_BUILD,
-                           C.A_CHOOSE_REWARD, C.A_UPGRADE, C.A_TILE_ABILITY})
+                           C.A_CHOOSE_REWARD, C.A_UPGRADE, C.A_TILE_ABILITY,
+                           C.A_PEACE_OFFER, C.A_PEACE_BREAK})
 # Sub-types that depend on WHICH source was picked (a tile's buildable set, a
 # city's offered rewards, which abilities a tile admits) rather than being
 # uniform across sources.
@@ -63,12 +65,16 @@ SUBTYPE_DEPENDS_ON_SOURCE = frozenset({C.A_BUILD, C.A_CHOOSE_REWARD,
                                        C.A_TILE_ABILITY})
 
 
+MAX_PLAYERS = 16          # "other maps support up to 16" (Map Generation)
+
+
 def subtype_dim(rules: Ruleset) -> int:
     """Width of the sub-type head, shared across every action type that uses it:
     unit ids (TRAIN), tech ids (RESEARCH), improvement ids (BUILD), reward ids
-    (CHOOSE_REWARD)."""
+    (CHOOSE_REWARD), ability ids (TILE_ABILITY) and **player ids** (the two
+    diplomacy actions)."""
     return max(rules.n_units, rules.n_techs, rules.n_improvements,
-               rules.n_rewards)
+               rules.n_rewards, C.N_TILE_ABILITIES, MAX_PLAYERS)
 
 
 # --- individual heads ---------------------------------------------------------
@@ -216,6 +222,15 @@ def legal_subtypes(state, player: int, rules: Ruleset, atype: int,
             for ability in range(C.N_TILE_ABILITIES):
                 if can_use_tile_ability(state, src, ability, player, rules):
                     mask[ability] = True
+    elif atype in (C.A_PEACE_OFFER, C.A_PEACE_BREAK):
+        # The sub-type is a player id here, not a unit or improvement — the two
+        # diplomacy actions are the only ones that index this head that way.
+        for other in range(state.n_players):
+            legal = (can_offer_peace(state, player, other, rules)
+                     if atype == C.A_PEACE_OFFER
+                     else can_break_peace(state, player, other))
+            if legal:
+                mask[other] = True
     return mask
 
 
@@ -285,6 +300,9 @@ class ActionMasks:
                 mask[C.A_HEAL_OTHERS] = True
             if self.sources(C.A_TILE_ABILITY).any():
                 mask[C.A_TILE_ABILITY] = True
+            for atype in (C.A_PEACE_OFFER, C.A_PEACE_BREAK):
+                if self.subtypes(atype).any():
+                    mask[atype] = True
             if self.sources(C.A_UPGRADE).any() and self.subtypes(C.A_UPGRADE).any():
                 mask[C.A_UPGRADE] = True
             self._types = mask

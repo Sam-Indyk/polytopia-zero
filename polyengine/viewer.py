@@ -249,7 +249,7 @@ function draw(){
 
 function renderPlayers(){
   const f=F[i];
-  let h='<table><tr><th>player</th><th>stars</th><th>cities</th><th>units</th><th>cap</th><th>techs</th></tr>';
+  let h='<table><tr><th>player</th><th>stars</th><th>cities</th><th>units</th><th>cap</th><th>techs</th><th>relations</th></tr>';
   for(let p=0;p<R.n_players;p++){
     let u=0,cap=0;
     for(let k=0;k<N;k++){
@@ -260,9 +260,26 @@ function renderPlayers(){
     h+=`<tr><td><span class="sw" style="background:${PC[p%4]}"></span>P${p} ${R.tribes[p]}`+
        `${f.alive[p]?'':' <span class="muted">(out)</span>'}${f.cur===p?' \\u25c0':''}</td>`+
        `<td>${f.stars[p]}</td><td>${cityCount(f,p)}</td><td>${u}</td>`+
-       `<td>${cap}</td><td>${nt}</td></tr>`;
+       `<td>${cap}</td><td>${nt}</td><td>${relations(f,p)}</td></tr>`;
   }
   document.getElementById('players').innerHTML=h+'</table>';
+}
+
+// Tribe relations, read off the peace / recent-attack bitmasks.
+function relations(f,p){
+  if(!f.peace) return '';
+  const out=[];
+  for(let q=0;q<R.n_players;q++){
+    if(q===p) continue;
+    const peace=(f.peace[p]>>q)&1;
+    const war=(((f.attacked_now[p]|f.attacked_prev[p])>>q)&1)
+            ||(((f.attacked_now[q]|f.attacked_prev[q])>>p)&1);
+    const offer=(f.peace_offer[p]>>q)&1;
+    if(peace) out.push(`<span style="color:#5fd68a">peace P${q}</span>`);
+    else if(war) out.push(`<span style="color:#ff6b6b">war P${q}</span>`);
+    else if(offer) out.push(`<span class="muted">offered P${q}</span>`);
+  }
+  return out.join(' ');
 }
 
 function renderTechs(){

@@ -36,7 +36,8 @@ _TILE_ARRAYS = (
 )
 _PLAYER_ARRAYS = ("stars", "tech", "tribe", "alive",
                   "task_done", "monument_built", "kills", "losses",
-                  "calm_turns", "income_bonus")
+                  "calm_turns", "income_bonus",
+                  "peace", "peace_offer", "attacked_now", "attacked_prev")
 _FOG_ARRAYS = (
     "fog_explored", "fog_visible", "fog_staleness",
     "mem_unit_type", "mem_unit_owner", "mem_city_owner", "mem_city_level",
@@ -131,6 +132,19 @@ class GameState:
         # Gate of Power by having fewer kills later).
         self.task_done = np.zeros(p, dtype=np.int32)        # bitmask over tasks
         self.monument_built = np.zeros(p, dtype=np.int32)   # bitmask over tasks
+        # --- tribe relations (see core/diplomacy.py) ---
+        # Bitmasks over players, one row each, so they ride along with the
+        # existing per-player array machinery instead of needing a 2-D category.
+        #   peace[a]        — tribes `a` has a treaty with
+        #   peace_offer[a]  — tribes `a` has offered a treaty to
+        #   attacked_now[a] / attacked_prev[a] — whom `a` attacked this turn and
+        #     last, which is all "war" is: "to be at war, either side must have
+        #     attacked the other side at most a turn ago. After that, the
+        #     relation goes back to neutral."
+        self.peace = np.zeros(p, dtype=np.uint32)
+        self.peace_offer = np.zeros(p, dtype=np.uint32)
+        self.attacked_now = np.zeros(p, dtype=np.uint32)
+        self.attacked_prev = np.zeros(p, dtype=np.uint32)
         self.kills = np.zeros(p, dtype=np.int16)
         # Units of ours that died. Together with `kills` this is Polytopia's
         # own 'battle skills' ratio from the Domination rating.

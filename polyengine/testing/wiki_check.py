@@ -543,6 +543,36 @@ def check_unit_skills(rules, pages: dict[str, str]) -> Report:
     return rep
 
 
+def check_embassy(rules, pages: dict[str, str]) -> Report:
+    """The Embassy's cost and income, which no other check covers.
+
+    It is absent from the Population table (it produces no population), so it
+    sat at cost 4 / income 1 against the wiki's 5 / 2 with 177 checks reporting
+    nothing wrong.
+    """
+    rep = Report()
+    text = pages.get("Embassy")
+    if not text or "embassy" not in rules.imp_id:
+        rep.notes.append("no Embassy page cached; embassy unchecked")
+        return rep
+    imp = rules.imp_id["embassy"]
+
+    m = re.search(r"\|\s*cost\s*=\s*(\d+)", text)
+    if m:
+        _cmp(rep, "embassy cost", int(m.group(1)), int(rules.imp_cost[imp]))
+    m = re.search(r"produces (\w+) \[\[star\]\]s per turn", text)
+    words = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5}
+    if m and m.group(1) in words:
+        _cmp(rep, "embassy income", words[m.group(1)],
+             int(rules.imp_income_flat[imp]))
+    # "doubled to four stars per turn to each party if they have a Peace Treaty"
+    m = re.search(r"doubled to (\w+) stars per turn", text)
+    if m and m.group(1) in words:
+        _cmp(rep, "embassy peace income", words[m.group(1)],
+             int(rules.imp_income_flat[imp]) * 2)
+    return rep
+
+
 def check_all(rules, cache: Path = DEFAULT_CACHE) -> Report:
     pages = load_cache(cache)
     if not pages:
@@ -552,7 +582,7 @@ def check_all(rules, cache: Path = DEFAULT_CACHE) -> Report:
     parts = [check_techs(rules, pages), check_units(rules, pages),
              check_improvements(rules, pages), check_combat(rules, pages),
              check_new_improvements(rules, pages), check_temples(rules, pages),
-             check_unit_skills(rules, pages)]
+             check_unit_skills(rules, pages), check_embassy(rules, pages)]
     return Report(ok=[x for p in parts for x in p.ok],
                   diffs=[x for p in parts for x in p.diffs],
                   missing=[x for p in parts for x in p.missing],

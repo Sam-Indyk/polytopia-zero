@@ -187,7 +187,14 @@ A_HEAL_OTHERS = 12
 # four sub-types rather than four types: they share a source (a tile you own)
 # and differ only in what they do to it.
 A_TILE_ABILITY = 13
-N_ACTION_TYPES = 14
+# Diplomacy. The sub-type is a PLAYER id, not a unit/tech/improvement -- the only
+# two action types that index the subtype head that way.
+# "The Strategy technology is required to send, but not respond to, a peace
+# treaty", so offering to someone who has already offered you concludes the
+# treaty and needs no tech: one action type covers propose and accept.
+A_PEACE_OFFER = 14
+A_PEACE_BREAK = 15
+N_ACTION_TYPES = 16
 
 ACTION_NAMES = {
     A_END_TURN: "END_TURN",
@@ -204,6 +211,8 @@ ACTION_NAMES = {
     A_PROMOTE: "PROMOTE",
     A_HEAL_OTHERS: "HEAL_OTHERS",
     A_TILE_ABILITY: "TILE_ABILITY",
+    A_PEACE_OFFER: "PEACE_OFFER",
+    A_PEACE_BREAK: "PEACE_BREAK",
 }
 
 # --- tile abilities (sub-types of A_TILE_ABILITY) ---

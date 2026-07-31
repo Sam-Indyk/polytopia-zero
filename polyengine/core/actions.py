@@ -107,6 +107,11 @@ def can_capture(state, tile: int, rules: Ruleset) -> bool:
         return False
     if state.city_level[tile] <= 0 or state.city_owner[tile] == player:
         return False
+    # "While two tribes are at peace, they cannot perform any hostile actions,
+    # such as attacking, **occupying cities**, etc."
+    from polyengine.core.diplomacy import at_peace
+    if at_peace(state, player, int(state.city_owner[tile])):
+        return False
     if rules.capture_requires_fresh_unit:
         if state.unit_moved[tile] or state.unit_attacked[tile]:
             return False
@@ -317,6 +322,13 @@ def enumerate_actions(state, player: int, rules: Ruleset) -> list[Action]:
             if can_use_tile_ability(state, tile, ability, player, rules):
                 actions.append(Action(C.A_TILE_ABILITY, tile, -1, ability))
 
+    from polyengine.core.diplomacy import can_break_peace, can_offer_peace
+    for other in range(state.n_players):
+        if can_offer_peace(state, player, other, rules):
+            actions.append(Action(C.A_PEACE_OFFER, -1, -1, other))
+        if can_break_peace(state, player, other):
+            actions.append(Action(C.A_PEACE_BREAK, -1, -1, other))
+
     return actions
 
 
@@ -357,6 +369,12 @@ def apply_action(state, action: Action, rules: Ruleset) -> dict:
         return _apply_heal_others(state, player, action, rules)
     if at == C.A_TILE_ABILITY:
         return _apply_tile_ability(state, player, action, rules)
+    if at == C.A_PEACE_OFFER:
+        from polyengine.core.diplomacy import offer_peace
+        return offer_peace(state, player, action.subtype, rules)
+    if at == C.A_PEACE_BREAK:
+        from polyengine.core.diplomacy import break_peace
+        return break_peace(state, player, action.subtype, rules)
     if at == C.A_UPGRADE:
         return _apply_upgrade(state, player, action, rules)
     if at == C.A_RESEARCH:

@@ -30,7 +30,11 @@ def actions_from_masks(state, player, rules) -> set[tuple]:
         if atype == C.A_END_TURN:
             out.add((atype, -1, -1, -1))
             continue
-        if atype == C.A_RESEARCH:
+        if atype not in M.NEEDS_SOURCE:
+            # Sourceless action types expand over their sub-types alone:
+            # RESEARCH picks a tech, the two diplomacy actions pick a player.
+            # Derived from the contract rather than named one by one, so a new
+            # sourceless action cannot slip past this check by omission.
             for sub in np.flatnonzero(M.legal_subtypes(state, player, rules, atype)):
                 out.add((atype, -1, -1, int(sub)))
             continue

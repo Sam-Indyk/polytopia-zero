@@ -85,6 +85,16 @@ class ScriptedBot:
         if by_type.get(C.A_CHOOSE_REWARD):
             return self._best_reward(by_type[C.A_CHOOSE_REWARD], rules)
 
+        # 0b. Diplomacy, scaled by difficulty. The wiki describes the real bots
+        # the same way: "easy bots will almost always be peaceful until
+        # provoked, while crazy bots may be immediately hostile", and relations
+        # "determine how likely they will accept a peace treaty". A crazy bot
+        # therefore never sues for peace and tears up any treaty it holds; a
+        # peaceable one takes the deal and keeps it.
+        diplomacy = self._diplomacy(s, rules, player, by_type)
+        if diplomacy is not None:
+            return diplomacy
+
         # 1. Capture what we are standing on.
         if by_type.get(C.A_CAPTURE):
             return self._pick(by_type[C.A_CAPTURE])
@@ -158,6 +168,37 @@ class ScriptedBot:
         return Action(C.A_END_TURN)
 
     # --- pieces ---------------------------------------------------------------
+    def _diplomacy(self, s, rules: Ruleset, player: int,
+                   by_type: dict[int, list[Action]]) -> Action | None:
+        """Offer, accept or tear up treaties according to difficulty.
+
+        The threshold is the bot's own aggression: a treaty is worth having when
+        you would rather build than fight, and worth breaking when you would
+        rather fight than build. Accepting is free of the Strategy technology,
+        so even a bot that never researched it can be talked into peace.
+        """
+        from polyengine.core.diplomacy import offered
+
+        offers = by_type.get(C.A_PEACE_OFFER, [])
+        breaks = by_type.get(C.A_PEACE_BREAK, [])
+
+        # Answering an offer already on the table is a separate, easier
+        # decision from opening negotiations -- and the only one an
+        # untechnologied tribe can make.
+        replies = [a for a in offers if offered(s, a.subtype, player)]
+        if replies and self.aggression < 0.9:
+            return self._pick(replies)
+        if breaks and self.aggression >= 0.9:
+            return self._pick(breaks)
+        if offers and self.aggression <= 0.5:
+            # Only bother with a tribe we have actually met.
+            known = [a for a in offers
+                     if (s.fog_explored[player]
+                         & (s.mem_city_owner[player] == a.subtype)).any()]
+            if known:
+                return self._pick(known)
+        return None
+
     def _best_attack(self, s, rules: Ruleset,
                      attacks: list[Action]) -> Action | None:
         best, best_score = None, 0.0

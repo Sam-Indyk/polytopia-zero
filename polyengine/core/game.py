@@ -19,6 +19,7 @@ from polyengine.core.economy import (city_income, player_income,
                                      recompute_connections, temple_score,
                                      update_tasks)
 from polyengine.core.combat import recover_idle_units
+from polyengine.core.diplomacy import roll_turn
 from polyengine.core.fog import recompute_fog
 from polyengine.core.mapgen import new_game
 from polyengine.core.rules import Ruleset, load_ruleset
@@ -197,6 +198,10 @@ class Game:
         for p in range(s.n_players):
             if not self.owns_city(p):
                 s.alive[p] = 0
+        # War lapses on its own: "to be at war, either side must have attacked
+        # the other side at most a turn ago. After that, the relation goes back
+        # to neutral." Ageing the record here is what makes that true.
+        roll_turn(s, player)
         # Income only. Cities no longer grow for free: population is bought via
         # harvests and buildings, which is what makes unit capacity scarce.
         # Roads built or lost since this player's last turn change what is

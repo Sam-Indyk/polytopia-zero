@@ -110,6 +110,7 @@ def can_build(state, tile: int, imp_id: int, player: int, rules: Ruleset) -> boo
     # The Embassy inverts every placement rule: it goes on ANOTHER tribe's
     # capital, which is the one tile every other improvement forbids.
     if rules.imp_on_enemy_capital[imp_id]:
+        from polyengine.core.diplomacy import at_war
         if not state.city_capital[tile] or state.city_level[tile] <= 0:
             return False
         owner = int(state.city_owner[tile])
@@ -117,6 +118,23 @@ def can_build(state, tile: int, imp_id: int, player: int, rules: Ruleset) -> boo
             return False
         if state.improvement[tile] != C.IMP_NONE:
             return False
+        # "Embassies may only be built in capital cities controlled by its
+        # original owner, not in capitals captured by other tribes." The tile's
+        # `tile_tribe` is the biome, so the test is that the capital still
+        # belongs to the player who started on it -- which is exactly what
+        # `unit_home`-style bookkeeping cannot tell us, so compare tribes.
+        if int(state.tribe[owner]) != int(state.tile_tribe[tile]):
+            return False
+        # "Diplomatic buildings which can only be built in other tribes'
+        # capitals **when players are not at war with them**."
+        if at_war(state, player, owner):
+            return False
+        # "You may only build one embassy in each tribe."
+        for t in range(state.n_tiles):
+            if (int(state.improvement[t]) == C.IMP_EMBASSY
+                    and int(state.improvement_owner[t]) == player
+                    and int(state.city_owner[t]) == owner):
+                return False
         if not state.has_tech(player, int(rules.imp_requires_tech[imp_id])):
             return False
         if int(rules.imp_cost[imp_id]) > int(state.stars[player]):
@@ -221,6 +239,13 @@ def apply_build(state, tile: int, imp_id: int, player: int, rules: Ruleset) -> d
         state.improvement[tile] = imp_id
         state.improvement_owner[tile] = player
         state.improvement_turn[tile] = int(state.turn)
+        if imp_id == C.IMP_EMBASSY:
+            # "Building an Embassy will additionally reveal a 3x3 area centered
+            # on the host capital city." Permanent knowledge, like Capital
+            # Vision: the tiles become explored, not visible, so it grants a map
+            # rather than a live view of their army.
+            for nb in list(state.neighbors(tile)) + [tile]:
+                state.fog_explored[player][int(nb)] = 1
         task = int(rules.imp_requires_task[imp_id])
         if task >= 0:
             state.monument_built[player] |= (1 << task)   # one monument per task
@@ -529,12 +554,15 @@ def player_income(state, player: int, rules: Ruleset | None = None) -> int:
             continue
         if state.owner[t] == player:
             total += market_income(state, t, rules)
-        # An Embassy "provides income to both the tribe that builds and the
-        # tribe that hosts", so it pays out on the host's capital *and* to
-        # whoever placed it, who is a different player by construction.
         imp = int(state.improvement[t])
         if imp < 0:
             continue          # IMP_NONE is -1, and -1 indexes the LAST row
+        if imp == C.IMP_EMBASSY:
+            # Pays "both the tribe that builds and the tribe that hosts", and
+            # the rate doubles under a treaty -- see diplomacy.embassy_income.
+            from polyengine.core.diplomacy import embassy_income
+            total += embassy_income(state, t, player, rules)
+            continue
         flat = int(rules.imp_income_flat[imp])
         if flat and (int(state.improvement_owner[t]) == player
                      or int(state.city_owner[t]) == player):

@@ -71,6 +71,11 @@ def _board(state) -> dict:
         "stars": state.stars.tolist(),
         "tech": [int(t) for t in state.tech],       # bitmask per player
         "alive": state.alive.tolist(),
+        # Tribe relations, as bitmasks over players (see core/diplomacy.py).
+        "peace": [int(v) for v in state.peace],
+        "peace_offer": [int(v) for v in state.peace_offer],
+        "attacked_now": [int(v) for v in state.attacked_now],
+        "attacked_prev": [int(v) for v in state.attacked_prev],
         "explored": [row.tolist() for row in state.fog_explored],
     }
 

@@ -48,12 +48,18 @@ def _hide_cloaks_from(state, player: int) -> None:
     Runs after the fog kernel, which has no concept of stealth and will happily
     have written the Cloak in.
     """
+    from polyengine.core.diplomacy import at_peace
     mem_type = state.mem_unit_type[player]
     mem_owner = state.mem_unit_owner[player]
     for tile in range(state.n_tiles):
         if not state.unit_hidden[tile]:
             continue
-        if int(state.unit_owner[tile]) == player:
+        owner = int(state.unit_owner[tile])
+        if owner == player:
+            continue
+        # "Cloaks that belong to players with which the Cloak's owner has made
+        # peace are also always visible" -- an ally has nothing to hide from you.
+        if at_peace(state, player, owner):
             continue
         mem_type[tile] = C.U_NONE
         mem_owner[tile] = C.NEUTRAL
@@ -70,9 +76,14 @@ def cloak_adjacent(state, player: int) -> np.ndarray:
     second flagged unit narrows it further. That is information the player
     genuinely has, so the observation may carry it.
     """
+    from polyengine.core.diplomacy import at_peace
     flags = np.zeros(state.n_tiles, dtype=np.bool_)
     for tile in range(state.n_tiles):
         if not state.unit_hidden[tile] or int(state.unit_owner[tile]) == player:
+            continue
+        # An ally's Cloak is plainly visible, so it raises no eye: "...and do
+        # not create the 👁".
+        if at_peace(state, player, int(state.unit_owner[tile])):
             continue
         for nb in state.neighbors(tile):
             if (int(state.unit_owner[nb]) == player

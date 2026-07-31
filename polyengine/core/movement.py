@@ -57,7 +57,14 @@ def road_like_mask(state, rules: Ruleset, player: int = -1) -> np.ndarray:
         mask |= state.improvement == imp
     mask |= state.city_level > 0
     if player >= 0:
-        mask &= (state.owner == player) | (state.owner == C.NEUTRAL)
+        from polyengine.core.diplomacy import at_peace
+        allowed = (state.owner == player) | (state.owner == C.NEUTRAL)
+        # "Their units can also freely move past each other and **use each
+        # other's roads**" — an ally's network is yours while the treaty holds.
+        for q in range(state.n_players):
+            if at_peace(state, player, q):
+                allowed |= state.owner == q
+        mask &= allowed
     return mask
 
 
@@ -92,12 +99,19 @@ def zoc_mask(state, player: int) -> np.ndarray:
     over the road bonus, so it is applied as a hard stop in the search rather
     than as an added cost.
     """
+    from polyengine.core.diplomacy import at_peace
     blocked = np.zeros(state.n_tiles, dtype=np.bool_)
     # A Cloak the player cannot see cannot stop them either: zone of control is
     # a reaction to a visible threat, and applying it would leak the position.
+    # Nor can an ally: "their units can also freely move past each other".
+    friendly = np.zeros(state.n_tiles, dtype=np.bool_)
+    for q in range(state.n_players):
+        if at_peace(state, player, q):
+            friendly |= state.unit_owner == q
     enemies = np.where((state.unit_type != C.U_NONE)
                        & (state.unit_owner != player)
                        & (state.unit_owner != C.NEUTRAL)
+                       & ~friendly
                        & ~hidden_from(state, player))[0]
     for e in enemies:
         for nb in state.neighbors(int(e)):
@@ -141,6 +155,16 @@ def reachable(state, src: int, rules: Ruleset) -> list[int]:
         # Move *through* but not *onto*: the kernel is told nothing blocks, and
         # occupied tiles are filtered back out of the destinations below.
         blocked = np.zeros_like(occupied)
+    else:
+        # "Their units can also freely move past each other" — an ally's units
+        # are traversable, though still not somewhere you may stop.
+        from polyengine.core.diplomacy import at_peace
+        allied_unit = np.zeros(state.n_tiles, dtype=bool)
+        for q in range(state.n_players):
+            if at_peace(state, player, q):
+                allied_unit |= (state.unit_owner == q) & (state.unit_type != C.U_NONE)
+        if allied_unit.any():
+            blocked = blocked & ~allied_unit
 
     dist = np.empty(state.n_tiles, dtype=np.int16)
     reachable_kernel(state.size, src, budget, state.terrain,
@@ -160,6 +184,7 @@ def infiltrate_targets(state, src: int, rules: Ruleset) -> list[int]:
 
     "Cloaks cannot infiltrate ... a city under siege."
     """
+    from polyengine.core.diplomacy import at_peace
     from polyengine.core.economy import is_under_siege
     player = int(state.unit_owner[src])
     out = []
@@ -169,6 +194,8 @@ def infiltrate_targets(state, src: int, rules: Ruleset) -> list[int]:
         owner = int(state.city_owner[nb])
         if owner == player or owner == C.NEUTRAL:
             continue
+        if at_peace(state, player, owner):
+            continue                 # inciting a revolt is a hostile action
         if is_under_siege(state, nb):
             continue
         out.append(nb)
@@ -194,6 +221,13 @@ def attack_targets(state, src: int, rules: Ruleset) -> list[int]:
     # would leak its position just as surely as blocking movement did — the
     # player is meant to reveal it by walking into it first.
     visible_type = np.where(hidden_from(state, player), C.U_NONE, state.unit_type)
+    # "While two tribes are at peace, they cannot perform any hostile actions,
+    # such as attacking" — an ally's units are simply not targets.
+    from polyengine.core.diplomacy import at_peace
+    allies = [q for q in range(state.n_players) if at_peace(state, player, q)]
+    if allies:
+        visible_type = np.where(np.isin(state.unit_owner, allies),
+                                C.U_NONE, visible_type)
     out = np.empty(state.n_tiles, dtype=np.int32)
     n = attack_targets_kernel(state.size, visible_type, state.unit_owner,
                               player, src, rng, out)

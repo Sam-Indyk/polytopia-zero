@@ -177,6 +177,14 @@ def resolve_attack(state, src: int, dst: int, rules: Ruleset) -> CombatResult:
     a_skills = rules.unit_skills[a_type]
     d_skills = rules.unit_skills[d_type]
 
+    # An attack IS the declaration of war -- there is no separate one -- and it
+    # razes any embassies between the two tribes. Converting counts: "converting
+    # a unit with a Mind Bender is considered an attack, as it resets the
+    # Pacifist task and also destroys embassies."
+    from polyengine.core.diplomacy import record_attack
+    record_attack(state, int(state.unit_owner[src]), int(state.unit_owner[dst]),
+                  rules)
+
     # "Convert: allows a unit to convert an enemy unit into a friendly unit by
     # attacking it." The Mind Bender deals no damage at all -- its attack value
     # is zero -- so this replaces the damage step rather than following it.

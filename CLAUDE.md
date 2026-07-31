@@ -11,7 +11,7 @@ Goal (PLAN.md): beat the game's built-in Crazy bots through the real Steam clien
 ## Environment
 
 ```bash
-.venv\Scripts\python.exe -m pytest            # 675 tests, ~9 min
+.venv\Scripts\python.exe -m pytest            # 710 tests, ~10 min
 .venv\Scripts\python.exe -m polytrain.train_league --smoke --iters 50
 ```
 
@@ -51,7 +51,7 @@ Two gotchas that will waste your time otherwise:
    `tests/test_masks.py` checks equivalence at every decision point of real games.
 
 3. **Rules come from the wiki, not from memory.** Every stat in `data/*.toml` is
-   checked by `scripts/check_ruleset.py` against cached wiki pages (237 checks,
+   checked by `scripts/check_ruleset.py` against cached wiki pages (240 checks,
    0 mismatches). Change a number → re-run it.
 
 4. **Games are deterministic.** `(map_seed, ruleset_version)` fully determines a
@@ -125,6 +125,50 @@ plus Capital Vision), and the **Cloak** — see below.
 
 Terrain defence is tech-gated as the wiki describes: forest needs Archery,
 mountain Climbing, and shallow water / ocean Aquatism.
+
+## Tribe relations: war, neutral, peace
+
+`polyengine/core/diplomacy.py`, from `.wikicache/Strategy.wiki` and
+`.wikicache/Tribe Relations.wiki`. Worth having even in a two-player Domination
+game, and load-bearing on a crowded map.
+
+**War is not a state you enter, it is a memory.** There is no declaration —
+attacking *is* one, and it lapses by itself: "to be at war, either side must
+have attacked the other side at most a turn ago. After that, the relation goes
+back to neutral." `attacked_now` / `attacked_prev` are the two generations that
+implement "at most a turn ago", rolled over at the start of each player's turn.
+
+**A treaty needs both sides.** `A_PEACE_OFFER` proposes, and offering to someone
+who has already offered you *concludes* it — which is why one action type covers
+propose and accept. "The Strategy technology is required to send, but not respond
+to, a peace treaty", so `can_offer_peace` waives the tech when answering.
+
+While a treaty holds:
+- no hostile actions at all — attacking, capturing their cities, infiltrating
+- units "freely move past each other": no zone of control, and an ally's unit is
+  traversable (though never a tile you may stop on)
+- "use each other's roads" — `road_like_mask` includes an ally's territory
+- Embassy income doubles, 2 -> 4 each way
+- an ally's Cloak is visible and raises no eye symbol
+
+**Breaking it is unilateral and expensive.** `A_PEACE_BREAK` immediately freezes
+every one of the aggressor's units for the rest of the turn — so you cannot
+betray and strike in the same turn — and *disbands, with no refund*, every unit
+of theirs standing inside the victim's borders. The army you marched through
+their open border is simply gone.
+
+The relation appears in the global vector as two scalars (share of live opponents
+at peace / at war). That is legitimate where the map type was not: your own
+treaties are always on your own screen.
+
+**Embassies** were wrong in five ways until 31 Jul, none of them caught by the
+177 checks because the Embassy is absent from the Population table the improvement
+check reads. Cost 4 -> **5**, income 1 -> **2** (doubled under a treaty), plus
+three rules that did not exist: only in a capital still held by **its original
+owner**, only **one per tribe**, and never **while at war**. Building one reveals
+the 3x3 around the host capital, and *attacking a tribe razes the embassies in
+both directions* — which the Mind Bender triggers too, since "converting a unit
+is considered an attack".
 
 ## Terrain does four things, not one
 
@@ -448,9 +492,9 @@ nothing in the log to say why.
 this so an empty log never reads as "nothing happened".
 
 **There is no trained agent right now, by design.** Every checkpoint predating
-28 Jul is architecturally dead: the observation went 64 -> **82** planes and the
-action head 8 -> **14** (Disband, Upgrade, Examine, Promote, Heal Others, Tile
-Ability), so nothing will load. They
+28 Jul is architecturally dead: the observation went 64 -> **83** planes and the
+action head 8 -> **16** (Disband, Upgrade, Examine, Promote, Heal Others, Tile
+Ability, and the two diplomacy actions), so nothing will load. They
 were deleted rather than left in the repo to tempt someone. Training starts from
 scratch, and the previous numbers (55% vs ScriptedBot at 11x11) are not
 comparable to anything measured against the current rules.

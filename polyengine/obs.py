@@ -69,14 +69,18 @@ def n_planes(rules: Ruleset) -> int:
 def global_dim(rules: Ruleset) -> int:
     # own: stars, cities, units, techs-known + tech bits
     # opp: stars(known), cities seen, units seen, techs seen + tech bits
-    # plus turn progress and map size
+    # plus turn progress, map size, and the two relation summaries
     #
     # Deliberately NOT here: any summary of how wet the world is, or which map
     # type is in play. The net sees water tile by tile in the spatial planes and
     # has to draw its own conclusion about whether this is a Ports-and-boats map
     # or a Riders-and-roads one. Handing it an aggregate would be a shortcut the
     # screen-reading agent of M5 has no way to reproduce.
-    return 2 * (4 + rules.n_techs) + 2
+    #
+    # Relations ARE fair game: your own treaties are on your own screen, always,
+    # and the fraction of opponents you are at peace or at war with is something
+    # a player reads straight off the tribe list.
+    return 2 * (4 + rules.n_techs) + 4
 
 
 @njit(cache=True)
@@ -276,6 +280,17 @@ def encode_global(state, player: int, rules: Ruleset,
 
     vec[2 * stride + 0] = min(1.0, state.turn / float(max_turns))
     vec[2 * stride + 1] = state.size / 32.0
+    # Own relations, which a player always knows: the share of live opponents
+    # this player has a treaty with, and the share who attacked (or were
+    # attacked by) them within the last turn.
+    from polyengine.core.diplomacy import at_peace, at_war
+    others = [q for q in range(state.n_players)
+              if q != player and state.alive[q]]
+    if others:
+        vec[2 * stride + 2] = sum(at_peace(state, player, q)
+                                  for q in others) / len(others)
+        vec[2 * stride + 3] = sum(at_war(state, player, q)
+                                  for q in others) / len(others)
     return vec
 
 
