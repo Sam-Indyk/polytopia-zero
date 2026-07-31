@@ -8,12 +8,28 @@ instead:
 * a city awarded a super unit -- garrisoning the city you are levelling up is the
   normal thing to do, so the tile is usually taken.
 
-The push order, as described by the project owner:
+Quoted from `.wikicache/Forced Unit Spawns.wiki`, which specifies the whole
+mechanic:
 
-    "There is a push order, which prioritizes the direction the unit last moved,
-     and backs up closest to that direction if a unit is already occupying that
-     space. If the unit has never moved, it prioritizes moving towards the center
-     of the map."
+    "A forced unit spawn occurs when a unit is spawned in a tile that already has
+     a unit on it. The unit that is already on the tile is pushed in a specific
+     direction ... The forced spawn of super units are commonly used in besieged
+     cities to push out the invader."
+
+    "Friendly units that previously moved will be pushed in the same direction of
+     their movement. Enemy units that previously moved will be pushed in the
+     opposite direction of their movement. Ranged units get pushed in the
+     direction of their last move or last attack. Units that were not previously
+     moved will be pushed toward the center of the map. If the city where the
+     unit spawns is on the exact center of the map, the unit will be pushed
+     south. If the tile where the unit is supposed to go is occupied or
+     impassable, it will try counterclockwise and then clockwise one tile at a
+     time until it finds a free tile, or if there is no free tile, it will be
+     removed from the game entirely. This does not count as a kill for the Gate
+     of Power, nor does it count as an attack for the Altar of Peace."
+
+That last sentence is the "Houdini": ring a besieged city with eight units, take
+the super-unit reward, and the enemy Giant on your city simply vanishes.
 """
 from __future__ import annotations
 
@@ -122,13 +138,14 @@ class TestPushOrder:
             put_unit(s, MID, facing=idx)
             assert step(s, MID, push_order(s, MID)[0]) == C.PUSH_COMPASS[idx]
 
-    def test_it_backs_up_to_the_nearest_direction_then_alternates(self):
-        """facing, +1, -1, +2, -2, ... and the way it came from is tried last."""
+    def test_it_tries_counterclockwise_then_clockwise(self):
+        """"it will try counterclockwise and then clockwise one tile at a time"
+        -- so facing, -1, +1, -2, +2, ... and the way it came from comes last."""
         _, s = blank()
         facing = 2                                     # east
         put_unit(s, MID, facing=facing)
         order = [C.PUSH_COMPASS.index(step(s, MID, t)) for t in push_order(s, MID)]
-        assert order == [2, 3, 1, 4, 0, 5, 7, 6]
+        assert order == [2, 1, 3, 0, 4, 7, 5, 6]
         assert order[-1] == (facing + 4) % 8, "backwards should be the last resort"
 
     def test_all_eight_neighbours_are_offered_exactly_once(self):
@@ -153,10 +170,43 @@ class TestPushOrder:
             assert s.chebyshev(first, MID) < s.chebyshev(tile, MID), \
                 f"tile {tile} pushed away from the middle"
 
-    def test_a_unit_on_the_exact_centre_falls_back_to_north(self):
+    def test_a_unit_on_the_exact_centre_is_pushed_south(self):
+        """"If the city where the unit spawns is on the exact center of the map,
+        the unit will be pushed south."""
         _, s = blank()
         put_unit(s, MID)
-        assert step(s, MID, push_order(s, MID)[0]) == C.PUSH_COMPASS[0]
+        assert step(s, MID, push_order(s, MID)[0]) == (0, 1)
+
+    def test_an_enemy_is_pushed_back_the_way_it_came(self):
+        """"Enemy units that previously moved will be pushed in the opposite
+        direction of their movement." This is the whole un-siege tactic: the
+        besieger walked onto the city, so it goes straight back out."""
+        _, s = blank()
+        north = C.PUSH_COMPASS.index((0, -1))
+        put_unit(s, MID, player=1, facing=north)       # marched north onto us
+        first = push_order(s, MID, spawner=0)[0]
+        assert step(s, MID, first) == (0, 1), "should be shoved south"
+        # ... while our own unit facing north is pushed north.
+        put_unit(s, MID, player=0, facing=north)
+        assert step(s, MID, push_order(s, MID, spawner=0)[0]) == (0, -1)
+
+    def test_ownership_only_matters_when_a_spawner_is_named(self):
+        _, s = blank()
+        north = C.PUSH_COMPASS.index((0, -1))
+        put_unit(s, MID, player=1, facing=north)
+        assert step(s, MID, push_order(s, MID)[0]) == (0, -1)
+
+    def test_a_ranged_attack_sets_the_push_direction(self):
+        """"Ranged units get pushed in the direction of their last move or last
+        attack."""
+        from polyengine.core.combat import resolve_attack
+        _, s = blank()
+        archer = put_unit(s, MID, utype=C.U_ARCHER)
+        target = MID + 2                               # two tiles east, in range
+        put_unit(s, target, utype=C.U_WARRIOR, player=1)
+        s.unit_hp[target] = 99                         # survive the volley
+        resolve_attack(s, archer, target, R)
+        assert int(s.unit_facing[archer]) == C.PUSH_COMPASS.index((1, 0))
 
 
 # --- the push itself -----------------------------------------------------------
@@ -175,7 +225,7 @@ class TestPushUnit:
         put_unit(s, MID, facing=east)
         put_unit(s, MID + 1, utype=C.U_ARCHER)         # block due east
         dst = push_unit(s, MID, R)
-        assert step(s, MID, dst) == (1, 1), "should back up clockwise to SE"
+        assert step(s, MID, dst) == (1, -1), "counterclockwise first: NE"
 
     def test_the_pushed_unit_keeps_its_state(self):
         _, s = blank()
@@ -189,20 +239,60 @@ class TestPushUnit:
         assert int(s.unit_facing[dst]) == 4, "being shoved is not a move it chose"
 
     def test_a_land_unit_is_not_pushed_into_the_sea(self):
+        """Impassable counts the same as occupied -- and with all eight
+        neighbours water, a land unit has nowhere to go at all."""
         _, s = blank()
         put_unit(s, MID, facing=C.PUSH_COMPASS.index((1, 0)))
         for nb in s.neighbors(MID):
             s.terrain[nb] = C.T_WATER
         assert push_unit(s, MID, R) == -1
-        assert int(s.unit_type[MID]) == C.U_WARRIOR, "the unit must be left alone"
+        assert int(s.unit_type[MID]) == C.U_NONE, "nowhere to go means removed"
 
-    def test_a_boxed_in_unit_reports_failure_and_is_untouched(self):
-        _, s = blank()
-        put_unit(s, MID, facing=0)
+
+# --- the Houdini ------------------------------------------------------------------
+class TestHoudini:
+    """"If there is no free tile, it will be removed from the game entirely."
+
+    Ring a besieged city with eight units, take the super-unit reward, and the
+    enemy Giant standing on your city vanishes. It is not scored as combat:
+    "this does not count as a kill for the Gate of Power, nor does it count as
+    an attack for the Altar of Peace"."""
+
+    def boxed_in(self, seed=3, victim_player=1):
+        _, s = blank(seed=seed)
+        put_unit(s, MID, utype=C.U_GIANT, player=victim_player, facing=0)
         for nb in s.neighbors(MID):
-            put_unit(s, int(nb), utype=C.U_ARCHER, player=1)
-        assert push_unit(s, MID, R) == -1
-        assert int(s.unit_type[MID]) == C.U_WARRIOR
+            put_unit(s, int(nb), utype=C.U_ARCHER, player=0)
+        return s
+
+    def test_a_boxed_in_unit_is_removed_from_the_game(self):
+        s = self.boxed_in()
+        assert push_unit(s, MID, R, spawner=0) == -1
+        assert int(s.unit_type[MID]) == C.U_NONE
+
+    def test_it_does_not_count_as_a_kill_or_a_loss(self):
+        """The wiki is explicit, and both counters feed real mechanics: `kills`
+        drives the Gate of Power, `losses` the heuristic's battle skill."""
+        s = self.boxed_in()
+        kills, losses = list(s.kills), list(s.losses)
+        push_unit(s, MID, R, spawner=0)
+        assert list(s.kills) == kills
+        assert list(s.losses) == losses
+
+    def test_a_pacifist_streak_survives_it(self):
+        """"nor does it count as an attack for the Altar of Peace"."""
+        s = self.boxed_in()
+        s.calm_turns[0] = 4
+        push_unit(s, MID, R, spawner=0)
+        assert int(s.calm_turns[0]) == 4
+
+    def test_one_gap_is_enough_to_escape(self):
+        s = self.boxed_in()
+        escape = int(next(iter(s.neighbors(MID))))
+        s.unit_type[escape] = C.U_NONE
+        s.unit_owner[escape] = C.NEUTRAL
+        assert push_unit(s, MID, R, spawner=0) == escape
+        assert int(s.unit_type[escape]) == C.U_GIANT
 
 
 # --- the two call sites --------------------------------------------------------
@@ -238,13 +328,35 @@ class TestSuperUnitReward:
         apply_reward(s, city, self._super_unit_id(), 0, R)
         assert int(s.unit_type[city]) == C.U_GIANT
 
-    def test_an_enemy_standing_on_the_city_is_not_ours_to_shove(self):
+    def test_the_giant_breaks_a_siege_by_shoving_the_invader_out(self):
+        """"The forced spawn of super units are commonly used in besieged cities
+        to push out the invader." The besieger marched north onto the city, so
+        the enemy-reversal rule sends it straight back south."""
         _, s = blank()
         city = self._level_five_city(s, MID)
-        put_unit(s, city, utype=C.U_WARRIOR, player=1)
+        north = C.PUSH_COMPASS.index((0, -1))
+        put_unit(s, city, utype=C.U_WARRIOR, player=1, facing=north)
         apply_reward(s, city, self._super_unit_id(), 0, R)
-        assert int(s.unit_type[city]) == C.U_WARRIOR
-        assert int(s.unit_owner[city]) == 1
+        assert int(s.unit_type[city]) == C.U_GIANT
+        assert int(s.unit_owner[city]) == 0
+        assert int(s.unit_type[MID + N]) == C.U_WARRIOR, "shoved back south"
+        assert int(s.unit_owner[MID + N]) == 1
+
+    def test_a_houdini_destroys_the_besieger_outright(self):
+        """The city is walled in on all eight sides, so the invader vanishes."""
+        _, s = blank()
+        city = self._level_five_city(s, MID)
+        put_unit(s, city, utype=C.U_GIANT, player=1, facing=0)
+        for nb in s.neighbors(city):
+            put_unit(s, int(nb), utype=C.U_ARCHER, player=0)
+        kills = list(s.kills)
+        apply_reward(s, city, self._super_unit_id(), 0, R)
+        assert int(s.unit_type[city]) == C.U_GIANT
+        assert int(s.unit_owner[city]) == 0, "our Giant, not theirs"
+        assert sum(1 for t in range(s.n_tiles)
+                   if int(s.unit_owner[t]) == 1
+                   and s.unit_type[t] != C.U_NONE) == 0
+        assert list(s.kills) == kills, "a Houdini is not a Gate of Power kill"
 
 
 class TestRuinUnitReward:

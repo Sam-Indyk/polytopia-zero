@@ -11,7 +11,7 @@ Goal (PLAN.md): beat the game's built-in Crazy bots through the real Steam clien
 ## Environment
 
 ```bash
-.venv\Scripts\python.exe -m pytest            # 570 tests, ~8 min
+.venv\Scripts\python.exe -m pytest            # 582 tests, ~8 min
 .venv\Scripts\python.exe -m polytrain.train_league --smoke --iters 50
 ```
 
@@ -212,11 +212,22 @@ capitals on different continents 100% of the time.
   border landed 2 tiles apart, so each is placed furthest from those already
   down. Villages keep 2 tiles from the edge (1 for the pre-terrain pass) and 2
   from each other.
-- **Every player gets a capital, guaranteed** (`_ensure_capitals`). Both routes
-  can come up short on a cramped map, and a player without a capital has no city
-  and no unit — it is dead before the first move and the game is terminal at
-  turn 0. That is not hypothetical: it showed up as a training smoke run whose
-  rollouts collapsed from 1024 steps to 64.
+- **A map only seats so many players.** "Tiny maps support a maximum of nine
+  players, while other maps support up to 16" — `max_players_for_size`, enforced
+  by `new_game`, which refuses rather than dealing a map it cannot fill. Below
+  tiny (sizes the game never uses but our smoke runs do) the cap scales by area
+  at the official rate of ~13 tiles per player, so a 6x6 seats two.
+  `_ensure_capitals` is the backstop underneath that: both placement routes can
+  still come up short on a cramped map, and a player without a capital has no
+  city and no unit — dead before the first move, game terminal at turn 0. That
+  is not hypothetical; it showed up as a training smoke run whose rollouts
+  collapsed from 1024 steps to 64.
+- **Capitals share a continent when the map is crowded.** "Capitals are placed on
+  different land masses, *space permitting*" — with two players on a normal map
+  they always get their own, but four cannot each have a 30-tile continent, and
+  8 of 10 seeds put at least two of them on the same one. The "you must sail to
+  reach the enemy" assertion in `tests/test_mapgen.py` is therefore scoped to
+  two players on purpose. Do not generalise it.
 - **Which village passes run depends on the map type**, per the wiki's feature
   table, transcribed as `SUBURB_TYPES` / `PRE_TERRAIN_COEFFICIENT` /
   `ISLAND_VILLAGE_TYPES` / `QUADRANT_TYPES` and pinned by a test: suburbs (up to
@@ -268,26 +279,49 @@ bug that shows up as "the agent ignores ruins" rather than as a crash:
   the ruin provides a unit as a reward, the examining unit is **pushed** in a
   forced unit spawn." `push_unit` in `actions.py` does that.
 
-## Forced unit spawns have a push order
+## Forced unit spawns, the un-siege, and the Houdini
+
+Read `.wikicache/Forced Unit Spawns.wiki` before touching this; it specifies the
+whole mechanic and every clause below is load-bearing.
 
 Two things must appear on a tile that is usually already occupied: a ruin's unit
 reward (the examiner is standing on it by definition) and a city's **super-unit**
-reward (you garrison the city you are levelling). Both go through
-`push_unit`, and the direction is not arbitrary:
+reward. Both go through `push_unit`, and `state.unit_facing` — the compass index
+of each unit's last move, by net displacement since the engine keeps no path —
+decides where the occupant goes:
 
-> prioritise the direction the unit last moved, and back up to the closest
-> direction to that if something is already there; a unit that has never moved
-> is pushed towards the centre of the map.
+| the occupant | pushed |
+|---|---|
+| friendly, has moved | the way it was going |
+| **enemy, has moved** | **the opposite way — back where it came from** |
+| ranged, has attacked | the direction it last shot |
+| never moved | towards the centre of the map |
+| standing on the exact centre | south |
 
-So `state.unit_facing` records the compass index of each unit's last move — net
-displacement, since the engine keeps no path — and `push_order` walks outwards
-from it: facing, +1, −1, +2, −2, … with the direction it came from tried last.
-Clockwise wins each tie; that part is our choice, not an observed rule.
+then, if that tile is blocked, "counterclockwise and then clockwise one tile at
+a time" — so facing, −1, +1, −2, +2, … with the reverse direction tried last.
+
+**The enemy reversal is the un-siege.** "The forced spawn of super units are
+commonly used in besieged cities to push out the invader": the besieger walked
+*onto* your city, so its recorded direction sends it straight back out and the
+siege breaks without a shot. Taking the super-unit reward on a besieged city is
+a standard play, and the engine has to offer it.
+
+**If there is nowhere to go, the unit is destroyed** — "it will be removed from
+the game entirely". The community calls this a **Houdini**: ring your besieged
+city with eight units, level up, take the Giant, and the enemy Giant standing on
+the city simply vanishes. It is the cheapest way in the game to delete a super
+unit.
+
+Crucially it is *not* scored as combat: "this does not count as a kill for the
+Gate of Power, nor does it count as an attack for the Altar of Peace." So a
+Houdini moves neither `kills` nor `losses` and a Pacifist streak survives it. Get
+that wrong and the agent learns to farm monuments with a mechanic the real game
+does not credit.
 
 The Giant used to be **silently dropped** if the city tile was taken, which made
 the strongest reward in the game a trap: you picked it and got nothing, with
-nothing in the log to say why. An *enemy* on the city is still not ours to shove,
-so a besieged city leaves the reward unpaid.
+nothing in the log to say why.
 
 **Not simulated yet:** special tribes only (excluded by choice). The viewer lists
 this so an empty log never reads as "nothing happened".

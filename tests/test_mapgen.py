@@ -24,6 +24,7 @@ from polyengine.core.mapgen import (
     MAP_SIZES,
     MAP_TYPES,
     _land_components,
+    max_players_for_size,
     new_game,
     size_for_opponents,
     terrain_rates,
@@ -420,7 +421,10 @@ class TestMapTypeFeatures:
     def test_continents_capitals_land_on_different_continents(self):
         """"Then, like on Pangea, one village per player is converted to a
         capital. Capitals are placed on different land masses, space
-        permitting."""
+        permitting."
+
+        Two players, where the space always permits.
+        """
         for seed in range(10):
             s = new_game(R, size=16, tribes=["imperius", "bardur"], seed=seed,
                          map_type="continents")
@@ -534,25 +538,53 @@ class TestLandmassShape:
                 if on_border and s.improvement[t] != C.IMP_LIGHTHOUSE:
                     assert R.terrain_is_land[s.terrain[t]], f"water at {x},{y}"
 
-    def test_a_continents_map_actually_needs_boats(self):
-        """The point of the shape: a capital cannot walk to the other capital.
+    def walkable_from(self, s, start):
+        reach, stack = {start}, [start]
+        while stack:
+            for nb in s.neighbors(stack.pop()):
+                nb = int(nb)
+                if nb not in reach and R.terrain_is_land[s.terrain[nb]]:
+                    reach.add(nb)
+                    stack.append(nb)
+        return reach
+
+    def test_a_two_player_continents_map_needs_boats(self):
+        """The point of the shape: one capital cannot walk to the other.
 
         This is what the old smoothed-noise generator quietly failed at -- it
         made a lace of one-tile isthmuses, so Ports and boats had nothing to do
         on the one map type built around them.
+
+        **Two players only.** With more, the map runs out of room for one 30+
+        tile continent each and the wiki's own "space permitting" clause takes
+        over -- see the next test. Do not generalise this assertion.
         """
         for seed in range(6):
             s = new_game(R, size=16, tribes=["imperius", "bardur"], seed=seed,
                          map_type="continents")
             caps = [t for t in range(s.n_tiles) if s.city_capital[t]]
-            reach, stack = {caps[0]}, [caps[0]]
-            while stack:
-                for nb in s.neighbors(stack.pop()):
-                    nb = int(nb)
-                    if nb not in reach and R.terrain_is_land[s.terrain[nb]]:
-                        reach.add(nb)
-                        stack.append(nb)
-            assert caps[1] not in reach, f"seed {seed}: you can walk there"
+            assert caps[1] not in self.walkable_from(s, caps[0]), \
+                f"seed {seed}: you can walk there"
+
+    def test_a_crowded_continents_map_may_share_a_continent(self):
+        """"Capitals are placed on different land masses, *space permitting*."
+
+        Four players on a normal map cannot each have their own 30-200 tile
+        continent, so some of them are neighbours by land. That is the game's
+        behaviour, not a generation failure, and it is why the boats assertion
+        above is scoped to two players.
+        """
+        tribes = ["imperius", "bardur", "xin_xi", "oumaji"]
+        shared = 0
+        for seed in range(10):
+            s = new_game(R, size=16, tribes=tribes, seed=seed,
+                         map_type="continents")
+            caps = [t for t in range(s.n_tiles) if s.city_capital[t]]
+            reach = self.walkable_from(s, caps[0])
+            if any(c in reach for c in caps[1:]):
+                shared += 1
+        assert shared > 0, "four players each got their own continent, which " \
+                           "a 16x16 map does not have room for"
 
 
 # --- tile biomes ------------------------------------------------------------------
@@ -673,6 +705,38 @@ class TestStartingPosition:
 
 
 # --- everyone gets a capital ------------------------------------------------------
+class TestSeatLimits:
+    """"Tiny maps support a maximum of nine players, while other maps support up
+    to 16." The limit is the real answer to "can everyone be seated?" -- a map
+    with more players than it has room for is not one the game would ever deal,
+    so it is refused rather than generated badly."""
+
+    def test_the_documented_limits(self):
+        assert max_players_for_size(MAP_SIZES["tiny"]) == 9
+        for name in ("small", "normal", "large", "huge", "massive"):
+            assert max_players_for_size(MAP_SIZES[name]) == 16
+
+    def test_too_many_players_is_refused(self):
+        with pytest.raises(ValueError, match="will not fit"):
+            new_game(R, size=11, tribes=["imperius"] * 10, seed=0)
+
+    def test_a_full_tiny_map_still_generates(self):
+        names = sorted(R.tribes)[:9]
+        s = new_game(R, size=11, tribes=names, seed=1)
+        caps = [t for t in range(s.n_tiles) if s.city_capital[t]]
+        assert len(caps) == 9
+        assert len({int(s.city_owner[t]) for t in caps}) == 9
+
+    def test_undersized_maps_scale_down(self):
+        """Below tiny is not a Polytopia size at all -- our smoke runs use them.
+        The official numbers work out at 12-14 tiles per player, so the cap
+        scales by area rather than pretending the 11x11 rule applies."""
+        assert max_players_for_size(6) == 2
+        assert max_players_for_size(9) == 6
+        with pytest.raises(ValueError, match="will not fit"):
+            new_game(R, size=6, tribes=["imperius", "bardur", "vengir"], seed=0)
+
+
 class TestEveryPlayerIsSeated:
     """A player without a capital has no city and no unit, so it is dead before
     the first move and the game is terminal at turn 0.

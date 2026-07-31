@@ -115,6 +115,9 @@ RUIN_POPULATION = 3                # "Adds 3 free Population to the capital"
 # `push_order` in actions.py.
 PUSH_COMPASS = ((0, -1), (1, -1), (1, 0), (1, 1),
                 (0, 1), (-1, 1), (-1, 0), (-1, -1))
+# "If the city where the unit spawns is on the exact center of the map, the unit
+# will be pushed south."
+PUSH_SOUTH = 4
 
 # Tiles that carry a city connection. Ports count (the wiki's Port description
 # says so explicitly), and city tiles conduct implicitly — see economy.py.

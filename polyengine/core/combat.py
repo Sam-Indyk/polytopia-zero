@@ -190,6 +190,11 @@ def resolve_attack(state, src: int, dst: int, rules: Ruleset) -> CombatResult:
     if not attacker_died and not attacker_advanced:
         state.unit_moved[src] = 1
         state.unit_attacked[src] = 1
+        # "Ranged units get pushed in the direction of their last move or last
+        # attack." A melee attacker either advanced (which set its facing) or
+        # never left its tile, so only shooting needs recording here.
+        if a_range > 1:
+            state.unit_facing[src] = _facing_toward(state, src, dst)
     elif attacker_advanced:
         state.unit_moved[dst] = 1
         state.unit_attacked[dst] = 1
@@ -208,6 +213,11 @@ def _clear_unit(state, tile: int) -> None:
     state.unit_home[tile] = -1
     state.unit_veteran[tile] = 0
     state.unit_kills[tile] = 0
+    state.unit_carried[tile] = C.U_NONE
+    # Stale flags would otherwise be inherited by the next unit to stand here:
+    # invisible to the enemy, and pushed in a direction it never travelled.
+    state.unit_hidden[tile] = 0
+    state.unit_facing[tile] = -1
 
 
 def _move_unit(state, src: int, dst: int) -> None:
@@ -218,4 +228,16 @@ def _move_unit(state, src: int, dst: int) -> None:
     state.unit_kills[dst] = state.unit_kills[src]
     state.unit_moved[dst] = state.unit_moved[src]
     state.unit_attacked[dst] = state.unit_attacked[src]
+    state.unit_carried[dst] = state.unit_carried[src]
+    state.unit_hidden[dst] = state.unit_hidden[src]
+    # A melee advance IS a move, so it sets the direction a later forced spawn
+    # would shove this unit.
+    state.unit_facing[dst] = _facing_toward(state, src, dst)
     _clear_unit(state, src)
+
+
+def _facing_toward(state, src: int, dst: int) -> int:
+    sx, sy = state.xy(src)
+    dx, dy = state.xy(dst)
+    step = ((dx > sx) - (dx < sx), (dy > sy) - (dy < sy))
+    return C.PUSH_COMPASS.index(step) if step in C.PUSH_COMPASS else -1

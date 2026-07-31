@@ -576,23 +576,23 @@ def _explore(state, city_tile: int, player: int) -> None:
 
 
 def _spawn_super_unit(state, city_tile: int, player: int, rules: Ruleset) -> None:
-    """Place a Giant in the city. Super units cost no support.
+    """Place a Giant in the city, shoving whatever is standing there.
 
-    The city usually has a unit standing on it — garrisoning the city you are
-    levelling is the normal thing to do — so the occupant is *pushed* aside in a
-    forced unit spawn rather than the Giant being quietly dropped. Silently
-    skipping made the reward a trap: the player picked the strongest unit in the
-    game and got nothing, with no way to see why.
+    "The forced spawn of super units are commonly used in besieged cities to push
+    out the invader" — so the occupant being an *enemy* is not an obstacle, it is
+    the point. A besieging unit walked onto the city, so its recorded direction
+    sends it straight back out the way it came, and the siege is broken without a
+    shot fired.
 
-    An enemy unit is not ours to shove; a besieged city keeps the reward unpaid.
+    If the besieger has nowhere to go it is destroyed outright: surround the city
+    on all eight sides, level up, and the enemy Giant standing on it vanishes.
+    The community calls that a Houdini. See `push_unit`.
+
+    Super units cost no support.
     """
-    occupant = int(state.unit_type[city_tile])
-    if occupant != C.U_NONE:
-        if int(state.unit_owner[city_tile]) != player:
-            return
-        from polyengine.core.actions import push_unit
-        if push_unit(state, city_tile, rules) < 0:
-            return
+    from polyengine.core.actions import push_unit
+    if int(state.unit_type[city_tile]) != C.U_NONE:
+        push_unit(state, city_tile, rules, spawner=player)
     giant = rules.unit_id.get("giant", -1)
     if giant < 0:
         return

@@ -444,11 +444,11 @@ def _ruin_reward(state, player: int, tile: int, rules: Ruleset) -> dict:
     # "If the ruin provides a unit as a reward, the examining unit is pushed in a
     # forced unit spawn." The examiner is always standing here — it had to start
     # its turn on the ruin — so without the push this reward could never once be
-    # paid, and the pool would silently be one option short.
-    if (state.unit_type[tile] != C.U_NONE
-            and push_unit(state, tile, rules) < 0):
-        state.stars[player] += C.RUIN_STARS       # genuinely nowhere to go
-        return {"reward": "stars", "stars": C.RUIN_STARS}
+    # paid, and the pool would silently be one option short. A boxed-in examiner
+    # is destroyed by its own reward, which is the same rule the Houdini uses.
+    pushed = -1
+    if state.unit_type[tile] != C.U_NONE:
+        pushed = push_unit(state, tile, rules, spawner=player)
     state.unit_type[tile] = utype
     state.unit_owner[tile] = player
     state.unit_carried[tile] = carried
@@ -458,7 +458,8 @@ def _ruin_reward(state, player: int, tile: int, rules: Ruleset) -> dict:
     state.unit_home[tile] = -1
     state.unit_moved[tile] = 1
     state.unit_attacked[tile] = 1
-    return {"reward": "unit", "unit": rules.unit_names[utype]}
+    return {"reward": "unit", "unit": rules.unit_names[utype],
+            "pushed_to": pushed}
 
 
 def _has_unexplored_within(state, player: int, tile: int, radius: int) -> bool:
@@ -490,29 +491,52 @@ def _sign_f(v: float) -> int:
     return (v > 0) - (v < 0)
 
 
-def push_order(state, tile: int) -> list[int]:
-    """The eight neighbours of `tile`, in the order a forced spawn tries them.
+def push_direction(state, tile: int, spawner: int = -1) -> int:
+    """Which compass direction the unit on `tile` is shoved, wiki's rules in full:
 
-    "There is a push order, which prioritizes the direction the unit last moved,
-    and backs up closest to that direction if a unit is already occupying that
-    space. If the unit has never moved, it prioritizes moving towards the centre
-    of the map." So: start at the facing, then alternate outwards — facing,
-    facing+1, facing-1, facing+2, facing-2, ... ending with the direction it came
-    from. Clockwise wins each tie, which is our choice rather than an observed
-    rule; nothing else about the order is arbitrary.
+        "Friendly units that previously moved will be pushed in the same
+         direction of their movement.
+         Enemy units that previously moved will be pushed in the *opposite*
+         direction of their movement.
+         Ranged units get pushed in the direction of their last move or last
+         attack.
+         Units that were not previously moved will be pushed toward the center
+         of the map.
+         If the city where the unit spawns is on the exact center of the map,
+         the unit will be pushed south."
+
+    "Friendly" and "enemy" are relative to `spawner`, the player whose forced
+    spawn this is. The reversal is the whole point of the un-siege tactic: a
+    besieger walked *onto* your city, so pushing it back the way it came is what
+    clears the tile.
     """
     facing = int(state.unit_facing[tile])
     if facing < 0:
-        # Never moved: aim at the middle of the board. A unit standing exactly on
-        # the centre has no preferred direction, so it falls back to north.
+        # Never moved: aim at the middle of the board.
         x, y = state.xy(tile)
         mid = (state.size - 1) / 2.0
         step = (_sign_f(mid - x), _sign_f(mid - y))
-        facing = C.PUSH_COMPASS.index(step) if step in C.PUSH_COMPASS else 0
+        if step in C.PUSH_COMPASS:
+            return C.PUSH_COMPASS.index(step)
+        return C.PUSH_SOUTH                  # standing on the exact centre
+    if spawner >= 0 and int(state.unit_owner[tile]) != spawner:
+        return (facing + 4) % 8              # enemies go back the way they came
+    return facing
 
+
+def push_order(state, tile: int, spawner: int = -1) -> list[int]:
+    """The eight neighbours of `tile`, in the order a forced spawn tries them.
+
+    "If the tile where the unit is supposed to go is occupied or impassable, it
+    will try counterclockwise and then clockwise one tile at a time until it
+    finds a free tile" — so the search widens by one step each way from the push
+    direction, counterclockwise first, and the direction directly opposite is the
+    last thing tried.
+    """
+    facing = push_direction(state, tile, spawner)
     order = [facing]
     for ring in range(1, 5):
-        for side in (ring, -ring):
+        for side in (-ring, ring):           # counterclockwise, then clockwise
             idx = (facing + side) % 8
             if idx not in order:
                 order.append(idx)
@@ -528,22 +552,31 @@ def push_order(state, tile: int) -> list[int]:
     return out
 
 
-def push_unit(state, tile: int, rules: Ruleset) -> int:
-    """Shove the unit on `tile` to a neighbouring tile it could legally stand on.
+def push_unit(state, tile: int, rules: Ruleset, spawner: int = -1) -> int:
+    """Clear `tile` for a forced unit spawn. Always succeeds.
 
-    A "forced unit spawn" in the game's own terminology: it happens when a ruin
-    hands out a unit under the examiner, and when a city that already has a unit
-    on it is awarded a super unit. Returns the destination tile, or -1 if the
-    unit is boxed in -- in which case the caller must not overwrite it.
+    "A forced unit spawn occurs when a unit is spawned in a tile that already has
+    a unit on it. The unit that is already on the tile is pushed in a specific
+    direction ... Forced unit spawns can happen when a super unit spawns in a
+    city [or] a Ruin spawns a unit."
 
-    The pushed unit keeps its facing: being shoved is not a move it chose, and it
-    has not spent an action.
+    Returns where the occupant ended up, or -1 if it was **destroyed**: "if there
+    is no free tile, it will be removed from the game entirely." The community
+    calls that a Houdini — box in a besieged city on all eight sides, take the
+    super-unit reward, and the enemy Giant standing on your city simply vanishes.
+
+    It is deliberately not scored as combat: "this does not count as a kill for
+    the Gate of Power, nor does it count as an attack for the Altar of Peace", so
+    neither `kills` nor `losses` moves and a pacifist streak survives it.
+
+    The pushed unit keeps its facing and its spent flags: being shoved is not a
+    move it chose, and it costs it nothing.
     """
     from polyengine.core.movement import passable_mask
     owner = int(state.unit_owner[tile])
     utype = int(state.unit_type[tile])
     ok = passable_mask(state, owner, utype, rules)
-    for nb in push_order(state, tile):
+    for nb in push_order(state, tile, spawner):
         if state.unit_type[nb] != C.U_NONE or not ok[nb]:
             continue
         for field in ("unit_type", "unit_owner", "unit_carried", "unit_hp",
@@ -554,6 +587,7 @@ def push_unit(state, tile: int, rules: Ruleset) -> int:
             arr[nb] = arr[tile]
         _clear_unit(state, tile)
         return nb
+    _clear_unit(state, tile)                 # Houdini: nowhere to go
     return -1
 
 

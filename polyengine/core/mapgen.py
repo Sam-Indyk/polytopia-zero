@@ -81,6 +81,26 @@ def size_for_opponents(n_opponents: int) -> int:
     return MAP_SIZES["large"]
 
 
+# "Tiny maps support a maximum of nine players, while other maps support up to
+# 16." That is the real constraint behind "can everyone be seated?" — a map with
+# more players than it has room for is not a map the game would ever deal.
+MAX_PLAYERS_TINY = 9
+MAX_PLAYERS = 16
+# Below tiny, sizes the game never uses but our smoke runs and tests do. The
+# official numbers work out at 12-14 tiles per player, so scale by that rather
+# than pretending an 11x11 rule applies to a 6x6 board.
+TILES_PER_PLAYER = 13
+
+
+def max_players_for_size(size: int) -> int:
+    """How many players a map of this size can seat."""
+    if size >= MAP_SIZES["small"]:
+        return MAX_PLAYERS
+    if size >= MAP_SIZES["tiny"]:
+        return MAX_PLAYERS_TINY
+    return max(2, (size * size) // TILES_PER_PLAYER)
+
+
 # --- water ---------------------------------------------------------------------
 # Wetness bands from the map-type table. The value is the fraction of tiles that
 # end up water or ocean.
@@ -981,6 +1001,11 @@ def new_game(rules: Ruleset, size: int | None = None,
     if map_type not in MAP_TYPES:
         raise ValueError(f"unknown map type {map_type!r}; "
                          f"choose from {sorted(MAP_TYPES)}")
+    seats = max_players_for_size(size)
+    if n_players > seats:
+        raise ValueError(
+            f"{n_players} players will not fit on a {size}x{size} map "
+            f"(seats {seats}). Tiny maps take nine players, larger ones 16.")
     state = GameState(rules, size, n_players, seed)
 
     lo, hi = MAP_TYPES[map_type]
