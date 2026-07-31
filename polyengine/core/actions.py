@@ -409,6 +409,15 @@ def _apply_infiltrate(state, player: int, action: Action, rules: Ruleset) -> dic
     if city not in infiltrate_targets(state, src, rules):
         raise ValueError(f"illegal infiltrate {src} -> {city}")
 
+    # Infiltration IS the Cloak's attack -- that is why it is not a separate
+    # action type -- so it carries an attack's diplomatic consequences: war, and
+    # "attacking a tribe (a unit or a city) will destroy the attacker's embassy
+    # in the defender's capital ... as well as the defender's embassy in the
+    # attacker's capital". Going through `resolve_attack` would apply the combat
+    # formula, which infiltration does not use, so the bookkeeping is explicit.
+    from polyengine.core.diplomacy import record_attack
+    record_attack(state, player, int(state.city_owner[city]), rules)
+
     cloak = int(state.unit_type[src])
     damage = int(rules.unit_attack[cloak])
     killed = False

@@ -314,6 +314,19 @@ class TestMindBender:
         apply_action(s, Action(C.A_HEAL_OTHERS, mb, mb), R)
         assert s.unit_moved[mb] and s.unit_attacked[mb]
 
+    def test_heal_others_is_offered_by_the_action_space_and_the_masks(self):
+        """Same reasoning as the promotion: a Mind Bender standing beside a
+        wounded friend is rare enough that no integration run reaches it."""
+        from polyengine.masks import ActionMasks
+        _, s = blank()
+        mb = put(s, MID, C.U_MIND_BENDER)
+        put(s, MID + 1, C.U_WARRIOR, hp=2)
+        assert any(a.atype == C.A_HEAL_OTHERS and a.src == mb
+                   for a in enumerate_actions(s, 0, R))
+        m = ActionMasks(s, 0, R)
+        assert m.types()[C.A_HEAL_OTHERS]
+        assert m.sources(C.A_HEAL_OTHERS)[mb]
+
     def test_heal_others_is_not_offered_with_nobody_to_heal(self):
         _, s = blank()
         mb = put(s, MID, C.U_MIND_BENDER)

@@ -107,7 +107,12 @@ def resimulate(replay: dict, strict: bool = True) -> dict:
     """
     from polyengine.replay import ReplayRecorder
 
-    game = Game.new(size=replay["size"], seed=replay["map_seed"])
+    # Tribes and map type are as load-bearing as the seed: rebuilding a
+    # continents game as the default drylands two-tribe map produces a
+    # different board, and every recorded action then looks illegal.
+    game = Game.new(size=replay["size"], seed=replay["map_seed"],
+                    tribes=list(replay.get("tribes") or []) or None,
+                    map_type=replay.get("map_type", "drylands"))
     rec = ReplayRecorder(game, agent_names=replay.get("agents", []))
     rec.capture()
     for n, action in enumerate(actions_of(replay)):

@@ -147,6 +147,12 @@ class ScriptedBot:
         if research and int(s.stars[player]) >= 8:
             return self._pick(research)
 
+        # 4a. A Raft is a transport; a Rammer is a warship. Upgrading is pure
+        # profit once the stars are spare, and nothing else competes for a hull.
+        upgrades = by_type.get(C.A_UPGRADE, [])
+        if upgrades and int(s.stars[player]) >= 12:
+            return max(upgrades, key=lambda a: rules.unit_attack[a.subtype])
+
         # 4b. Clear a forest for a star when there is nothing better to buy.
         # The other three tile abilities cost stars for a long-run payoff a
         # heuristic cannot price, so the bot leaves them to the network.
@@ -182,22 +188,51 @@ class ScriptedBot:
         offers = by_type.get(C.A_PEACE_OFFER, [])
         breaks = by_type.get(C.A_PEACE_BREAK, [])
 
+        # One predicate decides all three moves, which is what keeps them
+        # consistent. The first version used separate thresholds and produced a
+        # betrayal loop: a hard bot broke its treaty (freezing its whole army
+        # for the turn), accepted the same tribe's next offer, and broke it
+        # again -- 39 breaks across six games, and it lost more than it won.
+        # If we would tear a treaty up, we must not sign it either.
+        def wants_peace(other: int) -> bool:
+            if self.aggression >= 0.9:
+                return False                    # crazy bots never make peace
+            if self.aggression >= 0.7 and self._stronger_than(s, player, other):
+                return False                    # strong and hostile: take them
+            return True
+
+        hostile = [a for a in breaks if not wants_peace(a.subtype)]
+        if hostile:
+            return self._pick(hostile)
+
         # Answering an offer already on the table is a separate, easier
         # decision from opening negotiations -- and the only one an
         # untechnologied tribe can make.
-        replies = [a for a in offers if offered(s, a.subtype, player)]
-        if replies and self.aggression < 0.9:
+        replies = [a for a in offers
+                   if offered(s, a.subtype, player) and wants_peace(a.subtype)]
+        if replies:
             return self._pick(replies)
-        if breaks and self.aggression >= 0.9:
-            return self._pick(breaks)
-        if offers and self.aggression <= 0.5:
-            # Only bother with a tribe we have actually met.
+        if self.aggression <= 0.5:
+            # Only bother opening talks with a tribe we have actually met.
             known = [a for a in offers
-                     if (s.fog_explored[player]
-                         & (s.mem_city_owner[player] == a.subtype)).any()]
+                     if wants_peace(a.subtype)
+                     and (s.fog_explored[player]
+                          & (s.mem_city_owner[player] == a.subtype)).any()]
             if known:
                 return self._pick(known)
         return None
+
+    def _stronger_than(self, s, player: int, other: int) -> bool:
+        """A crude balance of power: more cities, or the same and more units.
+
+        Deliberately not the score function — a bot deciding whether to betray
+        looks at what it can see on the board, not at a points total.
+        """
+        def tally(p):
+            cities = int(((s.city_owner == p) & (s.city_level > 0)).sum())
+            units = int(((s.unit_owner == p) & (s.unit_type != C.U_NONE)).sum())
+            return cities, units
+        return tally(player) > tally(other)
 
     def _best_attack(self, s, rules: Ruleset,
                      attacks: list[Action]) -> Action | None:

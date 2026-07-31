@@ -1007,6 +1007,7 @@ def new_game(rules: Ruleset, size: int | None = None,
             f"{n_players} players will not fit on a {size}x{size} map "
             f"(seats {seats}). Tiny maps take nine players, larger ones 16.")
     state = GameState(rules, size, n_players, seed)
+    state.map_type = map_type
 
     lo, hi = MAP_TYPES[map_type]
     wetness = float(state.rng.uniform(lo, hi))

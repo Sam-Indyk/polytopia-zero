@@ -88,6 +88,18 @@ def record_attack(state, attacker: int, defender: int, rules: Ruleset) -> None:
     Also settles the diplomatic fallout: "attacking a tribe (a unit or a city)
     will destroy the attacker's embassy in the defender's capital, if it exists,
     as well as the defender's embassy in the attacker's capital, if it exists."
+
+    Called from `resolve_attack` (which covers the Mind Bender's conversion --
+    "converting a unit with a Mind Bender is considered an attack, as it resets
+    the Pacifist task and also destroys embassies") and from infiltration, which
+    *is* the Cloak's attack.
+
+    **Deliberately NOT called on capture.** Taking a city is obviously hostile,
+    but the wiki defines war narrowly -- "either side must have attacked the
+    other side" -- and lists "attacking" and "occupying cities" as two separate
+    things a treaty forbids. Walking into an undefended city is occupying, not
+    attacking. If a real game turns out to declare war on capture, this is the
+    one line to change; it is left out rather than invented.
     """
     if attacker < 0 or defender < 0 or attacker == defender:
         return

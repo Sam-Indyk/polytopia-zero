@@ -156,6 +156,20 @@ class TestVeterans:
         apply_action(s, Action(C.A_PROMOTE, vet, vet), R)
         assert effective_max_hp(s, vet, R) > effective_max_hp(s, plain, R)
 
+    def test_it_is_offered_by_the_action_space_and_the_masks(self):
+        """Random play almost never reaches three kills on one unit, so this
+        action type shows up in no integration run. Both the enumerator and the
+        masks are pinned here instead, or a break in either would be invisible.
+        """
+        from polyengine.masks import ActionMasks
+        _, s = blank()
+        tile = put(s, MID, C.U_WARRIOR, kills=3)
+        assert any(a.atype == C.A_PROMOTE and a.src == tile
+                   for a in enumerate_actions(s, 0, R))
+        m = ActionMasks(s, 0, R)
+        assert m.types()[C.A_PROMOTE]
+        assert m.sources(C.A_PROMOTE)[tile]
+
     def test_promotion_survives_a_serialization_round_trip(self):
         _, s = blank()
         tile = put(s, MID, C.U_WARRIOR, kills=3)

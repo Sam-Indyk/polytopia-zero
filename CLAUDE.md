@@ -11,7 +11,7 @@ Goal (PLAN.md): beat the game's built-in Crazy bots through the real Steam clien
 ## Environment
 
 ```bash
-.venv\Scripts\python.exe -m pytest            # 710 tests, ~10 min
+.venv\Scripts\python.exe -m pytest            # 723 tests, ~10 min
 .venv\Scripts\python.exe -m polytrain.train_league --smoke --iters 50
 ```
 
@@ -54,9 +54,14 @@ Two gotchas that will waste your time otherwise:
    checked by `scripts/check_ruleset.py` against cached wiki pages (240 checks,
    0 mismatches). Change a number → re-run it.
 
-4. **Games are deterministic.** `(map_seed, ruleset_version)` fully determines a
-   game. `polyengine/testing/differential.py` re-simulates recorded replays and
-   localises the first divergent frame *and field*.
+4. **Games are deterministic.** `(map_seed, map_type, tribes, ruleset_version)`
+   fully determines a game — **all four**. `polyengine/testing/differential.py`
+   re-simulates recorded replays and localises the first divergent frame *and*
+   field. The replay header must therefore carry every one of them: it lost
+   `map_type` when map types landed, so `resimulate` rebuilt continents games as
+   drylands and the gate failed on action 0 for months without a single test
+   noticing. `tests/golden/test_differential.py` now round-trips every map type
+   and several tribe pairings.
 
 ## Getting the real rules
 
@@ -702,8 +707,25 @@ bots: aggression and income, not a different program. Easy/normal/hard/crazy
 receive 1/2/3/5 stars per turn, so `income_bonus` carries the surplus over the 2
 a level-1 capital already makes; `ScriptedBot.crazy()` is the M5 target. Call
 `bot.apply_handicap(game, seat)` once before play, or the handicap is not
-applied. Measured over 24 mirrored games: normal beats Random 100%, crazy beats
-normal 58%, hard beats easy 67%.
+applied. Measured over 24 mirrored games (31 Jul, after the unit-skill work):
+normal beats Random 100% in 13 turns, crazy beats normal **83%** in 31, hard
+beats easy 54% in 45. Crazy's margin grew from 58% because the skills it leans
+on — dash, persist, the veteran promotion — did not exist before.
+
+**Difficulty also sets diplomacy**, matching the wiki: "easy bots will almost
+always be peaceful until provoked, while crazy bots may be immediately hostile".
+Easy and normal open peace talks, hard accepts but tears the treaty up once it is
+plainly stronger, crazy neither offers nor accepts. One predicate (`wants_peace`)
+decides offering, accepting and breaking, and it has to: the first version used
+separate thresholds and produced a **betrayal loop** — a hard bot broke its
+treaty (freezing its whole army for the turn), accepted the same tribe's offer
+next turn, and broke it again, 39 times across six games, losing more than it won.
+
+Two normal bots now make peace and run to the turn cap (85 turns, decided on
+score) about 20 games in 24. That is legitimate Polytopia, but it is worth
+knowing before using ScriptedBot as a *training* opponent: peaceful games are
+long, and long games mean fewer terminal rewards per iteration. The M5 target,
+`ScriptedBot.crazy()`, never makes peace.
 
 ## Watching games
 

@@ -97,6 +97,9 @@ class ReplayRecorder:
             "size": int(s.size),
             "n_players": int(s.n_players),
             "map_seed": int(s.map_seed),
+            # Needed to re-simulate: a replay of a continents game
+            # rebuilt as drylands is a different map entirely.
+            "map_type": s.map_type,
             "ruleset_version": r.version,
             "terrain": s.terrain.tolist(),
             # Which tribe's biome each tile is. Fixed at generation and

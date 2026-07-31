@@ -47,7 +47,7 @@ _FOG_ARRAYS = (
 class GameState:
     __slots__ = (
         "rules", "size", "n_tiles", "n_players", "turn", "current_player",
-        "map_seed", "rng",
+        "map_seed", "map_type", "rng",
         *_TILE_ARRAYS, *_PLAYER_ARRAYS, *_FOG_ARRAYS,
     )
 
@@ -60,6 +60,10 @@ class GameState:
         self.turn = 0
         self.current_player = 0
         self.map_seed = int(map_seed)
+        # Recorded so a replay can be re-simulated on the same map. Metadata,
+        # not a hashed array: it never changes and the terrain it produced is
+        # already part of the state.
+        self.map_type = "drylands"
         self.rng = np.random.Generator(np.random.PCG64(map_seed))
         if _alloc:
             self._allocate()
@@ -222,6 +226,7 @@ class GameState:
                       _alloc=False)
         s.turn = self.turn
         s.current_player = self.current_player
+        s.map_type = self.map_type
         for name in (*_TILE_ARRAYS, *_PLAYER_ARRAYS, *_FOG_ARRAYS):
             setattr(s, name, getattr(self, name).copy())
         # Clone the RNG bitstream position so continuations stay reproducible.
@@ -245,6 +250,7 @@ class GameState:
             "turn": self.turn,
             "current_player": self.current_player,
             "map_seed": self.map_seed,
+            "map_type": self.map_type,
             "rng_state": _jsonify(self.rng.bit_generator.state),
         }
         for name in (*_TILE_ARRAYS, *_PLAYER_ARRAYS, *_FOG_ARRAYS):
@@ -260,6 +266,7 @@ class GameState:
         # were added, producing states that hashed differently after a round
         # trip; deriving the dtype makes that failure mode impossible.
         s = cls(rules, d["size"], d["n_players"], d["map_seed"], _alloc=True)
+        s.map_type = d.get("map_type", "drylands")
         s.turn = d["turn"]
         s.current_player = d["current_player"]
         for name in (*_TILE_ARRAYS, *_PLAYER_ARRAYS, *_FOG_ARRAYS):
