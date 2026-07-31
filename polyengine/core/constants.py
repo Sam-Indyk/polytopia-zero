@@ -110,6 +110,12 @@ STARFISH_STARS = 8                 # "gives 8 stars"
 RUIN_STARS = 10                    # "Resources | Grants 10 Stars"
 RUIN_POPULATION = 3                # "Adds 3 free Population to the capital"
 
+# The eight compass directions, clockwise from north. `unit_facing` stores an
+# index into this, and a forced unit spawn walks outwards from that index — see
+# `push_order` in actions.py.
+PUSH_COMPASS = ((0, -1), (1, -1), (1, 0), (1, 1),
+                (0, 1), (-1, 1), (-1, 0), (-1, -1))
+
 # Tiles that carry a city connection. Ports count (the wiki's Port description
 # says so explicitly), and city tiles conduct implicitly — see economy.py.
 CONNECTORS = frozenset({IMP_ROAD, IMP_BRIDGE, IMP_PORT})

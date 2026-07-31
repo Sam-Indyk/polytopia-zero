@@ -31,6 +31,7 @@ _TILE_ARRAYS = (
     "city_workshop", "city_park", "city_pending_reward", "city_conn_pop",
     "unit_type", "unit_owner", "unit_hp", "unit_moved", "unit_attacked",
     "unit_veteran", "unit_kills", "unit_home", "unit_carried", "unit_hidden",
+    "unit_facing",
 )
 _PLAYER_ARRAYS = ("stars", "tech", "tribe", "alive",
                   "task_done", "monument_built", "kills", "losses",
@@ -103,6 +104,11 @@ class GameState:
         # moved. Enemies still detect it on an ADJACENT tile, which is what
         # keeps this inside the fog contract rather than beside it.
         self.unit_hidden = np.zeros(n, dtype=C.DT_FLAG)
+        # Which of the eight compass directions this unit last moved in, as an
+        # index into `C.PUSH_COMPASS`; -1 if it has never moved. Only a forced
+        # unit spawn reads it — that is what decides which way an occupant gets
+        # shoved when something else has to appear on its tile.
+        self.unit_facing = np.full(n, -1, dtype=np.int8)
 
         self.stars = np.zeros(p, dtype=C.DT_STARS)
         self.tech = np.zeros(p, dtype=C.DT_TECH)

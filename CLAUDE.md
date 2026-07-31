@@ -207,7 +207,28 @@ bug that shows up as "the agent ignores ruins" rather than as a crash:
   ruin to examine it, so the spawn tile was always occupied and the code fell
   back to stars — every single time. The wiki's own trivia has the answer: "If
   the ruin provides a unit as a reward, the examining unit is **pushed** in a
-  forced unit spawn." `_push_unit` in `actions.py` does that.
+  forced unit spawn." `push_unit` in `actions.py` does that.
+
+## Forced unit spawns have a push order
+
+Two things must appear on a tile that is usually already occupied: a ruin's unit
+reward (the examiner is standing on it by definition) and a city's **super-unit**
+reward (you garrison the city you are levelling). Both go through
+`push_unit`, and the direction is not arbitrary:
+
+> prioritise the direction the unit last moved, and back up to the closest
+> direction to that if something is already there; a unit that has never moved
+> is pushed towards the centre of the map.
+
+So `state.unit_facing` records the compass index of each unit's last move — net
+displacement, since the engine keeps no path — and `push_order` walks outwards
+from it: facing, +1, −1, +2, −2, … with the direction it came from tried last.
+Clockwise wins each tie; that part is our choice, not an observed rule.
+
+The Giant used to be **silently dropped** if the city tile was taken, which made
+the strongest reward in the game a trap: you picked it and got nothing, with
+nothing in the log to say why. An *enemy* on the city is still not ours to shove,
+so a besieged city leaves the reward unpaid.
 
 **Not simulated yet:** special tribes only (excluded by choice). The viewer lists
 this so an empty log never reads as "nothing happened".

@@ -445,7 +445,8 @@ def _ruin_reward(state, player: int, tile: int, rules: Ruleset) -> dict:
     # forced unit spawn." The examiner is always standing here — it had to start
     # its turn on the ruin — so without the push this reward could never once be
     # paid, and the pool would silently be one option short.
-    if state.unit_type[tile] != C.U_NONE and not _push_unit(state, tile, rules):
+    if (state.unit_type[tile] != C.U_NONE
+            and push_unit(state, tile, rules) < 0):
         state.stars[player] += C.RUIN_STARS       # genuinely nowhere to go
         return {"reward": "stars", "stars": C.RUIN_STARS}
     state.unit_type[tile] = utype
@@ -467,28 +468,93 @@ def _has_unexplored_within(state, player: int, tile: int, radius: int) -> bool:
                if state.chebyshev(tile, t) <= radius)
 
 
-def _push_unit(state, tile: int, rules: Ruleset) -> bool:
+def facing_toward(state, src: int, dst: int) -> int:
+    """Compass index of the step from `src` to `dst`, by net displacement.
+
+    A multi-tile move only records where the unit ended up relative to where it
+    started; the engine does not keep the path, and the last leg of a Rider's
+    road dash is not recoverable from the endpoints. Net displacement is the
+    honest approximation and matches the single-step case exactly.
+    """
+    sx, sy = state.xy(src)
+    dx, dy = state.xy(dst)
+    step = (_sign(dx - sx), _sign(dy - sy))
+    return C.PUSH_COMPASS.index(step) if step in C.PUSH_COMPASS else -1
+
+
+def _sign(v: int) -> int:
+    return (v > 0) - (v < 0)
+
+
+def _sign_f(v: float) -> int:
+    return (v > 0) - (v < 0)
+
+
+def push_order(state, tile: int) -> list[int]:
+    """The eight neighbours of `tile`, in the order a forced spawn tries them.
+
+    "There is a push order, which prioritizes the direction the unit last moved,
+    and backs up closest to that direction if a unit is already occupying that
+    space. If the unit has never moved, it prioritizes moving towards the centre
+    of the map." So: start at the facing, then alternate outwards — facing,
+    facing+1, facing-1, facing+2, facing-2, ... ending with the direction it came
+    from. Clockwise wins each tie, which is our choice rather than an observed
+    rule; nothing else about the order is arbitrary.
+    """
+    facing = int(state.unit_facing[tile])
+    if facing < 0:
+        # Never moved: aim at the middle of the board. A unit standing exactly on
+        # the centre has no preferred direction, so it falls back to north.
+        x, y = state.xy(tile)
+        mid = (state.size - 1) / 2.0
+        step = (_sign_f(mid - x), _sign_f(mid - y))
+        facing = C.PUSH_COMPASS.index(step) if step in C.PUSH_COMPASS else 0
+
+    order = [facing]
+    for ring in range(1, 5):
+        for side in (ring, -ring):
+            idx = (facing + side) % 8
+            if idx not in order:
+                order.append(idx)
+
+    size = state.size
+    x, y = state.xy(tile)
+    out = []
+    for idx in order:
+        dx, dy = C.PUSH_COMPASS[idx]
+        nx, ny = x + dx, y + dy
+        if 0 <= nx < size and 0 <= ny < size:
+            out.append(ny * size + nx)
+    return out
+
+
+def push_unit(state, tile: int, rules: Ruleset) -> int:
     """Shove the unit on `tile` to a neighbouring tile it could legally stand on.
 
-    A "forced unit spawn" in the game's own terminology. Returns False if the
-    unit is boxed in, in which case the caller must not overwrite it.
+    A "forced unit spawn" in the game's own terminology: it happens when a ruin
+    hands out a unit under the examiner, and when a city that already has a unit
+    on it is awarded a super unit. Returns the destination tile, or -1 if the
+    unit is boxed in -- in which case the caller must not overwrite it.
+
+    The pushed unit keeps its facing: being shoved is not a move it chose, and it
+    has not spent an action.
     """
     from polyengine.core.movement import passable_mask
     owner = int(state.unit_owner[tile])
     utype = int(state.unit_type[tile])
     ok = passable_mask(state, owner, utype, rules)
-    for nb in state.neighbors(tile):
-        nb = int(nb)
+    for nb in push_order(state, tile):
         if state.unit_type[nb] != C.U_NONE or not ok[nb]:
             continue
         for field in ("unit_type", "unit_owner", "unit_carried", "unit_hp",
                       "unit_veteran", "unit_kills", "unit_moved",
-                      "unit_attacked", "unit_home", "unit_hidden"):
+                      "unit_attacked", "unit_home", "unit_hidden",
+                      "unit_facing"):
             arr = getattr(state, field)
             arr[nb] = arr[tile]
         _clear_unit(state, tile)
-        return True
-    return False
+        return nb
+    return -1
 
 
 def _apply_disband(state, player: int, action: Action, rules: Ruleset) -> dict:
@@ -535,6 +601,9 @@ def _apply_move(state, player: int, action: Action, rules: Ruleset) -> dict:
                 "unit_kills", "unit_attacked", "unit_home", "unit_carried"):
         getattr(state, arr)[dst] = getattr(state, arr)[src]
     state.unit_moved[dst] = 1
+    # Remember which way it went: a later forced spawn on this tile pushes the
+    # occupant onwards in the direction it was already heading.
+    state.unit_facing[dst] = facing_toward(state, src, dst)
     _clear_unit(state, src)
 
     # "Hide ... makes it invisible to enemies after it moves."
@@ -656,3 +725,4 @@ def _clear_unit(state, tile: int) -> None:
     # A stale stealth flag would make the NEXT unit to stand here invisible:
     # `hidden_from` only checks the flag and that the tile is occupied.
     state.unit_hidden[tile] = 0
+    state.unit_facing[tile] = -1

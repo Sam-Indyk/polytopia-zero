@@ -67,6 +67,7 @@ def _board(state) -> dict:
         "unit_home": state.unit_home.tolist(),
         "unit_carried": state.unit_carried.tolist(),
         "unit_hidden": state.unit_hidden.tolist(),
+        "unit_facing": state.unit_facing.tolist(),
         "stars": state.stars.tolist(),
         "tech": [int(t) for t in state.tech],       # bitmask per player
         "alive": state.alive.tolist(),
