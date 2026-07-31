@@ -151,6 +151,16 @@ function researchCost(f,p,t){
   return (phil>=0&&hasTech(f.tech[p],phil)) ? Math.ceil(base*2/3) : base;
 }
 
+// Seat number whose biome a tile is, or -1 for an old replay without them.
+function biomeName(k){
+  const ids=R.tile_tribe||[], names=R.tribe_names||[];
+  return (k<ids.length && ids[k]<names.length) ? names[ids[k]] : null;
+}
+function biomeSeat(k){
+  const n=biomeName(k);
+  return n===null ? -1 : (R.tribes||[]).indexOf(n);
+}
+
 function draw(){
   const f=F[i];
   cx.clearRect(0,0,cv.width,cv.height);
@@ -158,6 +168,11 @@ function draw(){
     const x=(k%S)*CELL, y=Math.floor(k/S)*CELL;
     cx.fillStyle=TERR[R.terrain_names[R.terrain[k]]]||'#333';
     cx.fillRect(x,y,CELL,CELL);
+    // Biome tint: which tribe's spawn rates made this tile. It never changes
+    // hands, so it is drawn faintly under the territory tint rather than
+    // competing with it.
+    if(biomeSeat(k)>=0){cx.globalAlpha=.10;cx.fillStyle=PC[biomeSeat(k)%4];
+      cx.fillRect(x,y,CELL,CELL);cx.globalAlpha=1;}
     if(f.owner[k]>=0){cx.globalAlpha=.24;cx.fillStyle=PC[f.owner[k]%4];
       cx.fillRect(x,y,CELL,CELL);cx.globalAlpha=1;}
     cx.strokeStyle='rgba(0,0,0,.35)';cx.strokeRect(x+.5,y+.5,CELL-1,CELL-1);
@@ -278,7 +293,10 @@ function renderTile(){
         `<tr><th>resource</th><td>${R.resource_names[f.resource[k]]}</td></tr>`+
         (f.improvement[k]>=0
           ? `<tr><th>building</th><td>${R.improvement_names[f.improvement[k]]}</td></tr>` : '')+
-        `<tr><th>territory</th><td>${f.owner[k]<0?'neutral':'P'+f.owner[k]}</td></tr>`;
+        `<tr><th>territory</th><td>${f.owner[k]<0?'neutral':'P'+f.owner[k]}</td></tr>`+
+        (biomeName(k)
+          ? `<tr><th>biome</th><td>${biomeName(k)} \\u2014 the tribe whose spawn `
+            + `rates generated this tile (fixed at map generation)</td></tr>` : '');
   if(f.city_level[k]>0)
     h+=`<tr><th>city</th><td>${f.city_owner[k]<0?'neutral':'P'+f.city_owner[k]}`+
        ` \\u00b7 level ${f.city_level[k]} \\u00b7 pop ${f.city_pop[k]}`+

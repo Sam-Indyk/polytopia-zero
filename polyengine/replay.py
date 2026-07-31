@@ -94,6 +94,10 @@ class ReplayRecorder:
             "map_seed": int(s.map_seed),
             "ruleset_version": r.version,
             "terrain": s.terrain.tolist(),
+            # Which tribe's biome each tile is. Fixed at generation and
+            # never changes hands, unlike `owner`.
+            "tile_tribe": s.tile_tribe.tolist(),
+            "tribe_names": list(tribe_names),
             "tribes": [tribe_names[t] if 0 <= t < len(tribe_names) else str(t)
                        for t in s.tribe.tolist()],
             "unit_names": list(r.unit_names),

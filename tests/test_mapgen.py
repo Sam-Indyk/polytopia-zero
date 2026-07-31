@@ -20,8 +20,10 @@ import pytest
 from polyengine.core import constants as C
 from polyengine.core.mapgen import (
     BASE_TERRAIN,
+    CONTINENT_MIN,
     MAP_SIZES,
     MAP_TYPES,
+    _land_components,
     new_game,
     size_for_opponents,
     terrain_rates,
@@ -32,9 +34,15 @@ R = load_ruleset()
 
 
 def biome_owner(state, tile):
-    caps = {int(state.city_owner[t]): t for t in range(state.n_tiles)
-            if state.city_capital[t]}
-    return min(caps, key=lambda p: state.chebyshev(tile, caps[p]))
+    """Which player's biome a tile belongs to.
+
+    Read straight off `tile_tribe`. Guessing by nearest capital was fine while
+    biomes were a Voronoi partition; the generator now grows them by randomised
+    flood fill, exactly as the game does, and the borders are ragged enough that
+    the guess is wrong often enough to hide real spawn-rate bugs.
+    """
+    by_id = {int(state.tribe[p]): p for p in range(state.n_players)}
+    return by_id[int(state.tile_tribe[tile])]
 
 
 # --- sizes --------------------------------------------------------------------
@@ -149,15 +157,32 @@ class TestTribeResources:
 # --- the two-tile rule --------------------------------------------------------
 class TestResourcePlacement:
     def test_resources_only_appear_near_a_city(self):
-        """"All resources spawn only within two tiles of cities or villages."""
+        """"All resources spawn only within two tiles of cities or villages."
+
+        Starfish are the documented exception -- "starfish can spawn on any
+        water tiles, and are scattered across the map" -- which is what makes
+        them worth sailing out for.
+        """
         for seed in range(8):
             s = new_game(R, size=16, tribes=["imperius", "bardur"], seed=seed)
             cities = [t for t in range(s.n_tiles) if s.city_level[t] > 0]
             for t in range(s.n_tiles):
-                if s.resource[t] == C.R_NONE:
+                if s.resource[t] in (C.R_NONE, C.R_STARFISH):
                     continue
                 assert min(s.chebyshev(t, c) for c in cities) <= 2, \
                     f"resource at {t} is more than two tiles from any city"
+
+    def test_starfish_are_not_bound_by_the_two_tile_rule(self):
+        """The converse of the above: they really do scatter."""
+        far = 0
+        for seed in range(10):
+            s = new_game(R, size=16, tribes=["imperius", "kickoo"], seed=seed,
+                         map_type="archipelago")
+            cities = [t for t in range(s.n_tiles) if s.city_level[t] > 0]
+            far += sum(1 for t in range(s.n_tiles)
+                       if s.resource[t] == C.R_STARFISH
+                       and min(s.chebyshev(t, c) for c in cities) > 2)
+        assert far > 0, "every starfish sits next to a city, which is not scattering"
 
     def test_tiles_beside_a_city_are_richer_than_tiles_two_away(self):
         """Inner rates are roughly 3x outer (18% vs 6% fruit, and so on)."""
@@ -219,14 +244,40 @@ class TestWater:
                          map_type=kind)
             assert s.n_tiles == 196
 
-    def test_deep_ocean_is_water_away_from_land(self):
+    def test_deep_ocean_shares_no_edge_with_land(self):
+        """"Ocean ... does not share any edges with land tiles" -- edges, not
+        corners, so a tile diagonally off a headland is still ocean."""
+        def orthogonal(s, t):
+            x, y = s.xy(t)
+            for dx, dy in ((0, -1), (-1, 0), (1, 0), (0, 1)):
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < s.size and 0 <= ny < s.size:
+                    yield ny * s.size + nx
+
+        for seed in range(6):
+            s = new_game(R, size=16, tribes=["imperius", "bardur"], seed=seed,
+                         map_type="continents")
+            for t in range(s.n_tiles):
+                if s.terrain[t] != C.T_OCEAN or s.improvement[t] == C.IMP_LIGHTHOUSE:
+                    continue
+                assert not any(R.terrain_is_land[s.terrain[nb]]
+                               for nb in orthogonal(s, t))
+
+    def test_shallow_water_hugs_the_coast(self):
+        """The converse: every shallow-water tile does touch land by an edge."""
         s = new_game(R, size=16, tribes=["imperius", "bardur"], seed=4,
-                     map_type="continents")
+                     map_type="archipelago")
+        found = 0
         for t in range(s.n_tiles):
-            if s.terrain[t] != C.T_OCEAN or s.improvement[t] == C.IMP_LIGHTHOUSE:
+            if s.terrain[t] != C.T_WATER:
                 continue
-            assert not any(R.terrain_is_land[s.terrain[nb]]
-                           for nb in s.neighbors(t))
+            x, y = s.xy(t)
+            nbs = [(y + dy) * s.size + (x + dx)
+                   for dx, dy in ((0, -1), (-1, 0), (1, 0), (0, 1))
+                   if 0 <= x + dx < s.size and 0 <= y + dy < s.size]
+            assert any(R.terrain_is_land[s.terrain[nb]] for nb in nbs)
+            found += 1
+        assert found, "an archipelago with no coastline is not an archipelago"
 
 
 # --- placement ----------------------------------------------------------------
@@ -288,20 +339,44 @@ class TestMapTypeFeatures:
                              seed=seed, map_type=kind)
                 assert self.villages(s), f"{kind} seed {seed}: no villages"
 
-    def test_lakes_puts_suburbs_near_the_capitals(self):
+    def test_the_suburb_pass_puts_up_to_two_villages_beside_a_capital(self):
         """"After the capital city is placed, the algorithm puts up to two
-        villages nearby" -- so a Lakes capital has close neighbours a Drylands
-        one usually does not."""
-        def close_villages(kind):
-            n = 0
-            for seed in range(8):
-                s = new_game(R, size=16, tribes=["imperius", "bardur"],
-                             seed=seed, map_type=kind)
-                caps = [t for t in range(s.n_tiles) if s.city_capital[t]]
-                n += sum(1 for v in self.villages(s)
-                         if min(s.chebyshev(v, c) for c in caps) <= 4)
-            return n
-        assert close_villages("lakes") > close_villages("drylands")
+        villages nearby ... you usually get two."
+
+        Tested on the pass itself. On a finished map the post-terrain pass fills
+        in around every capital anyway, so counting neighbours cannot tell a
+        Lakes map from a Drylands one — the difference is real but invisible by
+        the time generation ends.
+        """
+        from polyengine.core.mapgen import _place_suburbs
+        from polyengine.core.state import GameState
+
+        for seed in range(10):
+            s = GameState(R, 16, 2, seed)
+            caps = [3 * 16 + 3, 12 * 16 + 12]
+            taken = list(caps)
+            subs = _place_suburbs(s, caps, taken)
+            assert 2 <= len(subs) <= 4, len(subs)      # one or two per capital
+            for v in subs:
+                near = min(s.chebyshev(v, c) for c in caps)
+                assert 2 < near <= 4, "a suburb should be a couple of tiles out"
+
+    def test_the_feature_table_is_transcribed_exactly(self):
+        """The wiki's per-type table, as three lookups. Every one of these was
+        wrong at some point, and each wrong entry is invisible on the board."""
+        from polyengine.core.mapgen import (
+            ISLAND_VILLAGE_TYPES,
+            PRE_TERRAIN_COEFFICIENT,
+            QUADRANT_TYPES,
+            SUBURB_TYPES,
+        )
+        assert QUADRANT_TYPES == {"drylands", "lakes", "archipelago",
+                                  "waterworld"}
+        assert SUBURB_TYPES == {"lakes", "archipelago"}
+        assert PRE_TERRAIN_COEFFICIENT == {"lakes": 0.3, "archipelago": 0.3,
+                                           "waterworld": 0.1}
+        assert ISLAND_VILLAGE_TYPES == {"waterworld", "continents", "pangea"}
+        assert set(MAP_TYPES) - QUADRANT_TYPES == {"continents", "pangea"}
 
     def test_continents_and_pangea_place_island_villages(self):
         """"Continents and Pangea have a fixed amount of villages that spawn in
@@ -342,28 +417,33 @@ class TestMapTypeFeatures:
                 caps = [t for t in range(s.n_tiles) if s.city_capital[t]]
                 assert s.chebyshev(caps[0], caps[1]) >= 6, f"{kind} seed {seed}"
 
-    def test_a_crowded_continents_map_can_share_a_domain(self):
-        """Where the two rules DO diverge: six players on a massive map.
+    def test_continents_capitals_land_on_different_continents(self):
+        """"Then, like on Pangea, one village per player is converted to a
+        capital. Capitals are placed on different land masses, space
+        permitting."""
+        for seed in range(10):
+            s = new_game(R, size=16, tribes=["imperius", "bardur"], seed=seed,
+                         map_type="continents")
+            caps = [t for t in range(s.n_tiles) if s.city_capital[t]]
+            mass = {}
+            for i, comp in enumerate(_land_components(s)):
+                for t in comp:
+                    mass[t] = i
+            assert mass[caps[0]] != mass[caps[1]], f"seed {seed}: same continent"
 
-        The quadrant path would deal one capital per 3x3 domain; scattered
-        placement only enforces spacing, so some seed should double up. If this
-        ever stops happening, `_scattered_capitals` has quietly become the
-        quadrant rule again.
-        """
-        from polyengine.core.mapgen import _scattered_capitals
-        from polyengine.core.state import GameState
-
-        shared = 0
-        for seed in range(30):
-            s = GameState(R, 30, 6, seed)
-            caps = _scattered_capitals(s, 6)
-            domains = [(s.xy(t)[0] // 10, s.xy(t)[1] // 10) for t in caps]
-            if len(set(domains)) < len(caps):
-                shared += 1
-            for i, a in enumerate(caps):
-                for b in caps[i + 1:]:
-                    assert s.chebyshev(a, b) >= 6
-        assert shared > 0, "scattered placement is behaving like quadrants"
+    def test_capitals_are_converted_villages_and_prefer_the_coast(self):
+        """"The algorithm prefers to have capitals next to water tiles. That
+        means you almost always get capitals spawns on the coast."""
+        coastal = total = 0
+        for kind in ("continents", "pangea"):
+            for seed in range(10):
+                s = new_game(R, size=16, tribes=["imperius", "bardur"],
+                             seed=seed, map_type=kind)
+                for cap in [t for t in range(s.n_tiles) if s.city_capital[t]]:
+                    total += 1
+                    coastal += any(not R.terrain_is_land[s.terrain[nb]]
+                                   for nb in s.neighbors(cap))
+        assert coastal >= 0.8 * total, f"only {coastal}/{total} capitals coastal"
 
     def test_the_pre_terrain_village_formula(self):
         """"(([map width]/3)^2 - [capitals and suburbs]) * (density coefficient)",
@@ -375,6 +455,190 @@ class TestMapTypeFeatures:
         assert _pre_terrain_village_count(Fake(), 0, 0.3) == int((16 // 3) ** 2 * 0.3)
         assert _pre_terrain_village_count(Fake(), 4, 0.3) == int(((16 // 3) ** 2 - 4) * 0.3)
         assert _pre_terrain_village_count(Fake(), 1000, 0.3) == 0
+
+
+# --- landmass shape --------------------------------------------------------------
+class TestLandmassShape:
+    """The map type has to mean something on the board, not just in the water
+    percentage. "Continents: large but discrete landmasses" / "Pangea: a large
+    landmass in the middle of the map surrounded by ocean" / "Archipelago:
+    misshapen and discontinuous landmasses" / "Water World: small landmasses of
+    one or two villages"."""
+
+    def masses(self, s, min_size=2):
+        """Landmasses, ignoring the one-tile islands that island villages make."""
+        return [c for c in _land_components(s) if len(c) >= min_size]
+
+    def test_continents_are_discrete_and_large(self):
+        for seed in range(8):
+            s = new_game(R, size=16, tribes=["imperius", "bardur"], seed=seed,
+                         map_type="continents")
+            masses = self.masses(s)
+            assert len(masses) >= 2, f"seed {seed}: continents merged into one"
+            for m in masses:
+                assert len(m) >= CONTINENT_MIN / 2, \
+                    f"seed {seed}: a {len(m)}-tile scrap is not a continent"
+
+    def test_continents_are_separated_by_ocean(self):
+        """"[Continents] must be at least one tile apart" -- and the gap must be
+        real water, not a diagonal handshake."""
+        for seed in range(8):
+            s = new_game(R, size=16, tribes=["imperius", "bardur"], seed=seed,
+                         map_type="continents")
+            masses = self.masses(s)
+            for i, a in enumerate(masses):
+                for b in masses[i + 1:]:
+                    gap = min(s.chebyshev(x, y) for x in a for y in b)
+                    assert gap >= 2, "two continents are touching"
+
+    def test_pangea_is_one_landmass_around_the_middle(self):
+        for seed in range(8):
+            s = new_game(R, size=16, tribes=["imperius", "bardur"], seed=seed,
+                         map_type="pangea")
+            masses = self.masses(s)
+            assert len(masses) == 1, f"seed {seed}: pangea is not one landmass"
+            biggest = masses[0]
+            mid = (s.size // 2) * s.size + (s.size // 2)
+            assert mid in biggest, "the landmass should cover the centre"
+
+    def test_pangea_edges_are_ocean(self):
+        """"...surrounded by ocean on the outskirts"."""
+        for seed in range(6):
+            s = new_game(R, size=16, tribes=["imperius", "bardur"], seed=seed,
+                         map_type="pangea")
+            border = [t for t in range(s.n_tiles)
+                      if s.xy(t)[0] in (0, s.size - 1) or s.xy(t)[1] in (0, s.size - 1)]
+            land = sum(1 for t in border if R.terrain_is_land[s.terrain[t]])
+            assert land == 0, f"seed {seed}: {land} land tiles on the border"
+
+    def test_archipelago_is_many_small_islands(self):
+        """No one island may hold most of the land. (Villages are forced onto
+        land, so two islands a tile apart can end up bridged by one -- which is
+        why this is a share of the total rather than an absolute cap.)"""
+        s = new_game(R, size=18, tribes=["imperius", "kickoo"], seed=2,
+                     map_type="archipelago")
+        masses = self.masses(s)
+        land = sum(len(m) for m in masses)
+        assert len(masses) >= 4
+        assert max(len(m) for m in masses) <= 0.5 * land
+
+    def test_lakes_keeps_a_land_border(self):
+        """"A border of land bridges will always generate on the edges of the
+        map." Without it a "lakes" map is just a wet drylands."""
+        for seed in range(6):
+            s = new_game(R, size=16, tribes=["imperius", "bardur"], seed=seed,
+                         map_type="lakes")
+            for t in range(s.n_tiles):
+                x, y = s.xy(t)
+                on_border = x in (0, s.size - 1) or y in (0, s.size - 1)
+                if on_border and s.improvement[t] != C.IMP_LIGHTHOUSE:
+                    assert R.terrain_is_land[s.terrain[t]], f"water at {x},{y}"
+
+    def test_a_continents_map_actually_needs_boats(self):
+        """The point of the shape: a capital cannot walk to the other capital.
+
+        This is what the old smoothed-noise generator quietly failed at -- it
+        made a lace of one-tile isthmuses, so Ports and boats had nothing to do
+        on the one map type built around them.
+        """
+        for seed in range(6):
+            s = new_game(R, size=16, tribes=["imperius", "bardur"], seed=seed,
+                         map_type="continents")
+            caps = [t for t in range(s.n_tiles) if s.city_capital[t]]
+            reach, stack = {caps[0]}, [caps[0]]
+            while stack:
+                for nb in s.neighbors(stack.pop()):
+                    nb = int(nb)
+                    if nb not in reach and R.terrain_is_land[s.terrain[nb]]:
+                        reach.add(nb)
+                        stack.append(nb)
+            assert caps[1] not in reach, f"seed {seed}: you can walk there"
+
+
+# --- tile biomes ------------------------------------------------------------------
+class TestTileBiomes:
+    def test_every_tile_belongs_to_a_tribe_in_the_game(self):
+        s = new_game(R, size=16, tribes=["xin_xi", "vengir"], seed=1)
+        ids = {int(s.tribe[p]) for p in range(s.n_players)}
+        assert set(int(v) for v in s.tile_tribe) <= ids
+
+    def test_the_land_is_split_roughly_equally(self):
+        """"During the initial map generation, the land is distributed roughly
+        equally between all tribes in the game." The randomised flood fill is
+        self-balancing because the tribes take turns."""
+        for seed in range(6):
+            s = new_game(R, size=16, tribes=["imperius", "bardur"], seed=seed)
+            counts = [int((s.tile_tribe == int(s.tribe[p])).sum())
+                      for p in range(s.n_players)]
+            assert min(counts) > 0.30 * s.n_tiles, counts
+
+    def test_a_capital_sits_in_its_own_biome(self):
+        s = new_game(R, size=16, tribes=["imperius", "bardur"], seed=3)
+        for t in range(s.n_tiles):
+            if s.city_capital[t]:
+                p = int(s.city_owner[t])
+                assert int(s.tile_tribe[t]) == int(s.tribe[p])
+
+    def test_biomes_survive_a_serialization_round_trip(self):
+        s = new_game(R, size=14, tribes=["hoodrick", "oumaji"], seed=4)
+        clone = type(s).from_dict(s.to_dict(), R)
+        assert (clone.tile_tribe == s.tile_tribe).all()
+
+
+# --- guaranteed starts -------------------------------------------------------------
+class TestGuaranteedCapitalResources:
+    def ring(self, s, tile):
+        return [int(nb) for nb in s.neighbors(tile)]
+
+    def capital_of(self, s, player):
+        return next(t for t in range(s.n_tiles)
+                    if s.city_capital[t] and int(s.city_owner[t]) == player)
+
+    def test_bardur_always_starts_with_game_to_hunt(self):
+        for seed in range(8):
+            s = new_game(R, size=14, tribes=["bardur", "oumaji"], seed=seed)
+            cap = self.capital_of(s, 0)
+            n = sum(1 for t in self.ring(s, cap) if s.resource[t] == C.R_GAME)
+            assert n >= 2, f"seed {seed}: Bardur has {n} game beside its capital"
+
+    def test_imperius_always_starts_with_fruit(self):
+        for seed in range(8):
+            s = new_game(R, size=14, tribes=["imperius", "oumaji"], seed=seed)
+            cap = self.capital_of(s, 0)
+            n = sum(1 for t in self.ring(s, cap) if s.resource[t] == C.R_FRUIT)
+            assert n >= 2, f"seed {seed}: Imperius has {n} fruit"
+
+    def test_kickoo_gets_water_with_fish_even_on_drylands(self):
+        """"Drylands: entirely land. (Kickoo and Aquarion capitals will include
+        two water tiles with a fish in each.)"."""
+        for seed in range(8):
+            s = new_game(R, size=14, tribes=["kickoo", "oumaji"], seed=seed,
+                         map_type="drylands")
+            cap = self.capital_of(s, 0)
+            fish = [t for t in self.ring(s, cap) if s.resource[t] == C.R_FISH]
+            assert len(fish) >= 2, f"seed {seed}: {len(fish)} fish"
+            for t in fish:
+                assert not R.terrain_is_land[s.terrain[t]]
+
+    def test_zebasi_gets_a_crop(self):
+        for seed in range(8):
+            s = new_game(R, size=14, tribes=["zebasi", "oumaji"], seed=seed)
+            cap = self.capital_of(s, 0)
+            n = sum(1 for t in self.ring(s, cap) if s.resource[t] == C.R_CROP)
+            assert n >= 1, f"seed {seed}: Zebasi has no crop"
+
+    def test_a_tribe_without_a_promise_is_left_to_the_dice(self):
+        """The fish is Kickoo's promise specifically, not a general handout: an
+        Oumaji start on Drylands sometimes has no fish at all."""
+        dry_starts = 0
+        for seed in range(10):
+            s = new_game(R, size=14, tribes=["oumaji", "luxidoor"], seed=seed,
+                         map_type="drylands")
+            for player in (0, 1):
+                cap = self.capital_of(s, player)
+                if not any(s.resource[t] == C.R_FISH for t in self.ring(s, cap)):
+                    dry_starts += 1
+        assert dry_starts > 0, "everyone is being handed Kickoo's guarantee"
 
 
 # --- starting position ---------------------------------------------------------
@@ -406,6 +670,48 @@ class TestStartingPosition:
         for name in names:
             s = new_game(R, size=14, tribes=[name, "luxidoor"], seed=0)
             assert int(((s.city_capital > 0)).sum()) == 2
+
+
+# --- everyone gets a capital ------------------------------------------------------
+class TestEveryPlayerIsSeated:
+    """A player without a capital has no city and no unit, so it is dead before
+    the first move and the game is terminal at turn 0.
+
+    That is not a hypothetical: village promotion has nothing to promote when a
+    cramped map holds fewer villages than players, and the quadrant route's
+    "no land in this quadrant, look outside it" fallback can send two quadrants
+    to the same shore. It showed up as a training smoke run whose rollouts
+    collapsed from 1024 steps to 64 — the games were ending instantly.
+    """
+
+    @pytest.mark.parametrize("size", [6, 8, 11, 14, 16])
+    @pytest.mark.parametrize("kind", sorted(MAP_TYPES))
+    def test_two_players_both_get_a_capital(self, size, kind):
+        for seed in range(6):
+            s = new_game(R, size=size, tribes=["imperius", "bardur"],
+                         seed=seed, map_type=kind)
+            caps = [t for t in range(s.n_tiles) if s.city_capital[t]]
+            assert len(caps) == 2, f"{kind} {size} seed {seed}: {len(caps)} capitals"
+            assert {int(s.city_owner[t]) for t in caps} == {0, 1}
+            assert all(s.unit_type[t] != C.U_NONE for t in caps)
+
+    def test_a_crowded_map_still_seats_everyone(self):
+        tribes = ["imperius", "bardur", "xin_xi", "oumaji"]
+        for kind in ("continents", "waterworld"):
+            for seed in range(6):
+                s = new_game(R, size=11, tribes=tribes, seed=seed,
+                             map_type=kind)
+                caps = [t for t in range(s.n_tiles) if s.city_capital[t]]
+                assert len(caps) == 4, f"{kind} seed {seed}"
+                assert len({int(s.city_owner[t]) for t in caps}) == 4
+
+    def test_a_game_is_never_over_before_it_starts(self):
+        from polyengine.core.game import Game
+        for kind in sorted(MAP_TYPES):
+            for size in (6, 11):
+                for seed in range(8):
+                    g = Game.new(size=size, seed=seed, map_type=kind)
+                    assert not g.is_terminal(), f"{kind} {size} seed {seed}"
 
 
 # --- determinism ---------------------------------------------------------------

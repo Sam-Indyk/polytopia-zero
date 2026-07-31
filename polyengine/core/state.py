@@ -26,7 +26,8 @@ _NEIGHBOR_OFFSETS = ((-1, -1), (0, -1), (1, -1),
 
 # Arrays that define ground truth (hashed for determinism / differential replay).
 _TILE_ARRAYS = (
-    "terrain", "resource", "owner", "improvement", "improvement_owner",
+    "terrain", "resource", "tile_tribe", "owner", "improvement",
+    "improvement_owner",
     "city_owner", "city_level", "city_pop", "city_walls", "city_capital",
     "city_workshop", "city_park", "city_pending_reward", "city_conn_pop",
     "unit_type", "unit_owner", "unit_hp", "unit_moved", "unit_attacked",
@@ -66,6 +67,13 @@ class GameState:
         n, p = self.n_tiles, self.n_players
         self.terrain = np.full(n, C.T_FIELD, dtype=C.DT_TERRAIN)
         self.resource = np.zeros(n, dtype=C.DT_RESOURCE)
+        # Whose *biome* this tile is — the tribe whose spawn rates generated it
+        # and whose art skins it. "During the initial map generation, the land
+        # is distributed roughly equally between all tribes in the game", so a
+        # neighbour's terrain is legible on sight: Bardur's quarter really is
+        # forest. Territory ownership (`owner`) is a separate thing entirely and
+        # changes hands during play; this never does.
+        self.tile_tribe = np.zeros(n, dtype=np.int8)
         self.owner = np.full(n, C.NEUTRAL, dtype=C.DT_OWNER)
         self.city_owner = np.full(n, C.NEUTRAL, dtype=C.DT_OWNER)
         self.city_level = np.zeros(n, dtype=np.int8)

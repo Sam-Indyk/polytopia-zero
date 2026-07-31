@@ -11,7 +11,7 @@ Goal (PLAN.md): beat the game's built-in Crazy bots through the real Steam clien
 ## Environment
 
 ```bash
-.venv\Scripts\python.exe -m pytest            # 491 tests, ~7 min
+.venv\Scripts\python.exe -m pytest            # 570 tests, ~8 min
 .venv\Scripts\python.exe -m polytrain.train_league --smoke --iters 50
 ```
 
@@ -133,42 +133,101 @@ Each monument is free to place, yields 3 population and 400 points, and only one
 may be built per task. **Pirates** too: a Dagger on a Port becomes one and
 reverts to a Dagger on landing.
 
-**Map generation follows the real algorithm** (wiki: Map Generation), in its
-order — capitals, villages, terrain, resources, lighthouses:
+**Map generation follows the real algorithm** (wiki: Map Generation). Read that
+page and `polyengine/core/mapgen.py`'s module docstring together; the second is a
+transcription of the first. A second source is worth knowing about:
+**QuasiStellar/Polytopia-Map-Generator** (`app.py`) is a community port of the
+pre-Moonrise generator, and where it overlaps the wiki it agrees, so it settles
+the things the wiki only describes in prose — the exact 1/3 outer-city falloff,
+the randomised flood fill that hands each tribe its land, the guaranteed
+resources beside certain capitals.
+
+**The game has two pipelines and so do we**, which is the single most important
+thing to know before touching this file:
+
+    drylands / lakes / archipelago / waterworld
+        capitals (quadrants) -> suburbs -> pre-terrain villages -> terrain and
+        water -> post-terrain villages -> resources -> ruins, starfish
+
+    continents / pangea
+        land -> villages -> *convert* villages to capitals -> terrain ->
+        island villages -> resources -> ruins, starfish
+
+"Villages are added after all the land is made, that's why Continents and Pangea
+don't use quadrants for capital placement." On those two the capitals are chosen
+out of the villages already on the ground: furthest apart, preferring the coast,
+one per landmass. Measured, that gives coastal capitals ~90% of the time and
+capitals on different continents 100% of the time.
 
 - **All six sizes**: tiny 11, small 14, normal 16, large 18, huge 20, massive 30.
   `size=None` picks what Domination would for the opponent count (1 -> 11,
   2 -> 14, 3 -> 16, 4+ -> 18).
-- **Six water amounts** via `map_type`: drylands 0-10% ... waterworld 90-100%.
-  Until this landed the generator produced **no water at all**, which silently
-  made Ports, embarking, Bridges, Pirates and Aquatism unreachable. On a
-  `continents` map the Port is now the most-built improvement.
-- **Terrain is per tribe.** The map is partitioned between capitals and each
-  region generated at its owner's rates. Base (Luxidoor) is 48% field / 38%
-  forest / 14% mountain, and tribe multipliers apply in the documented order:
-  mountain first (rescaling forest and field), then forest (rescaling field),
-  then field is the remainder.
+- **Landmasses are grown, not thresholded.** `_grow_blobs` seeds N points and
+  accretes tiles one at a time, never letting two blobs touch, so "continents
+  ... must be at least one tile apart" holds by construction. Each map type is
+  then a choice of how many blobs and how big: one large mass per player on
+  continents (30–200 tiles each), a single centre-seeded mass on pangea, many
+  small ones on archipelago, islets on waterworld — and for drylands and lakes
+  it is *water* that is grown, as lakes inside the land, with the border ring
+  forced to land ("a border of land bridges will always generate on the edges").
+
+  The generator used to threshold smoothed noise instead, and the result was
+  *speckle*: a "continents" map came out as a lace of one-tile isthmuses you
+  could walk across, so on the one map type built around ocean, Ports, Bridges
+  and boats had nothing to do. `tests/test_mapgen.py` now asserts you genuinely
+  cannot walk from one capital to the other on continents.
+- **Water depth is an edge rule.** "Ocean ... does not share any *edges* with
+  land tiles" — corners do not count, so a tile diagonally off a headland is
+  still deep ocean. Getting this wrong shrinks the ocean and quietly changes
+  what Aquatism and hull movement are worth.
+- **Terrain is per tribe, in exact proportions.** The land is partitioned by a
+  randomised flood fill from the capitals (each tribe taking turns, which is
+  self-balancing and gives ragged natural borders), and each region is then
+  dealt its terrain by *count*, not by per-tile sampling: "since update 2.0.58,
+  terrain will always be generated in accordance with the percentage rates".
+  Base (Luxidoor) is 48% field / 38% forest / 14% mountain, and tribe
+  multipliers apply in the documented order: mountain first (rescaling forest
+  and field), then forest (rescaling field), then field is the remainder.
+  The result is stored per tile as **`state.tile_tribe`** — the biome is real
+  map state, fixed at generation, and quite separate from `owner`, which changes
+  hands all game. The viewer tints it and names it in the tile inspector.
 - **Resources only spawn within two tiles of a city**, and a tile *adjacent* to
   one is ~3x richer than one two away (18% fruit vs 6%). Expansion is how you
-  reach resources at all.
-- **Capitals go one per quadrant** and never within two tiles of the border;
-  quadrants alone were not enough, since two capitals either side of a shared
-  border landed 2 tiles apart, so each is now placed furthest from those already
-  down. Villages keep 2 tiles from the edge and 2 from each other.
-  **Continents and Pangea are the two types the wiki exempts from quadrants**:
-  there capitals are drawn uniformly from the tiles at least `size // 4` (never
-  fewer than 6) from every capital already placed. Taking the *furthest* tile
-  there, as the quadrant path does, silently reimposes quadrants — with two
-  players it returns opposite corners every time.
+  reach resources at all. **Starfish are the documented exception** — they
+  "spawn on any water tiles, and are scattered across the map", which is what
+  makes sailing out for one worth the turn.
+- **Some tribes are promised a start.** Kickoo gets two water tiles with a fish
+  in each *even on drylands*; Imperius two fruit, Bardur two game, Zebasi one
+  crop, all adjacent to the capital. Without this a Bardur start on an unlucky
+  map has nothing to hunt, which is its entire early economy.
+- **Tribe water multipliers are deliberately NOT applied.** Kickoo's "2.0x
+  water" and Aquarion's "1.5x" are documented as bugged in the real game — "this
+  effect is bugged and does not currently apply to map generation" — and
+  Oumaji's 0.5x is "found in the source code but ... not translated into the
+  world generation". `tribes.toml` keeps the numbers; `mapgen.py` does not read
+  them. Do not "fix" this.
+- **Capitals go one per quadrant** on the four types the wiki says use quadrants,
+  never within two tiles of the border, and on land if the quadrant has any.
+  Quadrants alone were not enough, since two capitals either side of a shared
+  border landed 2 tiles apart, so each is placed furthest from those already
+  down. Villages keep 2 tiles from the edge (1 for the pre-terrain pass) and 2
+  from each other.
+- **Every player gets a capital, guaranteed** (`_ensure_capitals`). Both routes
+  can come up short on a cramped map, and a player without a capital has no city
+  and no unit — it is dead before the first move and the game is terminal at
+  turn 0. That is not hypothetical: it showed up as a training smoke run whose
+  rollouts collapsed from 1024 steps to 64.
 - **Which village passes run depends on the map type**, per the wiki's feature
-  table: suburbs (up to two beside each capital) on Lakes and Archipelago,
-  pre-terrain villages on those plus Water World at the documented density
-  coefficient, post-terrain villages everywhere, and **tiny island villages** —
-  villages with no land neighbour at all — on Continents and Pangea.
+  table, transcribed as `SUBURB_TYPES` / `PRE_TERRAIN_COEFFICIENT` /
+  `ISLAND_VILLAGE_TYPES` / `QUADRANT_TYPES` and pinned by a test: suburbs (up to
+  two beside each capital) on Lakes and Archipelago, pre-terrain villages on
+  those plus Water World at the documented density coefficient, post-terrain
+  villages everywhere, and **tiny island villages** — villages with no land
+  neighbour at all — on Continents, Pangea *and Water World*.
 - **Ruins** (4/5/7/9/11/23 by size) spawn on any terrain but shallow water, never
-  beside a capital or another ruin, and **starfish** at one per 25 water tiles,
-  never beside a city, lighthouse or another starfish. Both are examined by the
-  same action — see below.
+  beside a capital or another ruin, with at most a third of them on deep ocean;
+  **starfish** at one per 25 water tiles, never beside a city, lighthouse or
+  another starfish. Both are examined by the same action — see below.
 
 All **12 regular tribes** are in, with their real starting tech, unit and stars
 (Luxidoor has no starting tech and a level-3 capital instead). The spawn
@@ -176,11 +235,11 @@ multipliers are load-bearing, not decoration: Bardur land grows **zero** crop,
 Vengir is metal-rich and fruit-barren, Xin-xi's 1.5x mountain and 1.5x metal
 compound.
 
-Still simplified, and deliberately: Continents uses smoothed noise rather than
-real seeded landmass growth, Pangea is not centre-seeded, capitals are not
-preferentially coastal, and a ruin never shares a tile with a resource (the wiki
-allows it, but the resource is meant to be *invisible* until the ruin is cleared,
-and we have no way to hide it from the observation).
+Still simplified, and deliberately: a ruin never shares a tile with a resource
+(the wiki allows it, but the resource is meant to be *invisible* until the ruin
+is cleared, and we have no way to hide it from the observation), and the exact
+"weighted randomness" the wiki mentions for quadrant capitals is a uniform draw
+among the furthest tiles.
 
 ## EXAMINE: ruins and starfish are one action
 
@@ -295,10 +354,9 @@ screen-reading agent could not reproduce and it makes the strategy switch a
 lookup instead of an inference. `tests/test_obs.py` pins the global vector as
 identical between a drylands and a water-world map of the same seed.
 
-Deferred by explicit decision: the remaining **map-generation fidelity** gaps
-(Continents' smoothed noise instead of seeded landmass growth, Pangea not
-centre-seeded, capitals not preferentially coastal). Fine while maps are small;
-required before M5. Rationale is in `PLAN.md`.
+The map-generation fidelity gaps that were deferred here are **closed** (30 Jul):
+landmasses are grown rather than thresholded, Pangea is centre-seeded, and
+capitals prefer the coast. See the map-generation section above.
 
 ## Traps that have already bitten
 
