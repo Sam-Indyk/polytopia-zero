@@ -504,6 +504,43 @@ were deleted rather than left in the repo to tempt someone. Training starts from
 scratch, and the previous numbers (55% vs ScriptedBot at 11x11) are not
 comparable to anything measured against the current rules.
 
+## Rollout speed: where it went, and where it still goes
+
+`scripts/bench_throughput.py` is the M1 gate. PLAN.md wants **≥5,000 micro-steps
+per second per core**; measured 3 Aug it is **3,659**, up from 1,340.
+
+The 2.7x came from one place. `enumerate_actions` and `masks.legal_sources`
+each brute-forced the whole tile x improvement cross product — 121 x 27, every
+decision — which profiled at **9.5M `can_build` calls per 3,200 decisions**, 44%
+of rollout time. `economy.build_candidates` now narrows that first and both
+callers share it. It is a **conservative pre-filter only**: everything it drops
+is something `can_build` refuses anyway, and `can_build` is still the only
+authority on a pair, so it cannot change what is legal.
+
+What it drops, and why each is safe:
+
+| dropped | why |
+|---|---|
+| improvements costing more than your stars | checked on *both* branches of `can_build` |
+| improvements whose tech you lack | likewise |
+| map features (ruin, lighthouse) | mapgen places them; not on the Embassy branch |
+| monuments whose task is unearned or already built | same |
+| tiles that already carry a building | refused on both branches |
+| city tiles (unless the Embassy survived) | everything but the Embassy is refused there |
+| neutral ground (unless roads/bridges survived) | nothing else may go there |
+| rival capitals (unless the Embassy survived) | nothing else may go there |
+
+`can_build` calls fell 9.5M -> 568k. The profile is now **flat** — no single
+hotspot — so the next gain needs structure, not another filter: vectorising the
+enumeration or moving it into a kernel.
+
+The one obligation this creates is pinned by
+`tests/test_masks.py::test_build_candidates_never_drops_a_legal_pair`, which
+compares the filter against the full cross product at every decision of a real
+game. If it ever narrows too far it silently removes moves from the agent's
+action space — the hidden capability ceiling invariant 2 is about, and nothing
+would crash to tell you.
+
 ## What to do next
 
 The plateau is most likely **sparse terminal reward**: with 96-step rollouts and

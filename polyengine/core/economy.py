@@ -105,6 +105,63 @@ def bridge_span_ok(state, tile: int) -> bool:
     return False
 
 
+def build_candidates(state, player: int, rules: Ruleset):
+    """The (tiles, improvements) worth asking `can_build` about this turn.
+
+    A **conservative pre-filter and nothing more**: every improvement it drops
+    is one `can_build` would reject on *every* tile, and every tile it drops is
+    one no surviving improvement could go on. `can_build` remains the only
+    authority on any particular pair, so this cannot change what is legal — only
+    how long it takes to find out.
+
+    It exists because both `enumerate_actions` and `masks.legal_sources` used to
+    brute-force the whole cross product, 121 tiles x 27 improvements, at every
+    single decision. Profiled: **9.5M `can_build` calls per 3,200 decisions**,
+    2,972 per decision, 44% of rollout time and the single reason the engine sat
+    at 1,340 micro-steps/s against PLAN.md's 5,000 target.
+
+    Both callers share it deliberately. They had *identical* copies of the same
+    cross product, which is two chances to optimise one of them and drift —
+    exactly the failure invariant 2 exists to prevent.
+    """
+    stars = int(state.stars[player])
+    imps = []
+    for imp in range(rules.n_improvements):
+        # Cost and tech are checked on *both* branches of `can_build`, so a
+        # failure here is a failure on every tile.
+        if int(rules.imp_cost[imp]) > stars:
+            continue
+        if not state.has_tech(player, int(rules.imp_requires_tech[imp])):
+            continue
+        # The Embassy returns down the other branch and never reaches these two,
+        # so they may only be applied to everything else.
+        if not rules.imp_on_enemy_capital[imp]:
+            if rules.imp_map_feature[imp]:
+                continue                      # ruins and lighthouses are placed by mapgen
+            if not monument_available(state, player, imp, rules):
+                continue
+        imps.append(imp)
+
+    if not imps:
+        return np.empty(0, dtype=np.int64), ()
+
+    # A tile that already carries a building takes nothing more — that holds on
+    # both branches, the Embassy included.
+    free = state.improvement == C.IMP_NONE
+    # Own territory always. Neutral ground only if something that may go there
+    # survived (roads and bridges), and rival capitals only if the Embassy did —
+    # without those, most of the board cannot host anything at all.
+    ground = state.owner == player
+    if any(rules.imp_allow_neutral[i] for i in imps):
+        ground = ground | (state.owner == C.NEUTRAL)
+    # Everything except the Embassy is refused on a city tile; the Embassy is
+    # refused anywhere else.
+    mask = ground & free & (state.city_level == 0)
+    if any(rules.imp_on_enemy_capital[i] for i in imps):
+        mask = mask | ((state.city_capital > 0) & free)
+    return np.flatnonzero(mask), tuple(imps)
+
+
 def can_build(state, tile: int, imp_id: int, player: int, rules: Ruleset) -> bool:
     """Is placing improvement `imp_id` on `tile` legal for `player` right now?"""
     # The Embassy inverts every placement rule: it goes on ANOTHER tribe's

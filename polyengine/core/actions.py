@@ -21,6 +21,7 @@ from polyengine.core.economy import (
     apply_build,
     recompute_connections,
     apply_reward,
+    build_candidates,
     can_build,
     can_choose_reward,
     can_train_at,
@@ -305,14 +306,15 @@ def enumerate_actions(state, player: int, rules: Ruleset) -> list[Action]:
         if research_cost(state, player, tid, rules) <= stars:
             actions.append(Action(C.A_RESEARCH, -1, -1, tid))
 
-    for tile in range(state.n_tiles):
-        # Roads and bridges go on neutral ground and the Embassy goes on a rival
-        # capital, so this cannot pre-filter to owned territory — `can_build`
-        # makes the finer decision. Must stay in step with `masks.legal_sources`.
-        if (state.owner[tile] != player and state.owner[tile] != C.NEUTRAL
-                and not state.city_capital[tile]):
-            continue
-        for imp in range(rules.n_improvements):
+    # `build_candidates` narrows the tile x improvement cross product to the
+    # pairs that could possibly be legal; `can_build` still decides each one.
+    # Tiles and improvements both come back ascending, so the emitted order is
+    # exactly what the full double loop produced. Shared with
+    # `masks.legal_sources` so the two cannot drift — invariant 2.
+    tiles, imps = build_candidates(state, player, rules)
+    for tile in tiles:
+        tile = int(tile)
+        for imp in imps:
             if can_build(state, tile, imp, player, rules):
                 actions.append(Action(C.A_BUILD, tile, -1, imp))
 
