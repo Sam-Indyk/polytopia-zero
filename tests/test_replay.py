@@ -126,7 +126,10 @@ def test_identical_replays_do_not_diverge():
 # --- viewer -------------------------------------------------------------------
 def test_viewer_html_is_self_contained():
     html = render_html(a_replay())
-    assert "__REPLAY__" not in html            # payload substituted
+    # Every template placeholder substituted. Checking one specific token would
+    # not have caught the rename from __REPLAY__ to {{BOOT}}, so check the shape.
+    for hole in ("{{BOOT}}", "{{MODE}}", "{{TITLE}}", "/*{{CSS}}*/", "/*{{JS}}*/"):
+        assert hole not in html, f"unsubstituted {hole}"
     assert "polyzero-replay/1" in html
     assert "</script>" not in html.split("<script>")[1].rsplit("</script>", 1)[0]
     assert "src=\"http" not in html and "href=\"http" not in html
@@ -134,8 +137,9 @@ def test_viewer_html_is_self_contained():
 
 def test_viewer_renders_the_panels_that_prevent_hidden_state():
     html = render_html(a_replay())
-    for marker in ("tile inspector", "tech tree", "action log",
-                   "not simulated yet", "renderTechs", "renderTile"):
+    for marker in ("tile inspector", "action log", "not simulated",
+                   "renderTile", "renderDiplomacy", "renderTasks",
+                   "class TechTree", "class Board"):
         assert marker in html, f"viewer is missing {marker!r}"
 
 

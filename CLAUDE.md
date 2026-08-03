@@ -571,9 +571,21 @@ capitals prefer the coast. See the map-generation section above.
 - **`torch.multinomial` on a NaN row returns an out-of-range index** rather than
   raising, which later faults inside an unrelated `gather` as an async CUDA
   assert with a misleading traceback. Guarded now in `polynet/net.py`.
-- **`viewer.py` embeds JS/CSS in a Python string.** Escapes are treacherous:
-  `\25b8` in CSS was silently parsed as a Python octal escape. After editing,
-  regenerate a replay and render it (headless Edge works) before trusting it.
+- **The viewer used to embed JS/CSS in a Python string**, where escapes were
+  treacherous: `\25b8` in a CSS rule parsed as a Python octal escape and the
+  glyph came out wrong with nothing in any log to say so. **Fixed structurally** —
+  `polyengine/viewer/assets/` holds real `.js`/`.css` files, inlined verbatim,
+  and `tests/test_viewer.py` asserts each asset reaches the page byte-identical.
+  The other half of the lesson stands: **canvas code cannot be reviewed by
+  reading it.** After editing, regenerate a replay and actually look at it —
+  headless Edge writes a PNG and both the deer-under-the-warrior and the
+  twenty-pixel capital flagpole were found that way and no other.
+
+  ```bash
+  & "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" --headless=new \
+      --disable-gpu --virtual-time-budget=8000 --window-size=1600,1000 \
+      --screenshot=shot.png "file:///.../replays/dev.html#f=900"
+  ```
 - **THIS MACHINE BUGCHECKS UNDER SUSTAINED GPU LOAD.** Four crashes on
   27–28 Jul, every one with *byte-identical* bugcheck parameters:
   `HYPERVISOR_ERROR 0x00020001 (0x28, 0x1, 0x29b92701, 0xfc801000)`, each
@@ -727,14 +739,55 @@ knowing before using ScriptedBot as a *training* opponent: peaceful games are
 long, and long games mean fewer terminal rewards per iteration. The M5 target,
 `ScriptedBot.crazy()`, never makes peace.
 
-## Watching games
+## Watching games, and playing them yourself
 
 ```bash
+# watch a recorded game
 .venv\Scripts\python.exe scripts/record_replay.py --net checkpoints_11x11/best.pt \
     --p0 net --p1 scripted --size 11 --map-type continents --open
+
+# play one yourself, in the browser
+.venv\Scripts\python.exe scripts/play.py --opponent scripted --map-type lakes --open
+.venv\Scripts\python.exe scripts/play.py --opponent net --net checkpoints_big/best.pt --open
 ```
 
-Writes a **self-contained HTML** viewer — no server. It has a built-in key
-explaining every glyph, a click-anywhere tile inspector, per-player tech trees,
-and a fog selector that re-renders the board as one player actually saw it.
-Replays are gitignored (an 1,800-frame 11×11 game is ~8 MB); regenerate them.
+`polyengine/viewer/` is a **package of real `.js`/`.css` files** inlined at
+render time, not a Python string (see the trap below). The replay page is still
+a single self-contained document — no server, no CDN — because a replay you
+cannot open by double-clicking is a replay nobody looks at. `#f=900&tab=tech`
+in the URL deep-links a frame and a panel.
+
+The board is drawn as Polytopia draws it: a **2:1 isometric grid of blocks**,
+painter-sorted on `x + y`, with water sunk below land so coastlines have a lip
+and mountains raised so they occlude what is behind them. Territory is a
+**coloured rope traced along tile edges** where the neighbour's owner differs,
+not a tint — a tint has to be kept so faint to avoid fighting the terrain that
+it stops being readable, which is what the old viewer did. All the art is canvas
+primitives; the moment it became an image asset the page would stop being one
+file. The **tech tree is the game's wheel** — tribe at the hub, five branches
+subdividing their own angular slice — laid out from `tech_requires` rather than
+hardcoded to today's 5/10/10 shape.
+
+Two rules the sprite code exists to serve, both learned by getting them wrong:
+a health bar is drawn **only on a damaged unit** (one per unit turned the board
+into a field of bright rectangles), and a resource on a tile that already has a
+unit or city moves back and shrinks (a Warrior standing on Game looked exactly
+like a man riding a deer).
+
+**Play mode is fog-honest, and that is the whole point of it.** The server sends
+a frame built by `replay.fog_frame`, which rebuilds the board from the same
+`mem_*` arrays `obs.py` reads: unexplored terrain is **erased, not dimmed**, a
+remembered enemy has a type and an owner but no HP, and opponent stars, score,
+research and kill counts come back as `-1` and print as `?`. Invariant 1 says
+the observation may only contain what a human can see; this is the same rule
+pointed the other way, and without it "I played the network" means nothing.
+`--reveal` turns it off for debugging.
+
+**The play UI never invents a move.** Every button is one entry from
+`enumerate_actions`, rendered — there is no client-side notion of what a Rider
+may do, no reimplementation of zone of control. That is invariant 2 as a user
+interface: drift shows up as a button that raises rather than as a silent
+capability ceiling. It also means new engine actions need no UI work; promotion,
+Heal Others, tile abilities and the diplomacy pair all appeared by themselves.
+
+Replays are gitignored (an 1,800-frame 11×11 game is ~11 MB); regenerate them.
