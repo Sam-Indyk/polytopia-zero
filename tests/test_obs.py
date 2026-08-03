@@ -34,13 +34,77 @@ def test_spatial_shape_and_range():
     assert sp.min() >= 0.0 and sp.max() <= 1.0
 
 
-def test_terrain_and_resource_are_one_hot():
+def test_terrain_and_resource_are_one_hot_where_the_player_has_looked():
+    """One-hot on explored ground, and **all-zero elsewhere**.
+
+    This used to assert one-hot over the entire board, which could only hold
+    because terrain and resources were read from ground truth for every tile —
+    the player was being handed the whole map on turn 0. All-zero is the honest
+    encoding for a tile nobody has visited: it says "unknown", and it is
+    exactly correlated with the explored plane, so it reveals nothing.
+    """
     game = Game.new(size=11, seed=2)
-    sp = O.encode_spatial(game.state, 0, R)
+    s = game.state
+    sp = O.encode_spatial(s, 0, R)
     t0, tc = O.plane_layout(R)["terrain"]
     r0, rc = O.plane_layout(R)["resource"]
-    assert np.all(sp[t0:t0 + tc].sum(axis=0) == 1.0)
-    assert np.all(sp[r0:r0 + rc].sum(axis=0) == 1.0)
+    seen = (s.fog_explored[0] == 1).reshape(s.size, s.size)
+    assert seen.any() and not seen.all(), "test needs both explored and dark ground"
+    for start, count in ((t0, tc), (r0, rc)):
+        col = sp[start:start + count].sum(axis=0)
+        assert np.all(col[seen] == 1.0)
+        assert np.all(col[~seen] == 0.0)
+
+
+def test_the_map_is_not_visible_before_it_is_explored():
+    """Invariant 1, and the biggest leak the encoder had.
+
+    Terrain, resources and buildings were read from ground truth for the whole
+    board, so on turn 0 a player knew every mountain, every ocean and — through
+    the improvement planes — **every ruin**, without moving. Measured on an
+    18x18 archipelago: 315 unexplored tiles, all 315 showing their terrain, 101
+    showing a resource and 9 showing a ruin.
+
+    It also falsified this repo's own claim that the policy infers the map type
+    "water tile by tile, through fog". It was seeing all the water at once, and
+    the full terrain grid *is* the map type.
+    """
+    game = Game.new(size=18, seed=2, map_type="archipelago")
+    s = game.state
+    sp = O.encode_spatial(s, 0, R)
+    dark = (s.fog_explored[0] == 0).reshape(s.size, s.size)
+    assert dark.sum() > 200, "test needs a mostly unexplored board"
+    for block in ("terrain", "resource", "improvement"):
+        start, count = O.plane_layout(R)[block]
+        assert not sp[start:start + count][:, dark].any(), \
+            f"{block} planes leaked through unexplored fog"
+    # And the things that leak-checking must not have broken: the explored
+    # patch still describes itself.
+    seen = ~dark
+    t0, tc = O.plane_layout(R)["terrain"]
+    assert np.all(sp[t0:t0 + tc].sum(axis=0)[seen] == 1.0)
+
+
+def test_remembered_buildings_survive_going_out_of_sight():
+    """A building you have seen stays remembered; one raised behind fog does
+    not appear."""
+    from polyengine.core.fog import recompute_fog
+
+    game = Game.new(size=11, seed=4)
+    s = game.state
+    imp0, _ = O.plane_layout(R)["improvement"]
+    lumber = R.imp_id["lumber_hut"]
+    # Somewhere the player has seen, and somewhere it has not.
+    seen_tile = int(np.flatnonzero(s.fog_explored[0] == 1)[0])
+    dark_tile = int(np.flatnonzero(s.fog_explored[0] == 0)[0])
+
+    s.improvement[seen_tile] = lumber
+    s.improvement[dark_tile] = lumber
+    recompute_fog(s, 0)
+    sp = O.encode_spatial(s, 0, R)
+    assert sp[imp0 + lumber, seen_tile // s.size, seen_tile % s.size] == 1.0
+    assert sp[imp0 + lumber, dark_tile // s.size, dark_tile % s.size] == 0.0, \
+        "a building raised in unexplored fog was visible"
 
 
 def test_padding_sets_the_offboard_mask():

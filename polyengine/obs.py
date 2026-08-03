@@ -134,7 +134,7 @@ def global_dim(rules: Ruleset) -> int:
 
 @njit(cache=True)
 def _encode_spatial(size, player, n_terrain, n_resource, n_units, n_improvement,
-                    terrain, resource, improvement, mem_owner,
+                    mem_terrain, mem_resource, mem_improvement, mem_owner,
                     mem_city_owner, mem_city_level, city_pop, city_walls,
                     city_capital, city_workshop, city_support_frac,
                     mem_unit_type, mem_unit_owner, unit_hp, unit_veteran,
@@ -159,10 +159,19 @@ def _encode_spatial(size, player, n_terrain, n_resource, n_units, n_improvement,
         y = i // size
         seen = explored[i] == 1
 
-        out[o_terr + terrain[i], y, x] = 1.0
-        out[o_res + resource[i], y, x] = 1.0
-        if improvement[i] >= 0:
-            out[o_imp + improvement[i], y, x] = 1.0
+        # Terrain, resources and buildings, all from memory. These read ground
+        # truth for every tile until now, which handed the player the entire
+        # map on turn 0: every mountain and ocean, every ruin, before walking a
+        # step. That also quietly falsified the design claim that the policy
+        # infers the map type "water tile by tile, through fog" — it was seeing
+        # all of the water immediately, and the full terrain grid *is* the map
+        # type. An unexplored tile now sets no terrain, resource or improvement
+        # plane at all.
+        if seen:
+            out[o_terr + mem_terrain[i], y, x] = 1.0
+            out[o_res + mem_resource[i], y, x] = 1.0
+            if mem_improvement[i] >= 0:
+                out[o_imp + mem_improvement[i], y, x] = 1.0
 
         # Territory, from memory — the same contract as cities and units.
         # An unexplored tile sets none of the three, which reads as "unknown"
@@ -248,7 +257,8 @@ def encode_spatial(state, player: int, rules: Ruleset,
     _encode_spatial(
         size, player, rules.n_terrain, len(rules.resource_names), rules.n_units,
         rules.n_improvements,
-        state.terrain, state.resource, state.improvement, state.mem_owner[player],
+        state.mem_terrain[player], state.mem_resource[player],
+        state.mem_improvement[player], state.mem_owner[player],
         state.mem_city_owner[player], state.mem_city_level[player],
         state.city_pop, state.city_walls, state.city_capital,
         state.city_workshop, support,

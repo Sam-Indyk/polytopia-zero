@@ -41,7 +41,7 @@ _PLAYER_ARRAYS = ("stars", "tech", "tribe", "alive",
 _FOG_ARRAYS = (
     "fog_explored", "fog_visible", "fog_staleness",
     "mem_unit_type", "mem_unit_owner", "mem_city_owner", "mem_city_level",
-    "mem_owner",
+    "mem_owner", "mem_terrain", "mem_resource", "mem_improvement",
 )
 
 
@@ -178,11 +178,17 @@ class GameState:
         self.mem_unit_owner = np.full((p, n), C.NEUTRAL, dtype=C.DT_OWNER)
         self.mem_city_owner = np.full((p, n), C.NEUTRAL, dtype=C.DT_OWNER)
         self.mem_city_level = np.zeros((p, n), dtype=np.int8)
-        # Remembered territory. Units and cities have had memory since the
-        # start; borders did not, so the observation was reading ground-truth
-        # `owner` and showing every player the full extent of every empire
-        # through unexplored fog. See obs.encode_spatial.
+        # Remembered board. Units and cities have had memory since the start;
+        # territory, terrain, resources and buildings did not, so the encoder
+        # read ground truth for all four and every player saw the whole map --
+        # every mountain and ocean, every ruin -- from turn 0 without exploring
+        # a tile. See obs.encode_spatial. Written by `fog_kernel` wherever a
+        # player can currently see, and never read for an unexplored tile, so
+        # the initial values below are placeholders rather than claims.
         self.mem_owner = np.full((p, n), C.NEUTRAL, dtype=C.DT_OWNER)
+        self.mem_terrain = np.full((p, n), C.T_FIELD, dtype=C.DT_TERRAIN)
+        self.mem_resource = np.zeros((p, n), dtype=C.DT_RESOURCE)
+        self.mem_improvement = np.full((p, n), C.IMP_NONE, dtype=np.int8)
 
     # --- geometry -----------------------------------------------------------
     def idx(self, x: int, y: int) -> int:

@@ -185,21 +185,41 @@ Easy to forget, because only the first is obvious:
    tiles." Taking the high ground is worth a turn, and `rules.terrain_sight`
    feeds the fog kernel alongside `unit_sight` (a unit takes the better of the
    two, so a Scout on a mountain still sees 5x5, not 7x7).
-4. **Territory is remembered, not observed.** Cities and units have rendered
-   from `mem_*` since the beginning; the territory planes read ground-truth
-   `state.owner` with no fog gate at all, so every player saw the exact extent
-   of every empire through unexplored cloud. On turn 0 that is the enemy's
-   9-tile capital region lit up as "enemy" inside an otherwise uniformly
-   "neutral" fog — a beacon pointing at the single most valuable fact in the
-   game, on every map size, which is precisely what exploration is supposed to
-   buy. `mem_owner` (updated by `fog_kernel` alongside the other snapshots)
-   closes it, and unexplored tiles now set *none* of own/enemy/neutral, which
-   reads as "unknown" and is exactly correlated with the explored plane.
+4. **The whole board is remembered, not observed** (audited 3 Aug — four
+   separate leaks, all in the oldest code). Cities and units have rendered from
+   `mem_*` since the beginning. **Territory, terrain, resources and buildings
+   did not** — all four read ground truth for every tile, so on turn 0 a player
+   knew the entire map without moving:
 
-   `tests/test_obs.py::test_perspective_is_relative_to_the_acting_player` was
-   **passing because of this leak** — it compared P0's own-territory plane to
-   P1's enemy-territory plane across the whole board, which can only hold if
-   both see everything. It now compares them on commonly explored ground.
+   | plane block | what leaked, 18×18 archipelago, 315 unexplored tiles |
+   |---|---|
+   | terrain | **all 315** — every ocean, every mountain, the shape of the map |
+   | resource | 101 tiles |
+   | improvement | 13 tiles, **9 of them ruins** |
+   | territory | the enemy capital's 9-tile region, lit as "enemy" in otherwise uniform "neutral" fog |
+
+   Terrain was the worst of them, and it quietly falsified this file's own
+   claim that the policy infers the map type "water tile by tile, **through
+   fog**" — it was seeing all the water at once, and the full terrain grid *is*
+   the map type. Measured after the fix: on waterworld, 6 of 105 water tiles
+   are visible at turn 0 instead of 105.
+
+   `mem_owner` / `mem_terrain` / `mem_resource` / `mem_improvement` close it,
+   written by `fog_kernel` beside the other snapshots. Terrain looks static but
+   is not — Clear, Grow and Burn Forest all rewrite it — so gating on
+   `explored` alone would still have announced an enemy clearing forest behind
+   the fog. An unexplored tile now sets **no** plane in any of the four blocks,
+   which reads as "unknown" and is exactly correlated with the explored plane,
+   so it reveals nothing; falling through to "neutral" or "field" would be a
+   lie the network would learn from.
+
+   **Three tests were passing because of these leaks** and now assert the real
+   property: `test_perspective_is_relative_to_the_acting_player` compared the
+   two players' territory planes across the whole board (only possible if both
+   see everything) and is now scoped to commonly explored ground; the two
+   one-hot tests asserted one-hot over every tile and now require one-hot on
+   explored ground and **all-zero elsewhere**. When a leak is closed, look for
+   the test that was relying on it.
 
 5. **Hidden resources.** "Crop is hidden until Organization or Farming has been
    researched"; Climbing "reveals metal". This is an **invariant 1** rule, not
