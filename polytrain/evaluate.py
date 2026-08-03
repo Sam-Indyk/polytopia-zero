@@ -16,23 +16,34 @@ Two problems with naive win-rate evaluation, both of which bit the M2 runs:
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+import random
+from dataclasses import dataclass, field
 
 from polyengine.agents.heuristic import evaluate as material
 from polyengine.core.game import Game
 
 
 def play_pair(agent_a, agent_b, seed: int, size: int, max_steps: int = 800,
-              map_type: str = "drylands") -> tuple[float, float]:
-    """Play one map twice with swapped seats. Returns A's score in each game.
+              map_type: str = "drylands", tribes=None,
+              n_players: int = 2) -> tuple[float, ...]:
+    """Play one map once per seat, rotating A through all of them.
 
-    Both games use the same map AND the same map type, so the mirrored pair
-    cancels terrain luck as well as spawn luck.
+    In a duel this is the mirrored pair it always was: the same map twice with
+    the seats swapped, which cancels terrain and spawn luck so a given number of
+    games buys a much tighter estimate. With more seats the same idea generalises
+    — A takes each seat in turn and B fills the rest — so a lucky corner of the
+    map is credited to every agent equally rather than to whoever drew it.
+
+    Returns A's score in each game, so the caller can average however it likes.
     """
     scores = []
-    for a_seat in (0, 1):
-        game = Game.new(size=size, seed=seed, map_type=map_type)
-        agents = {a_seat: agent_a, 1 - a_seat: agent_b}
+    for a_seat in range(n_players):
+        game = Game.new(size=size, seed=seed, map_type=map_type,
+                        tribes=list(tribes) if tribes else None)
+        seats = game.state.n_players
+        if a_seat >= seats:
+            break
+        agents = {p: (agent_a if p == a_seat else agent_b) for p in range(seats)}
         steps = 0
         while not game.is_terminal() and steps < max_steps:
             game.step(agents[game.current_player].act(game))
@@ -41,9 +52,12 @@ def play_pair(agent_a, agent_b, seed: int, size: int, max_steps: int = 800,
             w = game.winner()
             scores.append(1.0 if w == a_seat else (0.5 if w < 0 else 0.0))
         else:
+            # Unfinished: fall back to the static evaluation, which is a score
+            # lead over the *strongest* opponent and so already means the right
+            # thing with more than two tribes on the board.
             m = material(game, a_seat)
             scores.append(1.0 if m > 0 else (0.5 if m == 0 else 0.0))
-    return scores[0], scores[1]
+    return tuple(scores)
 
 
 @dataclass
@@ -51,10 +65,29 @@ class MatchResult:
     games: int
     score: float                # total points for A
     pairs: int
+    # (axis, value) -> (points, games). The average is what gets logged; this is
+    # what tells you *where* the agent is weak, which is the whole reason for
+    # rotating size, map type and seat count in the first place.
+    buckets: dict = field(default_factory=dict)
 
     @property
     def win_rate(self) -> float:
         return self.score / self.games if self.games else 0.0
+
+    def breakdown(self, axis: str) -> list[tuple]:
+        """[(value, win_rate, games)] for one axis, ordered by value."""
+        rows = [(k[1], pts / max(1, n), n)
+                for k, (pts, n) in self.buckets.items() if k[0] == axis]
+        return sorted(rows, key=lambda r: str(r[0]))
+
+    def format_breakdown(self) -> str:
+        parts = []
+        for axis in ("size", "players", "map"):
+            rows = self.breakdown(axis)
+            if len(rows) > 1:          # a single bucket says nothing new
+                parts.append(axis + " " + " ".join(
+                    f"{v}:{100 * wr:.0f}%" for v, wr, _ in rows))
+        return " | ".join(parts)
 
     @property
     def stderr(self) -> float:
@@ -75,21 +108,44 @@ DEFAULT_MAP_TYPES = ("drylands", "lakes", "continents", "archipelago")
 
 def play_match(agent_a, agent_b, n_pairs: int, size: int, seed: int = 12345,
                max_steps: int = 800,
-               map_types=DEFAULT_MAP_TYPES) -> MatchResult:
-    """Mirrored-seed match: `n_pairs` maps, each played from both seats.
+               map_types=DEFAULT_MAP_TYPES,
+               sizes=None, players=(2,), tribes=None) -> MatchResult:
+    """Mirrored-seed match: `n_pairs` maps, each played from every seat.
 
     Map types rotate across the pairs, so a win rate averages over the kinds of
     world the agent will actually meet rather than over drylands alone. An agent
     that only knows how to play dry maps now shows it here instead of looking
     fine right up to the point someone puts it on water.
+
+    `sizes` and `players` rotate the same way. That matters because a single
+    averaged win rate is exactly the wrong summary for an agent trained on a
+    curriculum: "62%" can be 90% on the small duels it has seen a thousand times
+    and 30% on the crowded boards it barely knows, and the average hides the one
+    number you needed. `MatchResult.buckets` keeps the breakdown.
     """
-    total = 0.0
+    sizes = tuple(sizes) if sizes else (size,)
+    players = tuple(players) if players else (2,)
+    total, games = 0.0, 0
+    buckets: dict[tuple, list[float]] = {}
     for i in range(n_pairs):
         kind = map_types[i % len(map_types)]
-        s0, s1 = play_pair(agent_a, agent_b, seed + i, size, max_steps,
-                           map_type=kind)
-        total += s0 + s1
-    return MatchResult(games=2 * n_pairs, score=total, pairs=n_pairs)
+        sz = sizes[i % len(sizes)]
+        np_ = players[i % len(players)]
+        pool = None
+        if tribes:
+            # Deal distinct tribes per pair, deterministically in the seed.
+            rng = random.Random(seed * 1_000_003 + i)
+            pool = (rng.sample(list(tribes), np_) if np_ <= len(tribes)
+                    else [rng.choice(list(tribes)) for _ in range(np_)])
+        scores = play_pair(agent_a, agent_b, seed + i, sz, max_steps,
+                           map_type=kind, tribes=pool, n_players=np_)
+        total += sum(scores)
+        games += len(scores)
+        buckets.setdefault(("size", sz), []).extend(scores)
+        buckets.setdefault(("map", kind), []).extend(scores)
+        buckets.setdefault(("players", np_), []).extend(scores)
+    return MatchResult(games=games, score=total, pairs=n_pairs,
+                       buckets={k: (sum(v), len(v)) for k, v in buckets.items()})
 
 
 # --- SPRT ----------------------------------------------------------------------

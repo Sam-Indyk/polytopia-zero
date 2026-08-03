@@ -580,6 +580,76 @@ single-process. The architecture that scales is workers doing env/encode/mask
 over shared memory with one process batching GPU inference. See the table in
 `polytrain/parallel.py` and the hardware section of `PLAN.md`.
 
+## The training distribution: four axes, widened on a curriculum
+
+Training used to vary exactly one thing about the world — the map type — and
+hold the rest at an 11x11 duel between Imperius and Bardur. An agent trained
+that way has never seen a large board, has met **two of the twelve tribes**, and
+has never played a game in which diplomacy could pay for itself, because a
+treaty with your only opponent is a slower way to draw.
+
+`polytrain/curriculum.py` owns all four axes — size, map type, seat count,
+tribes — and how they widen. Presets `legacy` / `duel` / `standard` / `ffa`, or
+an inline spec (`11:2,14:2/3,16:2/3/4`); `--curriculum` on `train_league.py`
+selects one and overrides `--size`. **Omitting it keeps the old fixed behaviour**,
+so existing commands are unchanged.
+
+**Size is per iteration; everything else is per game.** Not a style choice:
+`PolicyEncoder.encode` pads a batch to `max(sizes)`, so one 18x18 among 64 games
+makes all 64 cost 18x18. Rotating size per game would put the largest board in
+nearly every batch. Seat count and tribe do not change tensor shape.
+
+Stage boundaries are **rescaled to the run length** (`with_horizon`), or a
+200-iteration experiment would never leave stage one and would be a duel-only
+run wearing the name `ffa`.
+
+### Multiplayer was nearly free, except for one thing
+
+The engine seats 16 (9 on tiny) and refuses a map it cannot fill. The spatial
+planes are binary own/enemy, so 16 players encode exactly like 2. `heuristic.py`
+already scaled its Domination tilt by `n_opponents`. Self-play rollout already
+stored every seat.
+
+What was missing was in the **global vector**: relations were two aggregates
+("share of opponents at war"), and `A_PEACE_OFFER` takes a **player id** as its
+sub-type. The policy was being asked to choose a treaty partner out of a vector
+that could not name one. There is now one row per seat, indexed by absolute
+player id — `seat_exists, is_me, alive, at_peace, at_war, offered_me, i_offered,
+seen_cities, seen_units` — so row *k* describes player *k* and the sub-type
+head has something to point at. Every feature is on a real screen: the tribe
+list, the diplomacy panel, and your own fog memory. `global_dim` 62 -> **206**,
+and `global_layout()` now names the blocks the way `plane_layout()` always did.
+
+Two fixes fell out of the same work: `learner_seats = [i % 2 ...]` pinned the
+learner to seats 0 and 1, so on a six-player board four tribes were never
+learned from; and `evaluate.play_pair` played two games per map, so seat 2+ was
+never played at all. Both now rotate over the seats the game actually has.
+
+### The turn cap is per game now
+
+Real Domination has **no time limit**; ours is a training device, so its shape is
+ours to choose. It scales with the board's *linear* size (what a bigger map
+costs is travel — crossing a 30x30 is ~3x an 11x11, not 9x) plus a share per
+extra tribe. `C.turn_cap_for(size, players)`: 11x11 duel 100, 20x20 8-player
+422, clamped to [30, 600]. `state.turn_cap` carries it and **the replay header
+carries it too** — it is now part of what determines a game, exactly like
+`map_type`, whose absence from that header broke the differential gate for
+months. `tests/test_curriculum.py` round-trips a non-default cap through
+`check_determinism` for that reason.
+
+### Eval reports where it is weak, not just how weak
+
+`MatchResult.buckets` breaks the win rate down by size, seat count and map type,
+and `train_league` logs it. A single average over a curriculum is the wrong
+summary: "62%" can be 90% on the small duels the agent has seen a thousand times
+and 30% on the crowded boards it barely knows, and the average hides the number
+you needed.
+
+**Expect FFA to be slow.** A win among sixteen tribes is rarer and its credit
+more diffuse than in a duel, on top of the sparse-terminal-reward problem
+already diagnosed as the plateau cause. That is why the wide end is a late
+curriculum stage and not the default.
+
 ## Training across map types
 
 Rollouts and evals both **rotate map types** — `--map-types` on

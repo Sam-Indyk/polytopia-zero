@@ -80,15 +80,22 @@ class Rollout:
 DEFAULT_MAP_TYPES = ("drylands", "lakes", "continents", "archipelago")
 
 
-def _make_game(size: int, seed: int, map_types) -> Game:
-    """One game, with its map type chosen from the rotation by seed.
+def _make_game(size: int, seed: int, map_types, spec=None) -> Game:
+    """One game, with its world chosen from the rotation by seed.
 
     Cycling map types across the batch is what teaches the policy that the plan
     depends on the world: fishing, Ports and boats on an archipelago, Riders and
     roads on drylands. Nothing announces the type: the observation carries water
     tile by tile and the policy has to infer the shape of the world from that,
     the same way a player does on turn one with most of the map still dark.
+
+    A `spec` from `polytrain.curriculum` additionally fixes the board size, the
+    seat count and which tribes are dealt — the axes that used to be frozen at
+    an 11x11 Imperius-versus-Bardur duel for the whole of training.
     """
+    if spec is not None:
+        return Game.new(size=spec.size, seed=seed, map_type=spec.map_type,
+                        tribes=list(spec.tribes))
     kind = map_types[seed % len(map_types)]
     return Game.new(size=size, seed=seed, map_type=kind)
 
@@ -98,7 +105,7 @@ def collect(policy, n_games: int, rollout_steps: int, size: int = 9,
             shaping: float = 0.0, max_turns: int = 100,
             games: list[Game] | None = None,
             opponent=None, learner_seats: list[int] | None = None,
-            map_types=DEFAULT_MAP_TYPES
+            map_types=DEFAULT_MAP_TYPES, specs=None
             ) -> tuple[Rollout, dict, list[Game]]:
     """Play `rollout_steps` micro-steps across `n_games` games.
 
@@ -111,10 +118,15 @@ def collect(policy, n_games: int, rollout_steps: int, size: int = 9,
     """
     rules = policy.rules
     if games is None:
-        games = [_make_game(size, seed + i, map_types)
+        games = [_make_game(size, seed + i, map_types,
+                            specs[i] if specs else None)
                  for i in range(n_games)]
     if opponent is not None and learner_seats is None:
-        learner_seats = [i % 2 for i in range(len(games))]
+        # Which seat the learner holds. Round-robin over the seats that game
+        # actually has: `i % 2` silently pinned every game to seat 0 or 1, so on
+        # a six-player board four tribes were never learned from and the learner
+        # never once sat in them.
+        learner_seats = [i % g.state.n_players for i, g in enumerate(games)]
     roll = Rollout()
     # per (game, player): index into roll of that trajectory's previous transition
     last_idx: dict[tuple[int, int], int] = {}
@@ -173,12 +185,18 @@ def collect(policy, n_games: int, rollout_steps: int, size: int = 9,
             game = games[gi]
             game.step(actions_by_game[gi])
             steps_played[gi] += 1
-            if game.is_terminal() or game.state.turn >= max_turns:
+            # `max_turns=None` defers to the game's own cap, which now scales
+            # with board size and seat count — a fixed 100 would cut every large
+            # or crowded game off long before it could be decided.
+            limit = game.state.turn_cap if max_turns is None else max_turns
+            if game.is_terminal() or game.state.turn >= limit:
                 seat = learner_seats[gi] if opponent is not None else None
                 _finish(game, gi, roll, last_idx, stats, steps_played[gi], seat)
+                # Replacements keep the same world: a curriculum stage is a
+                # property of the iteration, not of one episode ending early.
                 games[gi] = _make_game(
                     size, seed + 10_000 + gi * 7919 + stats["episodes"],
-                    map_types)
+                    map_types, specs[gi] if specs else None)
                 steps_played[gi] = 0
                 for p in range(game.state.n_players):
                     last_idx.pop((gi, p), None)

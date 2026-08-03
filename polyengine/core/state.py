@@ -47,7 +47,7 @@ _FOG_ARRAYS = (
 class GameState:
     __slots__ = (
         "rules", "size", "n_tiles", "n_players", "turn", "current_player",
-        "map_seed", "map_type", "rng",
+        "map_seed", "map_type", "turn_cap", "rng",
         *_TILE_ARRAYS, *_PLAYER_ARRAYS, *_FOG_ARRAYS,
     )
 
@@ -64,6 +64,14 @@ class GameState:
         # not a hashed array: it never changes and the terrain it produced is
         # already part of the state.
         self.map_type = "drylands"
+        # When a turn-capped game is decided on score. Per game, not global,
+        # because it has to grow with the board and the number of tribes -- a
+        # 30x30 FFA cannot be settled in the hundred turns an 11x11 duel needs.
+        # It is metadata for the same reason `map_type` is, but it is *also*
+        # part of what determines the game, so `replay.py` carries it in the
+        # header: rebuilding a 400-turn game with a 100-turn cap ends it early
+        # and the differential gate reports a divergence with no cause in sight.
+        self.turn_cap = int(C.TURN_CAP)
         self.rng = np.random.Generator(np.random.PCG64(map_seed))
         if _alloc:
             self._allocate()
@@ -227,6 +235,7 @@ class GameState:
         s.turn = self.turn
         s.current_player = self.current_player
         s.map_type = self.map_type
+        s.turn_cap = self.turn_cap
         for name in (*_TILE_ARRAYS, *_PLAYER_ARRAYS, *_FOG_ARRAYS):
             setattr(s, name, getattr(self, name).copy())
         # Clone the RNG bitstream position so continuations stay reproducible.
@@ -251,6 +260,7 @@ class GameState:
             "current_player": self.current_player,
             "map_seed": self.map_seed,
             "map_type": self.map_type,
+            "turn_cap": self.turn_cap,
             "rng_state": _jsonify(self.rng.bit_generator.state),
         }
         for name in (*_TILE_ARRAYS, *_PLAYER_ARRAYS, *_FOG_ARRAYS):
@@ -267,6 +277,7 @@ class GameState:
         # trip; deriving the dtype makes that failure mode impossible.
         s = cls(rules, d["size"], d["n_players"], d["map_seed"], _alloc=True)
         s.map_type = d.get("map_type", "drylands")
+        s.turn_cap = int(d.get("turn_cap", C.TURN_CAP))
         s.turn = d["turn"]
         s.current_player = d["current_player"]
         for name in (*_TILE_ARRAYS, *_PLAYER_ARRAYS, *_FOG_ARRAYS):

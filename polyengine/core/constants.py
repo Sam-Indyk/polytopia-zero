@@ -59,6 +59,14 @@ HIDDEN_RESOURCE_TECHS = {
 # --- Ownership sentinels ---
 NEUTRAL = -1  # unowned territory / neutral (village) city
 
+# "Tiny maps support a maximum of nine players, while other maps support up to
+# 16" (Map Generation). One definition, because this number is load-bearing in
+# three unrelated places -- how many seats mapgen will deal, how wide the
+# action head's sub-type axis is, and how many per-opponent slots the
+# observation carries -- and three copies is how they drift apart.
+MAX_PLAYERS = 16
+MAX_PLAYERS_TINY = 9
+
 # --- Improvement ids (see data/improvements.toml) ---
 IMP_NONE = -1
 IMP_HARVEST_FRUIT = 0
@@ -280,3 +288,23 @@ SIGHT_RADIUS_CITY = 1
 
 # Domination turn cap; ties broken by score().
 TURN_CAP = 100
+# ...at the reference game the cap was tuned on: an 11x11 duel. Real Domination
+# has *no* time limit -- "play until there is only one tribe left" -- so the cap
+# is a training necessity, not a rule, and the shape of it is ours to choose.
+#
+# It scales with the board's *linear* size rather than its area, because what a
+# bigger map really costs is travel: crossing a 30x30 takes about three times as
+# long as crossing an 11x11, not nine. Each extra tribe then adds a share on top,
+# since Domination needs every one of them removed.
+TURN_CAP_REFERENCE_SIZE = 11
+TURN_CAP_PER_EXTRA_PLAYER = 0.22
+TURN_CAP_MIN = 30
+TURN_CAP_MAX = 600
+
+
+def turn_cap_for(size: int, n_players: int) -> int:
+    """The turn cap a game of this shape gets. See TURN_CAP above."""
+    scale = float(size) / TURN_CAP_REFERENCE_SIZE
+    crowd = 1.0 + TURN_CAP_PER_EXTRA_PLAYER * max(0, int(n_players) - 2)
+    return int(min(TURN_CAP_MAX,
+                   max(TURN_CAP_MIN, round(TURN_CAP * scale * crowd))))

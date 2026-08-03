@@ -66,7 +66,7 @@ SUBTYPE_DEPENDS_ON_SOURCE = frozenset({C.A_BUILD, C.A_CHOOSE_REWARD,
                                        C.A_TILE_ABILITY})
 
 
-MAX_PLAYERS = 16          # "other maps support up to 16" (Map Generation)
+MAX_PLAYERS = C.MAX_PLAYERS   # "other maps support up to 16" (Map Generation)
 
 
 def subtype_dim(rules: Ruleset) -> int:

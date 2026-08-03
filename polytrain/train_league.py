@@ -26,6 +26,7 @@ from polyengine.agents.scripted import ScriptedBot
 from polyengine.core.rules import load_ruleset
 from polynet import ARPolicy
 from polytrain.checkpoint import load_resumable, save_atomic
+from polytrain import curriculum
 from polytrain.evaluate import play_match
 from polytrain.league import League, MainExploiter
 from polytrain.pool import FrozenOpponent
@@ -70,6 +71,12 @@ def main() -> None:
     ap.add_argument("--eval-pairs", type=int, default=12,
                     help="mirrored seed pairs per eval (2 games each)")
     ap.add_argument("--max-turns", type=int, default=100)
+    ap.add_argument("--curriculum", default=None,
+                    help="widen the training distribution over iterations: a "
+                         "preset (legacy|duel|standard|ffa) or an inline spec "
+                         "like '11:2,14:2/3,16:2/3/4'. Drives board size, seat "
+                         "count and tribes, overriding --size and --map-types. "
+                         "Omit for the old fixed-size, fixed-tribe behaviour.")
     ap.add_argument("--map-types", default="drylands,lakes,continents,archipelago",
                     help="comma-separated rotation. Games cycle through these, so "
                          "the policy has to plan for water as well as land: "
@@ -119,6 +126,16 @@ def main() -> None:
     np.random.seed(args.seed)
     rules = load_ruleset()
     map_types = tuple(m.strip() for m in args.map_types.split(",") if m.strip())
+    # The curriculum, if any, owns size / seats / tribes from here on. Its stage
+    # boundaries are rescaled to this run's length, or a 200-iteration
+    # experiment would never leave stage one and would be a duel-only run
+    # wearing the name "ffa".
+    cur = None
+    if args.curriculum:
+        cur = curriculum.with_horizon(curriculum.parse(args.curriculum), args.iters)
+        print(f"curriculum {args.curriculum}: "
+              + " | ".join(cur.describe(i) for i in
+                           sorted({0, args.iters // 2, args.iters})))
     device = torch.device(args.device)
     policy, cfg = build_policy(rules, device, args.small,
                                getattr(args, 'channels', None), getattr(args, 'blocks', None))
@@ -194,24 +211,37 @@ def main() -> None:
 
     t0 = time.perf_counter()
 
+    stage_size = None
     for it in range(start_iter, args.iters + 1):
         shaping = args.shaping * max(0.0, 1 - it / max(1, args.shaping_anneal))
         member = league.sample(rng)
 
+        size, specs = args.size, None
+        if cur is not None:
+            size = cur.size_for(it)
+            specs = [cur.spec(it, i, args.seed) for i in range(args.games)]
+            # Games persist across iterations to avoid re-generating maps, but a
+            # carried-over 11x11 board would quietly ignore a stage that just
+            # moved to 16x16. Size changes force a rebuild; the other axes vary
+            # per game and are picked up as episodes end.
+            if size != stage_size:
+                games_self = games_vs = None
+                stage_size = size
+
         if member is None:
             roll, stats, games_self = collect(
-                policy, args.games, args.rollout, size=args.size,
+                policy, args.games, args.rollout, size=size,
                 seed=args.seed + it * 1000, shaping=shaping,
                 max_turns=args.max_turns, games=games_self,
-                map_types=map_types)
+                map_types=map_types, specs=specs)
             label = "self"
         else:
             opp_fn = make_opponent_fn(member, policy, rules, device)
             roll, stats, games_vs = collect(
-                policy, args.games, args.rollout, size=args.size,
+                policy, args.games, args.rollout, size=size,
                 seed=args.seed + it * 1000, shaping=shaping,
                 max_turns=args.max_turns, games=games_vs, opponent=opp_fn,
-                map_types=map_types)
+                map_types=map_types, specs=specs)
             label = member.name
             league.record_results(member, stats.get("learner_result", []))
             if member.kind == "snapshot":
@@ -243,21 +273,28 @@ def main() -> None:
 
         if it % args.eval_every == 0 or it == args.iters:
             agent = NetAgent(policy)
-            # Eval rotates the same map types training saw, so a policy that
-            # only learned dry maps cannot hide behind a dry-only eval.
+            # Eval rotates the same worlds training saw, so a policy that only
+            # learned small dry duels cannot hide behind a small dry duel eval.
+            stage = cur.stage_for(it) if cur is not None else None
+            ev = dict(map_types=(stage.map_types if stage else map_types),
+                      sizes=(stage.sizes if stage else None),
+                      players=(stage.players if stage else (2,)),
+                      tribes=(stage.tribes if stage else None))
             vs_rand = play_match(agent, RandomAgent(seed=7), args.eval_pairs,
-                                 args.size, seed=4242, max_steps=400,
-                                 map_types=map_types)
+                                 args.size, seed=4242, max_steps=400, **ev)
             vs_osla = play_match(agent, GreedyOSLA(seed=7), args.eval_pairs,
-                                 args.size, seed=5353, max_steps=400,
-                                 map_types=map_types)
+                                 args.size, seed=5353, max_steps=400, **ev)
             vs_scr = play_match(agent, ScriptedBot(seed=7), args.eval_pairs,
-                                args.size, seed=6464, max_steps=400,
-                                map_types=map_types)
+                                args.size, seed=6464, max_steps=400, **ev)
             print(f"  eval@{it}: Random {vs_rand.win_rate:5.1%}+-{vs_rand.stderr:.1%} | "
                   f"OSLA {vs_osla.win_rate:5.1%}+-{vs_osla.stderr:.1%} (held out) | "
                   f"Scripted {vs_scr.win_rate:5.1%}+-{vs_scr.stderr:.1%} | "
                   f"elo {league.main_elo:+.0f}")
+            # Where it is weak, not just how weak. One average over a curriculum
+            # hides 90% on the small duels and 30% on the crowded boards.
+            detail = vs_osla.format_breakdown()
+            if detail:
+                print(f"    OSLA by bucket: {detail}")
             # Select on a gate we do NOT train against. With --league-scripted,
             # ScriptedBot is a training opponent, so promoting on it selects for
             # having just sparred with it rather than for general strength.

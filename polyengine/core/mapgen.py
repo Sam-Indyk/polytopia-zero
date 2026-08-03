@@ -84,8 +84,9 @@ def size_for_opponents(n_opponents: int) -> int:
 # "Tiny maps support a maximum of nine players, while other maps support up to
 # 16." That is the real constraint behind "can everyone be seated?" — a map with
 # more players than it has room for is not a map the game would ever deal.
-MAX_PLAYERS_TINY = 9
-MAX_PLAYERS = 16
+# Defined in constants.py; re-exported here because this is where it reads.
+MAX_PLAYERS_TINY = C.MAX_PLAYERS_TINY
+MAX_PLAYERS = C.MAX_PLAYERS
 # Below tiny, sizes the game never uses but our smoke runs and tests do. The
 # official numbers work out at 12-14 tiles per player, so scale by that rather
 # than pretending an 11x11 rule applies to a 6x6 board.

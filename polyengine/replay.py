@@ -141,7 +141,6 @@ def ruleset_header(rules) -> dict:
         "hidden_resource_tech": {rules.resource_names[r]: list(techs)
                                  for r, techs in C.HIDDEN_RESOURCE_TECHS.items()},
         "action_names": [C.ACTION_NAMES[t] for t in range(C.N_ACTION_TYPES)],
-        "turn_cap": int(C.TURN_CAP),
         # Capture and Examine both require a unit that has not yet acted this
         # turn, so moving onto a village and taking it are two separate turns.
         # The play UI explains that when the button is missing — gated on the
@@ -159,8 +158,14 @@ def map_header(state, rules) -> dict:
         "n_players": int(state.n_players),
         "map_seed": int(state.map_seed),
         # Needed to re-simulate: a replay of a continents game
-        # rebuilt as drylands is a different map entirely.
+        # rebuilt as drylands is a different map entirely. The turn cap is here
+        # for exactly the same reason — it varies with board size and seat
+        # count now, and rebuilding a 400-turn game under a 100-turn cap ends it
+        # early and reports a divergence with no visible cause. That is not
+        # hypothetical: this header lost `map_type` once and the differential
+        # gate failed on action 0 for months without a test noticing.
         "map_type": state.map_type,
+        "turn_cap": int(state.turn_cap),
         "terrain": state.terrain.tolist(),
         # Which tribe's biome each tile is. Fixed at generation and
         # never changes hands, unlike `owner`.
