@@ -24,6 +24,10 @@
         <button id="zfit" title="fit to view">&#9723;</button>
       </div>
       <div id="hud" class="hud"></div>
+      <!-- What the selected tile can do. On the board, never behind a tab:
+           these are the primary interaction and hiding them made the game
+           look as though it had no way to train a unit. -->
+      <div id="acts" class="actbar hidden"></div>
     </div>
 
     <div id="transport" class="bar"></div>
@@ -70,8 +74,6 @@
       <div class="pane" data-pane="tile">
         <div class="card"><h2>tile inspector</h2>
           <div id="tile" class="muted">click any tile</div></div>
-        <div class="card" id="actioncard" style="display:none"><h2>actions here</h2>
-          <div id="tileactions"></div></div>
       </div>
 
       <div class="pane" data-pane="log">

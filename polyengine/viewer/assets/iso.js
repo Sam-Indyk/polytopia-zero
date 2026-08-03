@@ -356,8 +356,15 @@ class Board {
     // unit can walk to is grass, and a green highlight on green grass is
     // invisible at any sensible zoom. White reads on field, forest and water.
     const c = {move: '#eaf6ff', attack: '#ff6b6b', target: '#ffc94d',
-               build: '#7fd0e3', src: '#ffc94d'}[kind] || '#ffffff';
+               build: '#7fd0e3', src: '#ffc94d', ready: '#ffc94d'}[kind] || '#ffffff';
     g.save();
+    if (kind === 'ready') {
+      // "Something here can act." Outline only — filling every actionable tile
+      // makes the whole board glow and says nothing.
+      g.strokeStyle = c; g.lineWidth = 1.8; g.globalAlpha = 0.75;
+      this._diamond(sx, sy, TW / 2 * z * 0.9, TH / 2 * z * 0.9); g.stroke();
+      g.restore(); return;
+    }
     g.globalAlpha = kind === 'move' ? 0.42 : 0.28; g.fillStyle = c;
     this._diamond(sx, sy, TW / 2 * z * 0.92, TH / 2 * z * 0.92); g.fill();
     g.globalAlpha = 1; g.strokeStyle = c; g.lineWidth = 2;

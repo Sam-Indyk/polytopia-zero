@@ -27,7 +27,9 @@ el('meta').textContent =
   `${H.size}×${H.size} ${H.map_type} · seed ${H.map_seed} · ` +
   `you are ${pretty(H.tribes[H.you])} · opponent ${H.opponent}`;
 el('missing').innerHTML = (H.not_simulated || []).map(m => `<li>${esc(m)}</li>`).join('');
-el('hint').textContent = 'click a unit, then a highlighted tile · drag to pan · wheel to zoom';
+el('hint').textContent =
+  'click a unit then a marked tile to move · click a city to train and build · ' +
+  'drag to pan · wheel to zoom';
 
 el('transport').innerHTML =
   '<button id="end" class="go">end turn ⏎</button>' +
@@ -150,32 +152,63 @@ function label(a) {
   }
 }
 
+/** What the selected tile can do, drawn over the board.
+ *
+ * Every entry is one legal action straight from the engine. Move and Attack are
+ * summarised rather than listed one row per destination — you pick those by
+ * clicking the highlighted tile, and a Rider on a road can have twenty of them.
+ */
 function renderTileActions() {
-  const card = el('actioncard'), box = el('tileactions');
-  const acts = sel >= 0 ? actionsAt(sel) : [];
-  if (!acts.length || ST.cur !== H.you) { card.style.display = 'none'; return; }
-  card.style.display = '';
-  // Move and Attack are done by clicking the board, so they are summarised
-  // rather than listed one row per destination — a Rider on a road can have
-  // twenty of them and a list of tile numbers helps nobody.
+  const bar = el('acts');
+  const acts = sel >= 0 && ST.cur === H.you ? actionsAt(sel) : [];
   const moves = acts.filter(a => a.name === 'MOVE');
   const hits = acts.filter(a => a.name === 'ATTACK');
   const rest = acts.filter(a => !NEEDS_TARGET.has(a.name));
-  let h = '<div class="acts">';
-  if (moves.length) h += `<div class="muted">${moves.length} move` +
-    `${moves.length > 1 ? 's' : ''} highlighted in green — click one</div>`;
-  if (hits.length) h += `<div class="muted">${hits.length} target` +
-    `${hits.length > 1 ? 's' : ''} in red — click to attack</div>`;
+  if (!acts.length) { bar.classList.add('hidden'); return; }
+  bar.classList.remove('hidden');
+
+  const f = ST.frame;
+  let what = `tile ${sel}`;
+  if (f.city_level[sel] > 0)
+    what = `${f.city_capital[sel] ? 'capital' : 'city'} · level ${f.city_level[sel]}`;
+  else if (f.unit_type[sel] >= 0) what = pretty(H.unit_names[f.unit_type[sel]]);
+
+  let h = `<h3><span>${esc(what)}</span>` +
+          `<button id="deselect" title="Esc">clear</button></h3>`;
+  if (moves.length) h += `<p class="note">${moves.length} move` +
+    `${moves.length > 1 ? 's' : ''} marked in white — click one</p>`;
+  if (hits.length) h += `<p class="note">${hits.length} target` +
+    `${hits.length > 1 ? 's' : ''} marked in red — click to attack</p>`;
+  h += '<div class="acts">';
   for (const a of rest) {
     const {lbl, sub} = label(a);
     h += `<button class="act" data-i="${a.i}">` +
          `<span><span class="lbl">${esc(lbl)}</span>` +
          (sub ? `<br><span class="sub">${esc(sub)}</span>` : '') + '</span></button>';
   }
-  h += '</div>';
-  box.innerHTML = h;
-  box.querySelectorAll('.act').forEach(b =>
+  // A city with no Train option is the one case where showing only legal
+  // actions is actively confusing — the panel goes quiet and the game looks as
+  // though it has no way to build an army. State the observable facts (support
+  // used, whether the tile is occupied, stars) rather than restating the rules,
+  // which would be a second copy of the engine waiting to drift.
+  if (f.city_level[sel] > 0 && f.city_owner[sel] === H.you &&
+      !rest.some(a => a.name === 'TRAIN')) {
+    let used = 0;
+    for (let k = 0; k < H.size * H.size; k++)
+      if (f.unit_home[k] === sel && f.unit_type[k] >= 0) used++;
+    h += '<p class="note">Nothing can be trained here right now. ' +
+         `Supports <b>${used}/${f.city_level[sel] + 1}</b> units` +
+         (f.unit_type[sel] >= 0
+           ? ' · a unit is standing on the city, and a new one would spawn there'
+           : '') +
+         ` · you have ${f.stars[H.you]}★.</p>`;
+  }
+  if (!rest.length && !moves.length && !hits.length)
+    h += '<p class="note">nothing here can act this turn</p>';
+  bar.innerHTML = h + '</div>';
+  bar.querySelectorAll('.act').forEach(b =>
     b.onclick = () => guard(() => act(+b.dataset.i)));
+  el('deselect').onclick = () => { sel = -1; render(); };
 }
 
 /** Anything not tied to a tile you have selected: research, diplomacy, and the
@@ -191,6 +224,14 @@ function renderHud() {
   const diplo = (ST.legal || []).filter(a => DIPLOMATIC.has(a.name));
   let h = `<div class="box"><span class="stars">${ST.frame.stars[H.you]}★</span> ` +
           `<span class="muted">turn ${ST.frame.turn} of ${H.turn_cap}</span></div>`;
+  if (sel < 0) {
+    // Without this the board looks inert until you happen to click the right
+    // thing — which is exactly how "there is no way to train units" happens.
+    const acting = (ST.legal || []).filter(a => a.src >= 0);
+    const tiles = new Set(acting.map(a => a.src));
+    h += `<div class="box muted">click one of your ${tiles.size} highlighted ` +
+         'tiles — units move, cities train and build</div>';
+  }
   if (rewards.length) {
     const cities = [...new Set(rewards.map(a => a.src))];
     h += `<div class="box"><b>${cities.length} city level-up</b> ` +
@@ -213,12 +254,18 @@ function render() {
   if (!ST) return;
   const f = ST.frame;
   const marks = {};
-  if (sel >= 0 && ST.cur === H.you) {
-    for (const a of actionsAt(sel)) {
-      if (a.name === 'MOVE') marks[a.dst] = 'move';
-      else if (a.name === 'ATTACK') marks[a.dst] = 'attack';
+  if (ST.cur === H.you && !ST.terminal) {
+    if (sel >= 0) {
+      for (const a of actionsAt(sel)) {
+        if (a.name === 'MOVE') marks[a.dst] = 'move';
+        else if (a.name === 'ATTACK') marks[a.dst] = 'attack';
+      }
+      if (Object.keys(marks).length) marks[sel] = 'src';
+    } else {
+      // Nothing selected: outline every tile something can act from, so the
+      // board tells you where to click instead of waiting to be guessed at.
+      for (const a of ST.legal) if (a.src >= 0) marks[a.src] = 'ready';
     }
-    if (Object.keys(marks).length) marks[sel] = 'src';
   }
   board.set(f, {
     sel, marks,
