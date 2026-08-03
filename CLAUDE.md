@@ -783,11 +783,35 @@ the observation may only contain what a human can see; this is the same rule
 pointed the other way, and without it "I played the network" means nothing.
 `--reveal` turns it off for debugging.
 
-**The play UI never invents a move.** Every button is one entry from
-`enumerate_actions`, rendered — there is no client-side notion of what a Rider
-may do, no reimplementation of zone of control. That is invariant 2 as a user
-interface: drift shows up as a button that raises rather than as a silent
-capability ceiling. It also means new engine actions need no UI work; promotion,
+**The play UI never invents a move.** The client posts back an *index* into the
+legal list the server just sent, so there is no vocabulary in which the browser
+could express an action the engine did not offer. That is invariant 2 enforced
+by construction: drift shows up as a button that raises rather than as a silent
+capability ceiling, and new engine actions need no UI work at all — promotion,
 Heal Others, tile abilities and the diplomacy pair all appeared by themselves.
+`PlaySession` lives in `polyengine/viewer/session.py` so it can be tested;
+`scripts/play.py` is only a CLI.
+
+**The cost of that design is discoverability, and it has bitten twice.** Showing
+only *legal* actions means an illegal one is invisible with no hint it exists,
+and the source tile of an action is often somewhere you would never click: a
+Capture is offered on the village your unit stands on, an Examine on a ruin, a
+harvest on what looks like bare grass. Both "there is no way to train units" and
+"I cannot harvest" were really "I could not find it". Three things answer it,
+and none of them restate a rule:
+
+- every tile that is the source of *any* legal action is outlined in gold;
+- with nothing selected the HUD groups the whole legal list into plain lines
+  ("2 tiles can be harvested"), so a new action type gets a line for free;
+- a city that cannot train prints the observable facts — support used, whether
+  a unit is standing on it, stars — rather than the rule, because a second copy
+  of the rules in JavaScript is exactly what would drift from the first.
+
+`tests/test_viewer.py` sweeps twelve games through `PlaySession.apply`, biased
+towards the rare verbs, and asserts every offered action applies and that Move,
+Attack, Capture, Examine, Train, Build, Research and Reward are all reached in
+ordinary play. Promote and Heal Others are too rare for a sweep — a unit needs
+three kills, a Mind Bender needs a hurt neighbour — and are pinned directly by
+`tests/test_veterans_and_abilities.py` and `tests/test_unit_skills.py` instead.
 
 Replays are gitignored (an 1,800-frame 11×11 game is ~11 MB); regenerate them.

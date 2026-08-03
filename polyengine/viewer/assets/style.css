@@ -42,6 +42,9 @@ canvas.drag{cursor:grabbing}
   pointer-events:none;max-width:min(420px,60%)}
 .hud .box{background:rgba(10,13,20,.82);border:1px solid var(--line2);
   border-radius:8px;padding:6px 10px;backdrop-filter:blur(3px);pointer-events:auto}
+.hud ul{margin:4px 0 0;padding-left:16px;font-size:12px}
+.hud li{margin:1px 0}
+.hud a{color:var(--gold)}
 
 /* The contextual action panel: what the selected tile can do, floating over
    the board. It lives here rather than in the side rail because these buttons

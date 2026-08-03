@@ -142,6 +142,11 @@ def ruleset_header(rules) -> dict:
                                  for r, techs in C.HIDDEN_RESOURCE_TECHS.items()},
         "action_names": [C.ACTION_NAMES[t] for t in range(C.N_ACTION_TYPES)],
         "turn_cap": int(C.TURN_CAP),
+        # Capture and Examine both require a unit that has not yet acted this
+        # turn, so moving onto a village and taking it are two separate turns.
+        # The play UI explains that when the button is missing — gated on the
+        # flag rather than assumed, so turning the rule off silences the hint.
+        "capture_requires_fresh_unit": bool(rules.capture_requires_fresh_unit),
     }
 
 

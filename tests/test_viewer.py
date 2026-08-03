@@ -191,6 +191,91 @@ def test_fog_frame_is_json_serialisable():
     json.dumps(board_frame(g))
 
 
+# --- play mode: is the game actually playable? --------------------------------
+
+def _sweep(seeds=range(12), max_actions=1200):
+    """Play both seats through `PlaySession.apply` — the exact path the browser
+    posts to — preferring rare action types, and report what happened."""
+    import collections
+    import random
+
+    from polyengine.viewer.session import PlaySession
+
+    # Types a random walk almost never stumbles into; biasing towards them is
+    # the only way a sweep this short exercises capture, examine and diplomacy.
+    rare = {"CAPTURE", "EXAMINE", "PROMOTE", "HEAL_OTHERS", "UPGRADE",
+            "TILE_ABILITY", "REWARD", "PEACE_OFFER", "PEACE_BREAK", "TRAIN"}
+    offered, applied, errors = collections.Counter(), collections.Counter(), []
+    for seed in seeds:
+        rng = random.Random(seed)
+        s = PlaySession(size=11, seed=seed, opponent="scripted",
+                        map_type=["drylands", "lakes", "continents"][seed % 3])
+        for _ in range(max_actions):
+            if s.game.is_terminal():
+                break
+            if s.game.current_player != s.you:
+                s.run_opponents()
+                continue
+            legal = s.legal()
+            if not legal:
+                break
+            for a in legal:
+                offered[a["name"]] += 1
+            pool = [a for a in legal if a["name"] in rare]
+            pick = rng.choice(pool) if pool and rng.random() < 0.75 else rng.choice(legal)
+            try:
+                s.apply(pick["i"])
+                applied[pick["name"]] += 1
+            except Exception as exc:                     # pragma: no cover
+                errors.append((pick["desc"], repr(exc)))
+    return offered, applied, errors
+
+
+def test_every_offered_action_can_actually_be_played():
+    """The claim "you can play it" in one test.
+
+    The browser posts an index into the legal list, so anything the engine
+    offers must apply. A type that enumerates but raises on apply is a dead
+    button — the exact failure mode invariant 2 exists to prevent, and the one
+    a UI built out of `enumerate_actions` would surface first."""
+    offered, applied, errors = _sweep()
+    assert not errors, f"legal actions that failed to apply: {errors[:5]}"
+    assert sum(applied.values()) > 500, "sweep did not actually play anything"
+
+
+def test_the_core_verbs_are_reachable_in_ordinary_play():
+    """Capture and Examine are how you take a village and how you open a ruin —
+    the two things a player will look for first and the two whose source tile
+    (the one your unit is standing on) is easiest to fail to offer."""
+    offered, applied, _ = _sweep()
+    for name in ("MOVE", "ATTACK", "CAPTURE", "EXAMINE", "TRAIN", "BUILD",
+                 "RESEARCH", "REWARD", "END_TURN"):
+        assert applied[name] > 0, f"{name} never applied in a 12-game sweep"
+
+
+def test_harvesting_is_offered_separately_from_building():
+    """Both are A_BUILD, but they are not the same verb and the UI labels them
+    apart off `imp_kind` — so the ruleset had better keep saying which is which."""
+    from polyengine.viewer.session import PlaySession
+    s = PlaySession(size=11, seed=8, map_type="lakes")
+    kinds = {s.game.rules.imp_kind[a["subtype"]]
+             for a in s.legal() if a["name"] == "BUILD"}
+    assert "harvest" in kinds, "no harvest offered on a fresh Imperius start"
+
+
+def test_the_client_cannot_name_an_action_the_engine_did_not_offer():
+    """An out-of-range index is refused rather than silently clamped, which is
+    what stops a stale page from applying whatever now sits at that slot."""
+    import pytest as _pytest
+
+    from polyengine.viewer.session import PlaySession
+    s = PlaySession(size=11, seed=2)
+    n = len(s.legal())
+    for bad in (-1, n, n + 50):
+        with _pytest.raises(ValueError):
+            s.apply(bad)
+
+
 # --- the recorded frame carries what the panels claim to show -----------------
 
 @pytest.mark.parametrize("field", [

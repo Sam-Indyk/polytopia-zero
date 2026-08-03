@@ -134,9 +134,17 @@ function label(a) {
                               sub: `${H.unit_cost[a.subtype]}★ · ` +
                                    `${H.unit_max_hp[a.subtype]} hp · ` +
                                    `atk ${H.unit_attack[a.subtype]}`};
-    case 'BUILD':     return {lbl: `Build ${pretty(H.improvement_names[a.subtype])}`,
-                              sub: `${H.imp_cost[a.subtype]}★ · ` +
-                                   `+${H.imp_population[a.subtype]} population`};
+    case 'BUILD': {
+      // A_BUILD covers both halves of the economy and they are not the same
+      // verb: `harvest_fruit` is picking fruit, not constructing a building,
+      // and "Build harvest fruit" reads as neither. `imp_kind` already knows.
+      const name = pretty(H.improvement_names[a.subtype]);
+      const harvest = H.imp_kind[a.subtype] === 'harvest';
+      return {lbl: harvest ? name.charAt(0).toUpperCase() + name.slice(1)
+                           : `Build ${name}`,
+              sub: `${H.imp_cost[a.subtype]}★ · ` +
+                   `+${H.imp_population[a.subtype]} population`};
+    }
     case 'REWARD':    return {lbl: `Take ${pretty(H.reward_names[a.subtype])}`,
                               sub: 'city level-up reward'};
     case 'TILE_ABILITY': return {lbl: pretty(H.tile_ability_names[a.subtype]),
@@ -203,12 +211,74 @@ function renderTileActions() {
            : '') +
          ` · you have ${f.stars[H.you]}★.</p>`;
   }
+  // Capture and Examine are the other two actions whose absence reads as a
+  // broken game: both need a unit that has not acted yet, so you move onto the
+  // village this turn and take it next. Gated on the ruleset flag, so turning
+  // the rule off silences the hint instead of leaving it lying.
+  if (H.capture_requires_fresh_unit && f.unit_type[sel] >= 0 &&
+      f.unit_owner[sel] === H.you && (f.unit_moved[sel] || f.unit_attacked[sel])) {
+    const onCity = f.city_level[sel] > 0 && f.city_owner[sel] !== H.you;
+    const onRuin = f.improvement[sel] >= 0 &&
+                   H.improvement_names[f.improvement[sel]] === 'ruin';
+    if ((onCity && !rest.some(a => a.name === 'CAPTURE')) ||
+        (onRuin && !rest.some(a => a.name === 'EXAMINE')))
+      h += `<p class="note">This unit has already acted. ${onCity ? 'Capturing' : 'Examining'}` +
+           ' needs a unit that <b>starts its turn</b> here — try again next turn.</p>';
+  }
   if (!rest.length && !moves.length && !hits.length)
     h += '<p class="note">nothing here can act this turn</p>';
   bar.innerHTML = h + '</div>';
   bar.querySelectorAll('.act').forEach(b =>
     b.onclick = () => guard(() => act(+b.dataset.i)));
   el('deselect').onclick = () => { sel = -1; render(); };
+}
+
+/** Everything you could do this turn, grouped, when nothing is selected.
+ *
+ * This is pure grouping of the engine's own action list — no rule is restated
+ * here, so a new action type gets a line for free. It exists because the board
+ * only highlights *where* something can happen and some of those places are
+ * tiles you would never think to click: a Capture is offered on the village
+ * your unit is standing on, an Examine on a ruin, a harvest on what looks like
+ * an empty patch of grass. "I cannot harvest" and "I cannot train" were both
+ * really "I could not find it".
+ */
+function summaryBox() {
+  const by = {};
+  for (const a of ST.legal || []) (by[a.name] = by[a.name] || []).push(a);
+  const tiles = list => new Set(list.map(a => a.src)).size;
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  const lines = [];
+
+  const movers = [...(by.MOVE || []), ...(by.ATTACK || [])];
+  if (movers.length)
+    lines.push(plural(tiles(movers), 'unit', 'units') + ' can move or attack');
+  if (by.CAPTURE)
+    lines.push('<b>' + plural(tiles(by.CAPTURE), 'village or city', 'villages or cities') +
+               '</b> can be captured');
+  if (by.EXAMINE)
+    lines.push('<b>' + plural(tiles(by.EXAMINE), 'ruin or starfish',
+                              'ruins or starfish') + '</b> can be examined');
+  if (by.TRAIN) lines.push(plural(tiles(by.TRAIN), 'city', 'cities') + ' can train');
+  if (by.BUILD) {
+    const har = by.BUILD.filter(a => H.imp_kind[a.subtype] === 'harvest');
+    const bld = by.BUILD.filter(a => H.imp_kind[a.subtype] !== 'harvest');
+    if (har.length) lines.push(plural(tiles(har), 'tile', 'tiles') + ' can be harvested');
+    if (bld.length) lines.push(plural(tiles(bld), 'tile', 'tiles') + ' can be built on');
+  }
+  if (by.PROMOTE)
+    lines.push('<b>' + plural(tiles(by.PROMOTE), 'unit', 'units') +
+               '</b> can be promoted <span class="muted">(free, and a full heal)</span>');
+  for (const name of ['HEAL_OTHERS', 'TILE_ABILITY', 'UPGRADE', 'DISBAND'])
+    if (by[name]) lines.push(plural(tiles(by[name]), 'tile', 'tiles') + ' — ' +
+                             pretty(name.toLowerCase()));
+  if (by.RESEARCH)
+    lines.push(`${by.RESEARCH.length} technologies affordable ` +
+               '<a href="#" id="totech">open the tech tree</a>');
+
+  if (!lines.length) return '<div class="box muted">nothing left to do — end your turn</div>';
+  return '<div class="box"><div class="muted">click a highlighted tile</div><ul>' +
+         lines.map(l => `<li>${l}</li>`).join('') + '</ul></div>';
 }
 
 /** Anything not tied to a tile you have selected: research, diplomacy, and the
@@ -224,14 +294,7 @@ function renderHud() {
   const diplo = (ST.legal || []).filter(a => DIPLOMATIC.has(a.name));
   let h = `<div class="box"><span class="stars">${ST.frame.stars[H.you]}★</span> ` +
           `<span class="muted">turn ${ST.frame.turn} of ${H.turn_cap}</span></div>`;
-  if (sel < 0) {
-    // Without this the board looks inert until you happen to click the right
-    // thing — which is exactly how "there is no way to train units" happens.
-    const acting = (ST.legal || []).filter(a => a.src >= 0);
-    const tiles = new Set(acting.map(a => a.src));
-    h += `<div class="box muted">click one of your ${tiles.size} highlighted ` +
-         'tiles — units move, cities train and build</div>';
-  }
+  if (sel < 0) h += summaryBox();
   if (rewards.length) {
     const cities = [...new Set(rewards.map(a => a.src))];
     h += `<div class="box"><b>${cities.length} city level-up</b> ` +
@@ -246,6 +309,8 @@ function renderHud() {
   hud.innerHTML = h;
   hud.querySelectorAll('.act').forEach(b =>
     b.onclick = () => guard(() => act(+b.dataset.i)));
+  const totech = el('totech');
+  if (totech) totech.onclick = e => { e.preventDefault(); showTab('tech'); };
 }
 
 // --- rendering -------------------------------------------------------------
