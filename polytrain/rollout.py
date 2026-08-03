@@ -105,7 +105,7 @@ def collect(policy, n_games: int, rollout_steps: int, size: int = 9,
             shaping: float = 0.0, max_turns: int = 100,
             games: list[Game] | None = None,
             opponent=None, learner_seats: list[int] | None = None,
-            map_types=DEFAULT_MAP_TYPES, specs=None
+            map_types=DEFAULT_MAP_TYPES, specs=None, seat_members=None
             ) -> tuple[Rollout, dict, list[Game]]:
     """Play `rollout_steps` micro-steps across `n_games` games.
 
@@ -154,7 +154,14 @@ def collect(policy, n_games: int, rollout_steps: int, size: int = 9,
         if theirs:
             # Opponents receive Game objects, not (state, player) pairs, so a
             # scripted baseline and a frozen network satisfy the same interface.
-            opp_acts = opponent([games[i] for i in theirs])
+            # An opponent that fills different seats with *different* league
+            # members needs to know which game each action is for; it opts in
+            # by setting `wants_indices` rather than by having its arity
+            # sniffed, since these are all closures with bound defaults.
+            subset = [games[i] for i in theirs]
+            opp_acts = (opponent(subset, theirs)
+                        if getattr(opponent, "wants_indices", False)
+                        else opponent(subset))
             actions_by_game.update(dict(zip(theirs, opp_acts)))
 
         for slot, gi in enumerate(mine):
@@ -191,7 +198,8 @@ def collect(policy, n_games: int, rollout_steps: int, size: int = 9,
             limit = game.state.turn_cap if max_turns is None else max_turns
             if game.is_terminal() or game.state.turn >= limit:
                 seat = learner_seats[gi] if opponent is not None else None
-                _finish(game, gi, roll, last_idx, stats, steps_played[gi], seat)
+                _finish(game, gi, roll, last_idx, stats, steps_played[gi], seat,
+                        seat_members[gi] if seat_members else None)
                 # Replacements keep the same world: a curriculum stage is a
                 # property of the iteration, not of one episode ending early.
                 games[gi] = _make_game(
@@ -213,7 +221,50 @@ def _applies(atype, head) -> torch.Tensor:
     return torch.tensor([int(atype) in sets[head]], dtype=torch.bool)
 
 
-def _finish(game, gi, roll, last_idx, stats, length, learner_seat=None):
+def standing(game, player: int) -> tuple[int, int]:
+    """How well `player` finished, higher is better: survival first, then score.
+
+    Survival outranks score because that is what Domination adjudicates — a
+    tribe still holding a city has not lost to one that has been wiped out,
+    whatever its research total says. Among survivors it is `Game.score`, the
+    engine's own published formula and the thing that decides a turn-capped
+    game, so this agrees with `Game.winner()` by construction rather than by
+    coincidence. (The old truncation path compared raw score alone, which could
+    rank an eliminated tribe above a living one.)
+    """
+    return (1 if game.owns_city(player) else 0, game.score(player))
+
+
+def head_to_head(game, a: int, b: int) -> float:
+    """`a`'s result against `b` alone: 1 above, 0.5 level, 0 below."""
+    sa, sb = standing(game, a), standing(game, b)
+    return 1.0 if sa > sb else (0.5 if sa == sb else 0.0)
+
+
+def pairwise_score(game, seat: int) -> float:
+    """`seat`'s average result against each opponent individually.
+
+    This is the fix for a bug that only became reachable when games could hold
+    more than two tribes. Elo asks "what fraction of a head-to-head did you
+    win?", and scoring a free-for-all as 1-if-you-won gives an *equal-strength*
+    player 1/N rather than the 1/2 Elo expects. Measured on the real update, an
+    identical-strength learner drifted to -112 Elo at 3 players and -218 at 16,
+    with the frozen pool inflating to match — pure seat-count artifact, and it
+    feeds PFSP's opponent sampling.
+
+    Averaging the pairwise results instead is unbiased at any N, and at N = 2 it
+    is *identically* the old 1 / 0.5 / 0, so duels and every rating already
+    recorded are unaffected.
+    """
+    n = game.state.n_players
+    if n < 2:
+        return 1.0
+    return sum(head_to_head(game, seat, q)
+               for q in range(n) if q != seat) / (n - 1)
+
+
+def _finish(game, gi, roll, last_idx, stats, length, learner_seat=None,
+            seat_members=None):
     """Credit terminal reward to each stored player's final transition."""
     winner = game.winner() if game.is_terminal() else _score_winner(game)
     stats["episodes"] += 1
@@ -221,13 +272,28 @@ def _finish(game, gi, roll, last_idx, stats, length, learner_seat=None):
     stats["lengths"].append(length)
     if learner_seat is not None:
         stats.setdefault("learner_result", []).append(
-            1.0 if winner == learner_seat else (0.5 if winner < 0 else 0.0))
+            pairwise_score(game, learner_seat))
+        # One result per opponent *identity*, so a league member is rated on how
+        # the learner did against it specifically rather than on a number
+        # smeared across however many seats it happened to fill.
+        if seat_members:
+            per = stats.setdefault("member_results", {})
+            for seat, name in seat_members.items():
+                if seat == learner_seat or seat >= game.state.n_players:
+                    continue
+                per.setdefault(name, []).append(
+                    head_to_head(game, learner_seat, seat))
     for p in range(game.state.n_players):
         key = (gi, p)
         if key not in last_idx:
             continue
         idx = last_idx[key]
-        roll.reward[idx] += 1.0 if winner == p else (-1.0 if winner >= 0 else 0.0)
+        # Rank-based, not winner-take-all. With sixteen tribes the old rule gave
+        # an identical -1 to the runner-up and to whoever was eliminated on turn
+        # three, throwing away nearly all of the signal in a free-for-all.
+        # 2 * pairwise - 1 spans [-1, +1] and at N = 2 is exactly the old
+        # +1 / 0 / -1, so duel training is unchanged.
+        roll.reward[idx] += 2.0 * pairwise_score(game, p) - 1.0
         roll.terminal[idx] = True
 
 

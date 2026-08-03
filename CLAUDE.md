@@ -637,6 +637,42 @@ carries it too** — it is now part of what determines a game, exactly like
 months. `tests/test_curriculum.py` round-trips a non-default cap through
 `check_determinism` for that reason.
 
+### Who plays whom, and why Elo needed fixing
+
+A league iteration used to fill **every** non-learner seat with copies of one
+frozen checkpoint, so a six-player game was the learner against five identical
+opponents. Now each seat draws its own member (`League.sample_opponents`), and
+`make_seat_opponent_fn` groups them so each distinct opponent still runs one
+batched forward pass. An opponent that needs to know which game an action is for
+opts in with `wants_indices` — arity sniffing does not work here, since these
+are all closures with bound defaults. Self-play iterations are unchanged: every
+seat is the live net.
+
+**Elo is a two-player rating system, and nobody had noticed.** It asks "what
+fraction of a head-to-head did you win?", and scoring a free-for-all as
+1-if-you-won hands an *equal-strength* player 1/N rather than the 1/2 Elo
+expects. Measured on the real `record_results`, at identical strength:
+
+| seats | winner-take-all | average pairwise |
+|---|---|---|
+| 2 | +0.5 ± 29.9 | **+0.5 ± 29.9** |
+| 3 | −62.1 ± 39.8 | +2.0 ± 32.5 |
+| 6 | −129.7 ± 23.0 | +9.2 ± 14.8 |
+| 16 | −236.2 ± 28.8 | −0.3 ± 12.8 |
+
+The learner deflated and the pool inflated purely from seat count — and PFSP
+samples opponents *by rating*, so this corrupted which opponents it faced.
+`rollout.pairwise_score` averages the result against each opponent
+individually, which is unbiased at any N and at N = 2 is **identically** the old
+1 / 0.5 / 0. That equality is the point: duels and every rating already recorded
+are untouched. This was a latent bug, not a new one — N was always 2 before.
+
+**The terminal reward is rank-based** for the same reason: `2 * pairwise - 1`
+spans [−1, +1] and at N = 2 is exactly the old +1 / 0 / −1, but in a sixteen-
+tribe game the runner-up no longer scores the same −1 as whoever was eliminated
+on turn three. `standing()` ranks survival first and then `Game.score`, so it
+agrees with `Game.winner()` by construction rather than by coincidence.
+
 ### Eval reports where it is weak, not just how weak
 
 `MatchResult.buckets` breaks the win rate down by size, seat count and map type,

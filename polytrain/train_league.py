@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import time
+from collections import defaultdict
 from pathlib import Path
 
 import numpy as np
@@ -48,6 +49,55 @@ def make_opponent_fn(member, policy_template, rules, device):
         with torch.no_grad():
             acts, _ = _p.act([(g.state, g.current_player) for g in games])
         return acts
+    return fn
+
+
+def make_seat_opponent_fn(assign, primary, policy_template, rules, device):
+    """An opponent that fills different seats with *different* league members.
+
+    `assign` maps game index -> {seat: member}. Members are grouped per call so
+    each distinct opponent still runs one batched forward pass, which is what
+    keeps a sixteen-tribe game from costing sixteen times a duel.
+
+    This replaces filling every non-learner seat with copies of one checkpoint.
+    Five identical opponents teach the learner to beat one thing five times at
+    once; five different ones are the position it will actually be in, and each
+    gets its own Elo result rather than sharing a number.
+    """
+    built: dict[str, tuple[str, object]] = {}
+
+    def agent_for(member):
+        if member.name not in built:
+            if member.kind == "scripted":
+                built[member.name] = ("scripted", member.factory(0))
+            else:
+                frozen = FrozenOpponent(policy_template.net, member.state, device)
+                built[member.name] = ("net", ARPolicy(frozen.net, rules,
+                                                      device=device))
+        return built[member.name]
+
+    def fn(games, gis):
+        out: list = [None] * len(games)
+        groups: dict[str, list[int]] = defaultdict(list)
+        members: dict[str, object] = {}
+        for k, (g, gi) in enumerate(zip(games, gis)):
+            m = assign.get(gi, {}).get(g.current_player, primary)
+            groups[m.name].append(k)
+            members[m.name] = m
+        for name, ks in groups.items():
+            kind, obj = agent_for(members[name])
+            if kind == "scripted":
+                for k in ks:
+                    out[k] = obj.act(games[k])
+            else:
+                with torch.no_grad():
+                    acts, _ = obj.act([(games[k].state, games[k].current_player)
+                                       for k in ks])
+                for k, a in zip(ks, acts):
+                    out[k] = a
+        return out
+
+    fn.wants_indices = True
     return fn
 
 
@@ -236,14 +286,40 @@ def main() -> None:
                 map_types=map_types, specs=specs)
             label = "self"
         else:
-            opp_fn = make_opponent_fn(member, policy, rules, device)
+            # Who sits where. Every seat gets its own draw from the league,
+            # falling back to the primary member when the draw says "self" — a
+            # league iteration should not quietly become self-play in half its
+            # seats.
+            #
+            # Drawn for *every* seat rather than for "the other N-1", because
+            # games persist across iterations to let long episodes finish, so
+            # the game at index gi may have a different seat count from this
+            # iteration's spec. `collect` picks the learner's seat from the real
+            # game and `_finish` ignores seats the game does not have, so an
+            # entry per seat is always enough and never wrong.
+            max_seats = max([s.n_players for s in specs] if specs else [2])
+            assign, seat_members = {}, []
+            for gi in range(args.games):
+                drawn = league.sample_opponents(rng, max_seats)
+                picks = {q: (m or member) for q, m in enumerate(drawn)}
+                assign[gi] = picks
+                seat_members.append({q: m.name for q, m in picks.items()})
+            opp_fn = make_seat_opponent_fn(assign, member, policy, rules, device)
             roll, stats, games_vs = collect(
                 policy, args.games, args.rollout, size=size,
                 seed=args.seed + it * 1000, shaping=shaping,
                 max_turns=args.max_turns, games=games_vs, opponent=opp_fn,
-                map_types=map_types, specs=specs)
+                map_types=map_types, specs=specs, seat_members=seat_members)
             label = member.name
-            league.record_results(member, stats.get("learner_result", []))
+            # Elo per opponent identity. `learner_result` is now the learner's
+            # *average pairwise* result, which is unbiased at any seat count;
+            # `member_results` splits it by who was actually beaten.
+            by_member = stats.get("member_results", {})
+            by_name = {m.name: m for gi in assign for m in assign[gi].values()}
+            for name, results in by_member.items():
+                league.record_results(by_name.get(name), results)
+            if not by_member:
+                league.record_results(member, stats.get("learner_result", []))
             if member.kind == "snapshot":
                 exploiter.record([1.0 - r for r in stats.get("learner_result", [])])
 

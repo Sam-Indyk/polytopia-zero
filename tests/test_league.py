@@ -237,3 +237,155 @@ def test_league_restores_scripted_statistics():
     restored.add_scripted("scripted", lambda s: object())
     restored.load_state_dict(league.state_dict())
     assert restored.scripted[0].win_rate == pytest.approx(m.win_rate)
+
+
+# --- free-for-all scoring: Elo is a two-player rating system -------------------
+#
+# Everything below became reachable only when games could hold more than two
+# tribes. At N = 2 the old rule and the new one are identical by construction,
+# which is why none of this showed up before.
+
+def _rank_result(n_players, rank):
+    """A learner finishing `rank`-th of `n_players`, scored the new way."""
+    return (n_players - 1 - rank) / (n_players - 1)
+
+
+@pytest.mark.parametrize("n_players", [2, 3, 6, 16])
+def test_equal_strength_players_keep_equal_elo(n_players):
+    """The bug this fixes, stated as a property.
+
+    Elo asks "what fraction of a head-to-head did you win?". Scoring a
+    free-for-all as 1-if-you-won hands an *equal-strength* player 1/N rather
+    than the 1/2 Elo expects, so its rating falls and the frozen pool's rises
+    with no difference in strength at all. Measured on this very update, the
+    learner drifted to -112 Elo at 3 players and -236 at 16.
+    """
+    import random
+    import statistics
+
+    drifts = []
+    for seed in range(8):
+        lg = League(capacity=8)
+        snap = Member(name="s", kind="snapshot", state={}, iteration=0, elo=0.0)
+        rng = random.Random(seed)
+        for _ in range(2000):
+            order = list(range(n_players))
+            rng.shuffle(order)                       # equal strength
+            lg.record_results(snap, [_rank_result(n_players, order.index(0))])
+        drifts.append(lg.main_elo)
+    mean = statistics.mean(drifts)
+    assert abs(mean) < 60, (
+        f"{n_players}-player Elo drifted {mean:+.0f} at equal strength")
+
+
+def test_pairwise_score_is_exactly_the_old_rule_for_a_duel():
+    """Duels and every rating already recorded must be untouched."""
+    assert _rank_result(2, 0) == 1.0
+    assert _rank_result(2, 1) == 0.0
+
+
+# --- rank-based scoring against real games ------------------------------------
+
+def test_pairwise_score_matches_win_loss_draw_in_a_duel():
+    from polyengine.core.game import Game
+    from polytrain.rollout import pairwise_score
+
+    game = Game.new(size=9, seed=4)
+    s = game.state
+    # Wipe player 1 off the board: player 0 has won outright.
+    s.city_owner[s.city_owner == 1] = -1
+    s.city_level[s.city_owner == -1] = 0
+    assert pairwise_score(game, 0) == 1.0
+    assert pairwise_score(game, 1) == 0.0
+
+
+def test_finishing_second_of_six_beats_finishing_last():
+    """The reason for rank-based reward: winner-take-all gave the runner-up and
+    the tribe eliminated on turn three an identical -1."""
+    from polyengine.core.game import Game
+    from polytrain.rollout import pairwise_score
+
+    game = Game.new(size=16, seed=7, tribes=["imperius", "bardur", "kickoo",
+                                             "vengir", "xin_xi", "zebasi"])
+    scores = sorted((pairwise_score(game, p) for p in range(6)))
+    assert scores[0] < scores[-1], "every seat scored the same"
+    assert 0.0 <= scores[0] and scores[-1] <= 1.0
+    # Pairwise results over a full round robin must average to exactly 0.5.
+    assert abs(sum(scores) / 6 - 0.5) < 1e-9
+
+
+def test_terminal_reward_spans_minus_one_to_one_and_is_unchanged_for_duels():
+    from polyengine.core.game import Game
+    from polytrain.rollout import pairwise_score
+
+    duel = Game.new(size=9, seed=4)
+    s = duel.state
+    s.city_owner[s.city_owner == 1] = -1
+    s.city_level[s.city_owner == -1] = 0
+    assert 2.0 * pairwise_score(duel, 0) - 1.0 == 1.0
+    assert 2.0 * pairwise_score(duel, 1) - 1.0 == -1.0
+
+
+def test_standing_ranks_a_survivor_above_an_eliminated_tribe():
+    """Survival outranks score: a tribe still holding a city has not lost to one
+    that has been wiped out, whatever its research total says."""
+    from polyengine.core.game import Game
+    from polytrain.rollout import standing
+
+    game = Game.new(size=11, seed=2)
+    s = game.state
+    s.city_owner[s.city_owner == 1] = -1
+    s.city_level[s.city_owner == -1] = 0
+    # Player 1 keeps its techs and explored tiles, so its raw score is not zero
+    # — the old truncation path compared score alone and could rank it above a
+    # living tribe.
+    assert game.score(1) > 0
+    assert standing(game, 0) > standing(game, 1)
+
+
+# --- distinct opponents per seat ----------------------------------------------
+
+def test_sample_opponents_returns_one_draw_per_seat():
+    lg = League(capacity=8)
+    for i in range(4):
+        lg.add_snapshot(_tiny_net(), i)
+    rng = np.random.default_rng(0)
+    assert len(lg.sample_opponents(rng, 5)) == 5
+    assert lg.sample_opponents(rng, 0) == []
+
+
+def _tiny_net():
+    import torch.nn as nn
+    return nn.Linear(2, 2)
+
+
+def test_seat_opponent_fn_gives_different_seats_different_members():
+    """The point of the change: a crowded board is a field of different
+    checkpoints, not N-1 copies of one."""
+    from polytrain.train_league import make_seat_opponent_fn
+
+    class FakeMember:
+        def __init__(self, name):
+            self.name, self.kind = name, "scripted"
+            self.factory = lambda seed, n=name: _Recorder(n)
+
+    class _Recorder:
+        def __init__(self, name):
+            self.name = name
+
+        def act(self, game):
+            seen.append((self.name, game.current_player))
+            from polyengine.agents.random_agent import RandomAgent
+            return RandomAgent(seed=0).act(game)
+
+    from polyengine.core.game import Game
+    seen: list = []
+    a, b = FakeMember("A"), FakeMember("B")
+    game = Game.new(size=11, seed=1, tribes=["imperius", "bardur", "kickoo"])
+    assign = {0: {0: a, 1: b, 2: a}}
+    fn = make_seat_opponent_fn(assign, a, None, None, None)
+    assert getattr(fn, "wants_indices", False), "must opt in to game indices"
+    for seat in (0, 1, 2):
+        game.state.current_player = seat
+        fn([game], [0])
+    assert [n for n, _ in seen] == ["A", "B", "A"], seen
