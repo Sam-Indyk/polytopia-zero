@@ -41,6 +41,7 @@ _PLAYER_ARRAYS = ("stars", "tech", "tribe", "alive",
 _FOG_ARRAYS = (
     "fog_explored", "fog_visible", "fog_staleness",
     "mem_unit_type", "mem_unit_owner", "mem_city_owner", "mem_city_level",
+    "mem_owner",
 )
 
 
@@ -177,6 +178,11 @@ class GameState:
         self.mem_unit_owner = np.full((p, n), C.NEUTRAL, dtype=C.DT_OWNER)
         self.mem_city_owner = np.full((p, n), C.NEUTRAL, dtype=C.DT_OWNER)
         self.mem_city_level = np.zeros((p, n), dtype=np.int8)
+        # Remembered territory. Units and cities have had memory since the
+        # start; borders did not, so the observation was reading ground-truth
+        # `owner` and showing every player the full extent of every empire
+        # through unexplored fog. See obs.encode_spatial.
+        self.mem_owner = np.full((p, n), C.NEUTRAL, dtype=C.DT_OWNER)
 
     # --- geometry -----------------------------------------------------------
     def idx(self, x: int, y: int) -> int:

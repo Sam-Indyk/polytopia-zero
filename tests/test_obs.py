@@ -131,13 +131,98 @@ def test_hp_and_status_only_for_currently_visible_units():
 
 
 def test_perspective_is_relative_to_the_acting_player():
+    """Own/enemy are relative slots, so one player's "mine" is the other's
+    "theirs" — **on tiles both have actually seen.**
+
+    This used to compare the two planes over the whole board, and only passed
+    because the territory planes read ground-truth `owner`: each player was
+    being shown the full extent of the other's empire through unexplored fog.
+    Scoped to shared knowledge, it tests perspective rather than the leak.
+    """
+    from polyengine.agents.scripted import ScriptedBot
+
+    # The two tribes start on opposite sides and share no explored ground at
+    # all on turn 0, so the property is vacuous until they have met.
     game = Game.new(size=11, seed=11)
+    bots = [ScriptedBot(seed=1), ScriptedBot(seed=2)]
+    s = game.state
+    for _ in range(2000):
+        both_seen = (s.fog_explored[0] == 1) & (s.fog_explored[1] == 1)
+        if both_seen.sum() > 5 or game.is_terminal():
+            break
+        game.step(bots[game.current_player].act(game))
     own = O.plane_layout(R)["territory"][0]
-    sp0 = O.encode_spatial(game.state, 0, R)
-    sp1 = O.encode_spatial(game.state, 1, R)
-    # P0's "own territory" plane must equal P1's "enemy territory" plane.
-    assert np.array_equal(sp0[own], sp1[own + 1])
-    assert np.array_equal(sp0[own + 1], sp1[own])
+    sp0 = O.encode_spatial(s, 0, R)
+    sp1 = O.encode_spatial(s, 1, R)
+    both = ((s.fog_explored[0] == 1) & (s.fog_explored[1] == 1)
+            ).reshape(s.size, s.size)
+    assert both.any(), "test needs some commonly explored ground"
+    assert np.array_equal(sp0[own][both], sp1[own + 1][both])
+    assert np.array_equal(sp0[own + 1][both], sp1[own][both])
+
+
+def test_territory_is_not_visible_through_unexplored_fog():
+    """Invariant 1. Borders under the clouds are not on a player's screen, and
+    the M5 vision layer could never reproduce them from pixels.
+
+    Cities and units have been rendered from `mem_*` since the start; territory
+    was reading ground truth, so from turn 0 every player could see exactly how
+    far every empire reached across a map it had never walked.
+    """
+    game = Game.new(size=11, seed=11)
+    s = game.state
+    own = O.plane_layout(R)["territory"][0]
+    sp = O.encode_spatial(s, 0, R)
+    dark = (s.fog_explored[0] == 0).reshape(s.size, s.size)
+    assert dark.any(), "test needs unexplored ground to be meaningful"
+    # Enemy territory exists on the board...
+    assert (s.owner == 1).any()
+    # ...but none of the three ownership planes fires on an unexplored tile.
+    for slot in range(3):
+        assert not sp[own + slot][dark].any(), (
+            f"territory plane {slot} leaked through unexplored fog")
+
+
+def test_remembered_territory_is_memory_not_live_truth():
+    """Once seen, a border stays as last seen until you look again.
+
+    The other half of the contract. Gating on `explored` alone would still have
+    told the player the instant a distant tile changed hands, which is not
+    something any screen shows."""
+    from polyengine.agents.scripted import ScriptedBot
+    from polyengine.core.fog import recompute_fog
+
+    game = Game.new(size=11, seed=11)
+    bots = [ScriptedBot(seed=1), ScriptedBot(seed=2)]
+    s = game.state
+    tile = -1
+    for _ in range(3000):
+        if game.is_terminal():
+            break
+        game.step(bots[game.current_player].act(game))
+        recompute_fog(s, 0)
+        # Explored by P0, currently out of sight, and P1's ground.
+        cand = np.flatnonzero((s.fog_explored[0] == 1) & (s.fog_visible[0] == 0)
+                              & (s.owner == 1))
+        if len(cand):
+            tile = int(cand[0])
+            break
+    assert tile >= 0, "never found remembered enemy territory out of sight"
+
+    own = O.plane_layout(R)["territory"][0]
+    y, x = divmod(tile, s.size)
+    assert O.encode_spatial(s, 0, R)[own + 1, y, x] == 1.0
+
+    # The border recedes with nobody watching. Ground truth moves; memory does
+    # not. (It is flipped to neutral rather than to P0, because a player's own
+    # territory is always visible — assigning it would reveal the tile and make
+    # the test vacuous.)
+    s.owner[tile] = C.NEUTRAL
+    recompute_fog(s, 0)
+    assert s.fog_visible[0][tile] == 0, "tile became visible; test is void"
+    sp = O.encode_spatial(s, 0, R)
+    assert sp[own + 1, y, x] == 1.0, "memory tracked a change it could not see"
+    assert sp[own + 2, y, x] == 0.0, "neutral plane fired on remembered ground"
 
 
 # --- global vector ------------------------------------------------------------

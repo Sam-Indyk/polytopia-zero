@@ -185,7 +185,23 @@ Easy to forget, because only the first is obvious:
    tiles." Taking the high ground is worth a turn, and `rules.terrain_sight`
    feeds the fog kernel alongside `unit_sight` (a unit takes the better of the
    two, so a Scout on a mountain still sees 5x5, not 7x7).
-4. **Hidden resources.** "Crop is hidden until Organization or Farming has been
+4. **Territory is remembered, not observed.** Cities and units have rendered
+   from `mem_*` since the beginning; the territory planes read ground-truth
+   `state.owner` with no fog gate at all, so every player saw the exact extent
+   of every empire through unexplored cloud. On turn 0 that is the enemy's
+   9-tile capital region lit up as "enemy" inside an otherwise uniformly
+   "neutral" fog — a beacon pointing at the single most valuable fact in the
+   game, on every map size, which is precisely what exploration is supposed to
+   buy. `mem_owner` (updated by `fog_kernel` alongside the other snapshots)
+   closes it, and unexplored tiles now set *none* of own/enemy/neutral, which
+   reads as "unknown" and is exactly correlated with the explored plane.
+
+   `tests/test_obs.py::test_perspective_is_relative_to_the_acting_player` was
+   **passing because of this leak** — it compared P0's own-territory plane to
+   P1's enemy-territory plane across the whole board, which can only hold if
+   both see everything. It now compares them on commonly explored ground.
+
+5. **Hidden resources.** "Crop is hidden until Organization or Farming has been
    researched"; Climbing "reveals metal". This is an **invariant 1** rule, not
    decoration — the encoder was showing crop and metal the acting player could
    not see, so the policy could learn to expand toward resources that are not on

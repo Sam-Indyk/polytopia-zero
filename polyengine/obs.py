@@ -134,7 +134,7 @@ def global_dim(rules: Ruleset) -> int:
 
 @njit(cache=True)
 def _encode_spatial(size, player, n_terrain, n_resource, n_units, n_improvement,
-                    terrain, resource, improvement, owner,
+                    terrain, resource, improvement, mem_owner,
                     mem_city_owner, mem_city_level, city_pop, city_walls,
                     city_capital, city_workshop, city_support_frac,
                     mem_unit_type, mem_unit_owner, unit_hp, unit_veteran,
@@ -164,13 +164,17 @@ def _encode_spatial(size, player, n_terrain, n_resource, n_units, n_improvement,
         if improvement[i] >= 0:
             out[o_imp + improvement[i], y, x] = 1.0
 
-        # territory (relative ownership)
-        if owner[i] == player:
-            out[o_terr_own + 0, y, x] = 1.0
-        elif owner[i] >= 0:
-            out[o_terr_own + 1, y, x] = 1.0
-        else:
-            out[o_terr_own + 2, y, x] = 1.0
+        # Territory, from memory — the same contract as cities and units.
+        # An unexplored tile sets none of the three, which reads as "unknown"
+        # and is exactly correlated with the explored plane, so it leaks
+        # nothing; asserting "neutral" there would be a lie.
+        if seen:
+            if mem_owner[i] == player:
+                out[o_terr_own + 0, y, x] = 1.0
+            elif mem_owner[i] >= 0:
+                out[o_terr_own + 1, y, x] = 1.0
+            else:
+                out[o_terr_own + 2, y, x] = 1.0
         # slot 3 is the off-board mask, set by the padding helper
 
         # city, from memory
@@ -244,7 +248,7 @@ def encode_spatial(state, player: int, rules: Ruleset,
     _encode_spatial(
         size, player, rules.n_terrain, len(rules.resource_names), rules.n_units,
         rules.n_improvements,
-        state.terrain, state.resource, state.improvement, state.owner,
+        state.terrain, state.resource, state.improvement, state.mem_owner[player],
         state.mem_city_owner[player], state.mem_city_level[player],
         state.city_pop, state.city_walls, state.city_capital,
         state.city_workshop, support,

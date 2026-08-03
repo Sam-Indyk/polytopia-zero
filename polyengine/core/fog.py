@@ -28,6 +28,7 @@ def recompute_fog(state, player: int) -> None:
         state.fog_staleness[player],
         state.mem_unit_type[player], state.mem_unit_owner[player],
         state.mem_city_owner[player], state.mem_city_level[player],
+        state.mem_owner[player],
     )
     _hide_cloaks_from(state, player)
     _apply_capital_vision(state, player)
