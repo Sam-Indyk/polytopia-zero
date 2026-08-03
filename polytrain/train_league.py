@@ -25,6 +25,7 @@ from polyengine.agents.random_agent import RandomAgent
 from polyengine.agents.scripted import ScriptedBot
 from polyengine.core.rules import load_ruleset
 from polynet import ARPolicy
+from polytrain.checkpoint import load_resumable, save_atomic
 from polytrain.evaluate import play_match
 from polytrain.league import League, MainExploiter
 from polytrain.pool import FrozenOpponent
@@ -69,6 +70,12 @@ def main() -> None:
     ap.add_argument("--eval-pairs", type=int, default=12,
                     help="mirrored seed pairs per eval (2 games each)")
     ap.add_argument("--max-turns", type=int, default=100)
+    ap.add_argument("--map-types", default="drylands,lakes,continents,archipelago",
+                    help="comma-separated rotation. Games cycle through these, so "
+                         "the policy has to plan for water as well as land: "
+                         "fishing/Ports/boats on an archipelago, Riders/roads on "
+                         "drylands. The type is never told to the net -- it has to "
+                         "read the water off the board like a player does.")
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     ap.add_argument("--small", action="store_true")
     ap.add_argument("--channels", type=int)
@@ -81,6 +88,15 @@ def main() -> None:
                     help="autocast precision for the trunk")
     ap.add_argument("--resume", metavar="CKPT",
                     help="continue from a checkpoint (e.g. checkpoints_x/latest.pt)")
+    ap.add_argument("--auto-resume", action="store_true",
+                    help="resume from <out>/latest.pt if it exists. Safe to pass "
+                         "on a fresh run; this is what the crash supervisor uses.")
+    ap.add_argument("--save-every", type=int, default=5,
+                    help="save latest.pt every N iterations, not just at eval. "
+                         "Bounds what a hard crash costs.")
+    ap.add_argument("--league-save-every", type=int, default=20,
+                    help="persist the opponent pool every N iterations (it is "
+                         "large: capacity x model size)")
     ap.add_argument("--smoke", action="store_true")
     args = ap.parse_args()
 
@@ -102,41 +118,80 @@ def main() -> None:
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
     rules = load_ruleset()
+    map_types = tuple(m.strip() for m in args.map_types.split(",") if m.strip())
     device = torch.device(args.device)
     policy, cfg = build_policy(rules, device, args.small,
                                getattr(args, 'channels', None), getattr(args, 'blocks', None))
     print(f"device={device} params={sum(p.numel() for p in policy.net.parameters())/1e6:.2f}M "
           f"size={args.size} league_size={args.league_size}")
 
-    start_iter = 1
-    if args.resume:
-        blob = torch.load(args.resume, map_location=device, weights_only=False)
-        policy.net.load_state_dict(blob["model"])
-        start_iter = int(blob.get("iter", 0)) + 1
-        print(f"resumed {args.resume} at iteration {start_iter} "
-              f"(elo {blob.get('elo', 0):+.0f}, scripted {blob.get('wr_scripted')})")
+    out_dir = Path(args.out)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     learner = PPOLearner(policy, PPOConfig(lr=args.lr, minibatch=args.minibatch,
                                            epochs=args.epochs,
-                                           entropy_coef=args.entropy))
+                                           entropy_coef=args.entropy,
+                                           precision=args.precision))
     league = League(capacity=args.league_size)
     if args.league_scripted:
         league.add_scripted("scripted", lambda s: ScriptedBot(seed=s))
         print("league includes ScriptedBot -> OSLA is the held-out gate")
     exploiter = MainExploiter()
-
-    out_dir = Path(args.out)
-    out_dir.mkdir(parents=True, exist_ok=True)
     rng = np.random.default_rng(args.seed)
+
+    resume_from = args.resume
+    if args.auto_resume and not resume_from and (out_dir / "latest.pt").exists():
+        resume_from = str(out_dir / "latest.pt")
+
+    start_iter = 1
+    best = -1.0
+    if resume_from:
+        blob = load_resumable(resume_from, map_location=device)
+        if blob is None:
+            print(f"could not read {resume_from} or its backup; starting fresh")
+        else:
+            policy.net.load_state_dict(blob["model"])
+            start_iter = int(blob.get("iter", 0)) + 1
+            # Adam moments matter: dropping them puts a visible transient in the
+            # loss at every restart, and this box restarts often.
+            if blob.get("optim"):
+                try:
+                    learner.opt.load_state_dict(blob["optim"])
+                except ValueError as exc:
+                    print(f"  optimiser state incompatible ({exc}); reinitialised")
+            if blob.get("rng") is not None:
+                rng = np.random.default_rng()
+                rng.bit_generator.state = blob["rng"]
+            if blob.get("torch_rng") is not None:
+                torch.set_rng_state(
+                    torch.as_tensor(blob["torch_rng"], dtype=torch.uint8))
+            best = blob.get("best", -1.0)
+            print(f"resumed {resume_from} at iteration {start_iter} "
+                  f"(elo {blob.get('elo', 0):+.0f}, scripted {blob.get('wr_scripted')})")
+
+        lg = load_resumable(out_dir / "league.pt", map_location="cpu")
+        if lg is not None:
+            league.load_state_dict(lg)
+            print(f"  league restored: {len(league.snapshots)} snapshots, "
+                  f"elo {league.main_elo:+.0f}")
+
+    # Never let a resumed run overwrite a better best.pt with a worse one.
+    prev_best = load_resumable(out_dir / "best.pt", map_location="cpu")
+    if prev_best is not None:
+        prior = prev_best.get("gate", prev_best.get("wr_scripted"))
+        best = max(best, prior if prior is not None else -1.0)
+
     games_self = None
     games_vs = None
-    best = -1.0
-    if args.resume:
-        # Don't let a resumed run overwrite a better best.pt with a worse one.
-        best_path = out_dir / "best.pt"
-        if best_path.exists():
-            prev = torch.load(best_path, map_location="cpu", weights_only=False)
-            best = prev.get("wr_scripted") or -1.0
+
+    def snapshot_blob(it, elo, wr_scr=None, wr_osla=None):
+        return {"model": policy.net.state_dict(), "cfg": cfg.__dict__,
+                "iter": it, "elo": elo, "best": best,
+                "optim": learner.opt.state_dict(),
+                "rng": rng.bit_generator.state,
+                "torch_rng": torch.get_rng_state().numpy(),
+                "wr_scripted": wr_scr, "wr_osla": wr_osla}
+
     t0 = time.perf_counter()
 
     for it in range(start_iter, args.iters + 1):
@@ -147,14 +202,16 @@ def main() -> None:
             roll, stats, games_self = collect(
                 policy, args.games, args.rollout, size=args.size,
                 seed=args.seed + it * 1000, shaping=shaping,
-                max_turns=args.max_turns, games=games_self)
+                max_turns=args.max_turns, games=games_self,
+                map_types=map_types)
             label = "self"
         else:
             opp_fn = make_opponent_fn(member, policy, rules, device)
             roll, stats, games_vs = collect(
                 policy, args.games, args.rollout, size=args.size,
                 seed=args.seed + it * 1000, shaping=shaping,
-                max_turns=args.max_turns, games=games_vs, opponent=opp_fn)
+                max_turns=args.max_turns, games=games_vs, opponent=opp_fn,
+                map_types=map_types)
             label = member.name
             league.record_results(member, stats.get("learner_result", []))
             if member.kind == "snapshot":
@@ -174,25 +231,48 @@ def main() -> None:
         if args.snapshot_every and it % args.snapshot_every == 0:
             league.add_snapshot(policy.net, it)
 
+        # Cheap, frequent save so a bugcheck costs minutes rather than the night.
+        # Evaluation is the expensive part, so this deliberately skips it and
+        # carries the last known win rates forward.
+        if args.save_every and it % args.save_every == 0 and it % args.eval_every:
+            save_atomic(snapshot_blob(it, league.main_elo), out_dir / "latest.pt")
+
+        if args.league_save_every and it % args.league_save_every == 0:
+            save_atomic(league.state_dict(), out_dir / "league.pt",
+                        keep_backup=False)
+
         if it % args.eval_every == 0 or it == args.iters:
             agent = NetAgent(policy)
+            # Eval rotates the same map types training saw, so a policy that
+            # only learned dry maps cannot hide behind a dry-only eval.
             vs_rand = play_match(agent, RandomAgent(seed=7), args.eval_pairs,
-                                 args.size, seed=4242, max_steps=400)
+                                 args.size, seed=4242, max_steps=400,
+                                 map_types=map_types)
             vs_osla = play_match(agent, GreedyOSLA(seed=7), args.eval_pairs,
-                                 args.size, seed=5353, max_steps=400)
+                                 args.size, seed=5353, max_steps=400,
+                                 map_types=map_types)
             vs_scr = play_match(agent, ScriptedBot(seed=7), args.eval_pairs,
-                                args.size, seed=6464, max_steps=400)
+                                args.size, seed=6464, max_steps=400,
+                                map_types=map_types)
             print(f"  eval@{it}: Random {vs_rand.win_rate:5.1%}+-{vs_rand.stderr:.1%} | "
                   f"OSLA {vs_osla.win_rate:5.1%}+-{vs_osla.stderr:.1%} (held out) | "
                   f"Scripted {vs_scr.win_rate:5.1%}+-{vs_scr.stderr:.1%} | "
                   f"elo {league.main_elo:+.0f}")
-            blob = {"model": policy.net.state_dict(), "cfg": cfg.__dict__,
-                    "iter": it, "elo": league.main_elo,
-                    "wr_scripted": vs_scr.win_rate, "wr_osla": vs_osla.win_rate}
-            torch.save(blob, out_dir / "latest.pt")
-            if vs_scr.win_rate > best:
-                best = vs_scr.win_rate
-                torch.save(blob, out_dir / "best.pt")
+            # Select on a gate we do NOT train against. With --league-scripted,
+            # ScriptedBot is a training opponent, so promoting on it selects for
+            # having just sparred with it rather than for general strength.
+            gate = vs_osla.win_rate if args.league_scripted else vs_scr.win_rate
+            blob = snapshot_blob(it, league.main_elo, vs_scr.win_rate,
+                                 vs_osla.win_rate)
+            blob["gate"] = gate
+            blob["gate_name"] = "osla" if args.league_scripted else "scripted"
+            save_atomic(blob, out_dir / "latest.pt")
+            if gate > best:
+                best = gate
+                blob["best"] = best
+                save_atomic(blob, out_dir / "best.pt")
+            save_atomic(league.state_dict(), out_dir / "league.pt",
+                        keep_backup=False)
 
         if exploiter.should_reset():
             print(f"  exploiter beat main at {exploiter.win_rate:.0%} — resetting")

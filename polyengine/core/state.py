@@ -26,13 +26,18 @@ _NEIGHBOR_OFFSETS = ((-1, -1), (0, -1), (1, -1),
 
 # Arrays that define ground truth (hashed for determinism / differential replay).
 _TILE_ARRAYS = (
-    "terrain", "resource", "owner", "improvement",
+    "terrain", "resource", "tile_tribe", "owner", "improvement",
+    "improvement_owner", "improvement_turn",
     "city_owner", "city_level", "city_pop", "city_walls", "city_capital",
-    "city_workshop", "city_park", "city_pending_reward",
+    "city_workshop", "city_park", "city_pending_reward", "city_conn_pop",
     "unit_type", "unit_owner", "unit_hp", "unit_moved", "unit_attacked",
-    "unit_veteran", "unit_kills", "unit_home",
+    "unit_veteran", "unit_kills", "unit_home", "unit_carried", "unit_hidden",
+    "unit_facing",
 )
-_PLAYER_ARRAYS = ("stars", "tech", "tribe", "alive")
+_PLAYER_ARRAYS = ("stars", "tech", "tribe", "alive",
+                  "task_done", "monument_built", "kills", "losses",
+                  "calm_turns", "income_bonus",
+                  "peace", "peace_offer", "attacked_now", "attacked_prev")
 _FOG_ARRAYS = (
     "fog_explored", "fog_visible", "fog_staleness",
     "mem_unit_type", "mem_unit_owner", "mem_city_owner", "mem_city_level",
@@ -42,7 +47,7 @@ _FOG_ARRAYS = (
 class GameState:
     __slots__ = (
         "rules", "size", "n_tiles", "n_players", "turn", "current_player",
-        "map_seed", "rng",
+        "map_seed", "map_type", "rng",
         *_TILE_ARRAYS, *_PLAYER_ARRAYS, *_FOG_ARRAYS,
     )
 
@@ -55,6 +60,10 @@ class GameState:
         self.turn = 0
         self.current_player = 0
         self.map_seed = int(map_seed)
+        # Recorded so a replay can be re-simulated on the same map. Metadata,
+        # not a hashed array: it never changes and the terrain it produced is
+        # already part of the state.
+        self.map_type = "drylands"
         self.rng = np.random.Generator(np.random.PCG64(map_seed))
         if _alloc:
             self._allocate()
@@ -63,6 +72,13 @@ class GameState:
         n, p = self.n_tiles, self.n_players
         self.terrain = np.full(n, C.T_FIELD, dtype=C.DT_TERRAIN)
         self.resource = np.zeros(n, dtype=C.DT_RESOURCE)
+        # Whose *biome* this tile is — the tribe whose spawn rates generated it
+        # and whose art skins it. "During the initial map generation, the land
+        # is distributed roughly equally between all tribes in the game", so a
+        # neighbour's terrain is legible on sight: Bardur's quarter really is
+        # forest. Territory ownership (`owner`) is a separate thing entirely and
+        # changes hands during play; this never does.
+        self.tile_tribe = np.zeros(n, dtype=np.int8)
         self.owner = np.full(n, C.NEUTRAL, dtype=C.DT_OWNER)
         self.city_owner = np.full(n, C.NEUTRAL, dtype=C.DT_OWNER)
         self.city_level = np.zeros(n, dtype=np.int8)
@@ -74,7 +90,18 @@ class GameState:
         self.city_park = np.zeros(n, dtype=C.DT_FLAG)
         # >0 means "this city levelled up and owes the player a reward choice".
         self.city_pending_reward = np.zeros(n, dtype=np.int8)
+        # Population this city currently holds *because of* city connections.
+        # Tracked separately so a connection that breaks can hand back exactly
+        # what it granted, rather than guessing.
+        self.city_conn_pop = np.zeros(n, dtype=np.int8)
         self.improvement = np.full(n, C.IMP_NONE, dtype=np.int8)
+        # Who built it. Only differs from the tile owner for the Embassy,
+        # which is placed on someone else's capital and pays them both.
+        self.improvement_owner = np.full(n, C.NEUTRAL, dtype=C.DT_OWNER)
+        # Turn a building was placed, or -1. Only temples read it: "temples level
+        # up based on how many turns have passed since their construction", and
+        # every level is another 50 points.
+        self.improvement_turn = np.full(n, -1, dtype=np.int16)
         self.unit_type = np.full(n, C.U_NONE, dtype=C.DT_UNIT_TYPE)
         self.unit_owner = np.full(n, C.NEUTRAL, dtype=C.DT_OWNER)
         self.unit_hp = np.zeros(n, dtype=C.DT_HP)
@@ -86,11 +113,54 @@ class GameState:
         # A city supports at most `level + 1` units, so this is what makes unit
         # count a scarce resource rather than a function of spare stars.
         self.unit_home = np.full(n, -1, dtype=np.int16)
+        # The land unit riding inside a naval hull, or U_NONE. A hull is a
+        # vehicle, not a new unit: the passenger keeps its identity and HP, which
+        # is why the wiki lists naval health as "Varies".
+        self.unit_carried = np.full(n, C.U_NONE, dtype=C.DT_UNIT_TYPE)
+        # A Cloak with the `hide` skill is invisible to enemies once it has
+        # moved. Enemies still detect it on an ADJACENT tile, which is what
+        # keeps this inside the fog contract rather than beside it.
+        self.unit_hidden = np.zeros(n, dtype=C.DT_FLAG)
+        # Which of the eight compass directions this unit last moved in, as an
+        # index into `C.PUSH_COMPASS`; -1 if it has never moved. Only a forced
+        # unit spawn reads it — that is what decides which way an occupant gets
+        # shoved when something else has to appear on its tile.
+        self.unit_facing = np.full(n, -1, dtype=np.int8)
 
         self.stars = np.zeros(p, dtype=C.DT_STARS)
         self.tech = np.zeros(p, dtype=C.DT_TECH)
         self.tribe = np.zeros(p, dtype=np.int8)
         self.alive = np.ones(p, dtype=C.DT_FLAG)
+        # Task/monument bookkeeping. Tasks are one-way: once earned, a monument
+        # stays available even if the condition lapses (you do not lose the
+        # Gate of Power by having fewer kills later).
+        self.task_done = np.zeros(p, dtype=np.int32)        # bitmask over tasks
+        self.monument_built = np.zeros(p, dtype=np.int32)   # bitmask over tasks
+        # --- tribe relations (see core/diplomacy.py) ---
+        # Bitmasks over players, one row each, so they ride along with the
+        # existing per-player array machinery instead of needing a 2-D category.
+        #   peace[a]        — tribes `a` has a treaty with
+        #   peace_offer[a]  — tribes `a` has offered a treaty to
+        #   attacked_now[a] / attacked_prev[a] — whom `a` attacked this turn and
+        #     last, which is all "war" is: "to be at war, either side must have
+        #     attacked the other side at most a turn ago. After that, the
+        #     relation goes back to neutral."
+        self.peace = np.zeros(p, dtype=np.uint32)
+        self.peace_offer = np.zeros(p, dtype=np.uint32)
+        self.attacked_now = np.zeros(p, dtype=np.uint32)
+        self.attacked_prev = np.zeros(p, dtype=np.uint32)
+        self.kills = np.zeros(p, dtype=np.int16)
+        # Units of ours that died. Together with `kills` this is Polytopia's
+        # own 'battle skills' ratio from the Domination rating.
+        self.losses = np.zeros(p, dtype=np.int16)
+        # Consecutive turns without attacking, for the Pacifist task.
+        self.calm_turns = np.zeros(p, dtype=np.int16)
+        # Extra stars per turn. This is what actually separates Polytopia's bot
+        # difficulties: "Easy bots receive one star per turn (SPT), normal bots
+        # (and human players) receive two, hard bots receive three, and crazy
+        # bots receive five" -- a level-1 capital already yields 2, so this is
+        # the surplus on top. Zero for a fair game.
+        self.income_bonus = np.zeros(p, dtype=np.int16)
 
         self.fog_explored = np.zeros((p, n), dtype=C.DT_FLAG)
         self.fog_visible = np.zeros((p, n), dtype=C.DT_FLAG)
@@ -156,6 +226,7 @@ class GameState:
                       _alloc=False)
         s.turn = self.turn
         s.current_player = self.current_player
+        s.map_type = self.map_type
         for name in (*_TILE_ARRAYS, *_PLAYER_ARRAYS, *_FOG_ARRAYS):
             setattr(s, name, getattr(self, name).copy())
         # Clone the RNG bitstream position so continuations stay reproducible.
@@ -179,6 +250,7 @@ class GameState:
             "turn": self.turn,
             "current_player": self.current_player,
             "map_seed": self.map_seed,
+            "map_type": self.map_type,
             "rng_state": _jsonify(self.rng.bit_generator.state),
         }
         for name in (*_TILE_ARRAYS, *_PLAYER_ARRAYS, *_FOG_ARRAYS):
@@ -194,6 +266,7 @@ class GameState:
         # were added, producing states that hashed differently after a round
         # trip; deriving the dtype makes that failure mode impossible.
         s = cls(rules, d["size"], d["n_players"], d["map_seed"], _alloc=True)
+        s.map_type = d.get("map_type", "drylands")
         s.turn = d["turn"]
         s.current_player = d["current_player"]
         for name in (*_TILE_ARRAYS, *_PLAYER_ARRAYS, *_FOG_ARRAYS):

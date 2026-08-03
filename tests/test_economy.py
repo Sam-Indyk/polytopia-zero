@@ -416,3 +416,74 @@ def test_armies_stay_bounded_by_city_capacity():
             # the point is that army size tracks capacity, not spare stars.
             assert units <= capacity + 4, (
                 f"seed {seed} P{p}: {units} units vs capacity {capacity}")
+
+
+# --- income rules the engine used to get wrong ---------------------------------
+# Both were silently wrong: a Park is a level-up reward the agent can pick, and
+# it granted score but no stars, so the agent was being taught a good reward was
+# a bad one. Siege did not exist at all, so occupying an enemy city cost them
+# nothing and the agent never learned to apply or break one.
+class TestIncomeCorrections:
+    def _city(self, seed=3):
+        from polyengine.core.game import Game
+        game = Game.new(size=9, seed=seed)
+        s = game.state
+        tile = next(t for t in range(s.n_tiles)
+                    if s.city_level[t] > 0 and s.city_owner[t] != C.NEUTRAL)
+        s.unit_type[tile] = C.U_NONE
+        s.unit_owner[tile] = C.NEUTRAL
+        s.city_workshop[tile] = 0
+        s.city_park[tile] = 0
+        s.city_capital[tile] = 0
+        return s, tile, int(s.city_owner[tile])
+
+    def test_park_adds_one_star(self):
+        """Wiki: "Workshops AND Parks increase a city's income by one extra star"."""
+        from polyengine.core.economy import city_income
+        s, tile, _ = self._city()
+        before = city_income(s, tile)
+        s.city_park[tile] = 1
+        assert city_income(s, tile) == before + 1
+
+    def test_park_and_workshop_stack(self):
+        from polyengine.core.economy import city_income
+        s, tile, _ = self._city()
+        base = city_income(s, tile)
+        s.city_park[tile] = 1
+        s.city_workshop[tile] = 1
+        assert city_income(s, tile) == base + 2
+
+    def test_enemy_unit_on_the_city_besieges_it(self):
+        from polyengine.core.economy import city_income, is_under_siege
+        s, tile, owner = self._city()
+        assert city_income(s, tile) > 0
+        s.unit_type[tile] = R.unit_id["warrior"]
+        s.unit_owner[tile] = 1 - owner
+        assert is_under_siege(s, tile)
+        assert city_income(s, tile) == 0
+
+    def test_own_garrison_does_not_besiege(self):
+        from polyengine.core.economy import city_income, is_under_siege
+        s, tile, owner = self._city()
+        expected = city_income(s, tile)
+        s.unit_type[tile] = R.unit_id["warrior"]
+        s.unit_owner[tile] = owner
+        assert not is_under_siege(s, tile)
+        assert city_income(s, tile) == expected
+
+    def test_siege_removes_the_city_from_player_income(self):
+        from polyengine.core.economy import city_income, player_income
+        s, tile, owner = self._city()
+        before = player_income(s, owner)
+        lost = city_income(s, tile)
+        s.unit_type[tile] = R.unit_id["warrior"]
+        s.unit_owner[tile] = 1 - owner
+        assert player_income(s, owner) == before - lost
+
+    def test_neutral_village_is_never_under_siege(self):
+        from polyengine.core.economy import is_under_siege
+        s, tile, _ = self._city()
+        s.city_owner[tile] = C.NEUTRAL
+        s.unit_type[tile] = R.unit_id["warrior"]
+        s.unit_owner[tile] = 0
+        assert not is_under_siege(s, tile)

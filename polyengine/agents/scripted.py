@@ -1,19 +1,36 @@
-"""ScriptedBot — a hand-written Midjiwan-style heuristic policy.
+"""ScriptedBot — a hand-written policy modelled on Polytopia's own bots.
 
-Fast, rule-based (no full-state eval), with a fixed priority order:
-  1. Capture a city the unit is standing on; else step onto one to capture next turn.
-  2. Make a favourable attack (lethal, or deal >= damage taken); resolve any
-     pending city level-up reward, preferring compounding ones.
-  3. Train a unit when stars allow and the army is small.
-  4. Buy the cheapest population available (harvest or building) — population is
-     what raises city level, which raises both income and the unit-support cap.
-  5. Research a cheap useful tech when flush with stars.
-  6. March a unit toward the nearest enemy city/unit.
-  7. Otherwise end the turn.
+The wiki describes what actually separates Midjiwan's difficulty levels:
 
-The plan also calls for a "Crazy-cheat" variant (bonus star income) as the
-Phase-4 proxy target — that's just this policy with an income multiplier, wired
-in when the league needs it.
+    "The difficulty level determines the aggressiveness and starting income of
+     bot opponents. Bots of higher difficulties are more aggressive. For
+     example, easy bots will almost always be peaceful until provoked, while
+     crazy bots may be immediately hostile. The difficulty also determines the
+     income bots receive from their capital city ... Easy bots receive one star
+     per turn (SPT), normal bots (and human players) receive two, hard bots
+     receive three, and crazy bots receive five."
+
+So difficulty here is two knobs, not a different program: `aggression` (how
+readily it spends units on attacks, and how large an army it keeps) and an
+income handicap written to `state.income_bonus`. `ScriptedBot.crazy()` is the
+M5 target opponent: full aggression and +3 SPT.
+
+Priority order, roughly "resolve, then fight, then spend, then move":
+
+  0. Answer a pending level-up reward (the engine blocks on it anyway).
+  1. Capture a city we are standing on. Nothing else is worth more.
+  2. Take a favourable fight — including a Cloak's infiltrate, which is an
+     attack whose target is a city.
+  3. Sit on an undefended enemy city: siege zeroes its income and sets up a
+     capture next turn.
+  4. Spend: monuments (free), roads that actually complete a city connection,
+     then the cheapest population per star.
+  5. Train toward an army target that scales with aggression.
+  6. March — but leave badly hurt units at home, because doing nothing IS
+     recovering, and marching them one tile closer forfeits the heal.
+
+It plays with full information, like the real bots do. It is a baseline and a
+sparring partner, not a model of correct play.
 """
 from __future__ import annotations
 
@@ -21,109 +38,309 @@ import numpy as np
 
 from polyengine.core import constants as C
 from polyengine.core.actions import Action
+from polyengine.core.combat import defense_bonus_for, effective_max_hp
 from polyengine.core.rules import Ruleset
 from polyengine.kernels.combat_kernel import damage_numbers
 
+# difficulty -> (aggression 0..1, extra stars per turn). The SPT figures are the
+# wiki's, minus the 2 that a level-1 capital already produces.
+DIFFICULTIES = {
+    "easy": (0.15, -1),
+    "normal": (0.45, 0),
+    "hard": (0.70, 1),
+    "crazy": (1.00, 3),
+}
+
 
 class ScriptedBot:
-    def __init__(self, seed: int = 0, min_army: int = 4):
+    def __init__(self, seed: int = 0, difficulty: str = "normal",
+                 min_army: int | None = None):
+        if difficulty not in DIFFICULTIES:
+            raise ValueError(f"unknown difficulty {difficulty!r}; "
+                             f"choose from {sorted(DIFFICULTIES)}")
         self.rng = np.random.Generator(np.random.PCG64(seed))
-        self.min_army = min_army
+        self.difficulty = difficulty
+        self.aggression, self.income_bonus = DIFFICULTIES[difficulty]
+        # A more aggressive bot keeps a bigger standing army.
+        self.min_army = (min_army if min_army is not None
+                         else int(round(2 + 5 * self.aggression)))
 
-    def act(self, game) -> Action:
-        s = game.state
-        rules = game.rules
-        player = game.current_player
-        actions = game.legal_actions()
+    @classmethod
+    def crazy(cls, seed: int = 0) -> "ScriptedBot":
+        """The M5 target opponent: maximum aggression and +3 SPT."""
+        return cls(seed=seed, difficulty="crazy")
+
+    def apply_handicap(self, game, player: int) -> None:
+        """Grant this bot's difficulty income. Call once, before play starts."""
+        game.state.income_bonus[player] = self.income_bonus
+
+    # --- policy ---------------------------------------------------------------
+    def act(self, game) -> Action:  # noqa: C901 - a priority list reads better flat
+        s, rules, player = game.state, game.rules, game.current_player
         by_type: dict[int, list[Action]] = {}
-        for a in actions:
+        for a in game.legal_actions():
             by_type.setdefault(a.atype, []).append(a)
 
-        # 1a. Capture a city we are already standing on — always the best move.
+        # 0. A pending reward blocks everything else.
+        if by_type.get(C.A_CHOOSE_REWARD):
+            return self._best_reward(by_type[C.A_CHOOSE_REWARD], rules)
+
+        # 0b. Diplomacy, scaled by difficulty. The wiki describes the real bots
+        # the same way: "easy bots will almost always be peaceful until
+        # provoked, while crazy bots may be immediately hostile", and relations
+        # "determine how likely they will accept a peace treaty". A crazy bot
+        # therefore never sues for peace and tears up any treaty it holds; a
+        # peaceable one takes the deal and keeps it.
+        diplomacy = self._diplomacy(s, rules, player, by_type)
+        if diplomacy is not None:
+            return diplomacy
+
+        # 1. Capture what we are standing on.
         if by_type.get(C.A_CAPTURE):
             return self._pick(by_type[C.A_CAPTURE])
 
-        # 1b. Otherwise step onto an enemy/neutral city so we can capture next turn.
-        approach = [a for a in by_type.get(C.A_MOVE, [])
-                    if s.city_level[a.dst] > 0 and s.city_owner[a.dst] != player]
-        if approach:
-            return self._pick(approach)
+        # 1a. Cash in a promotion on a unit that is actually hurt. Promoting
+        # costs nothing and heals completely, so the only mistake is spending it
+        # at full health -- "a player may choose to not immediately promote a
+        # unit ... because the promotion can be used as a 'free' heal later".
+        promote = [a for a in by_type.get(C.A_PROMOTE, [])
+                   if int(s.unit_hp[a.src]) * 2 <= effective_max_hp(s, a.src, rules)]
+        if promote:
+            return min(promote, key=lambda a: int(s.unit_hp[a.src]))
 
-        # 2. Favourable attack.
-        best_atk, best_score = None, 0.0
-        for a in by_type.get(C.A_ATTACK, []):
-            score = self._attack_score(s, rules, a)
-            if score > best_score:
-                best_atk, best_score = a, score
-        if best_atk is not None:
-            return best_atk
+        # 1b. Examine the ruin (or harvest the starfish) we are standing on.
+        # Free value, and it has to happen before the march or the unit walks
+        # off the tile it needs to *start* a turn on to claim anything.
+        if by_type.get(C.A_EXAMINE):
+            return self._pick(by_type[C.A_EXAMINE])
 
-        # 2b. A city that levelled up owes a reward choice; take the economic one.
-        rewards = by_type.get(C.A_CHOOSE_REWARD, [])
-        if rewards:
-            return self._best_reward(rewards, rules)
+        # 1c. A Mind Bender beside wounded friends is worth more healing than
+        # walking; its attack converts rather than kills, so it is never the
+        # aggressor of choice.
+        if by_type.get(C.A_HEAL_OTHERS):
+            return self._pick(by_type[C.A_HEAL_OTHERS])
 
-        # 3. Train when the army is small and we can afford it.
+        # 2. Attacks, infiltration included.
+        attack = self._best_attack(s, rules, by_type.get(C.A_ATTACK, []))
+        if attack is not None:
+            return attack
+
+        # 3. Step onto an enemy city nobody is defending.
+        siege = [a for a in by_type.get(C.A_MOVE, [])
+                 if s.city_level[a.dst] > 0 and s.city_owner[a.dst] != player]
+        if siege:
+            return self._pick(siege)
+
+        # 4. Spend stars before moving, so anything bought can still act.
+        build = self._best_build(s, rules, player, by_type.get(C.A_BUILD, []))
+        if build is not None:
+            return build
+
         army = int(((s.unit_owner == player) & (s.unit_type != C.U_NONE)).sum())
         trains = by_type.get(C.A_TRAIN, [])
         if trains and army < self.min_army:
-            trains.sort(key=lambda a: rules.unit_cost[a.subtype], reverse=True)
-            return trains[0]
+            return max(trains, key=lambda a: (rules.unit_attack[a.subtype]
+                                              + rules.unit_defense[a.subtype],
+                                              -rules.unit_cost[a.subtype]))
 
-        # 4. Grow the economy: population raises city level, which raises both
-        #    income and the unit-support cap. Cheapest population per star first.
-        builds = by_type.get(C.A_BUILD, [])
-        if builds:
-            return min(builds, key=lambda a: self._pop_cost(s, a, rules))
-
-        # 5. Research when flush.
         research = by_type.get(C.A_RESEARCH, [])
         if research and int(s.stars[player]) >= 8:
             return self._pick(research)
 
-        # 5. March toward the nearest objective.
-        march = self._march(game, player, by_type.get(C.A_MOVE, []))
+        # 4a. A Raft is a transport; a Rammer is a warship. Upgrading is pure
+        # profit once the stars are spare, and nothing else competes for a hull.
+        upgrades = by_type.get(C.A_UPGRADE, [])
+        if upgrades and int(s.stars[player]) >= 12:
+            return max(upgrades, key=lambda a: rules.unit_attack[a.subtype])
+
+        # 4b. Clear a forest for a star when there is nothing better to buy.
+        # The other three tile abilities cost stars for a long-run payoff a
+        # heuristic cannot price, so the bot leaves them to the network.
+        clear = [a for a in by_type.get(C.A_TILE_ABILITY, [])
+                 if a.subtype == C.TA_CLEAR_FOREST]
+        if clear and not build and int(s.stars[player]) < 3:
+            return self._pick(clear)
+
+        # 5. Over target and Free Spirit researched: cash in the weakest unit.
+        disband = by_type.get(C.A_DISBAND, [])
+        if disband and army > self.min_army + 2:
+            return min(disband, key=lambda a: int(s.unit_hp[a.src]))
+
+        # 6. March.
+        march = self._march(game, player, by_type.get(C.A_MOVE, []), rules)
         if march is not None:
             return march
 
         return Action(C.A_END_TURN)
 
+    # --- pieces ---------------------------------------------------------------
+    def _diplomacy(self, s, rules: Ruleset, player: int,
+                   by_type: dict[int, list[Action]]) -> Action | None:
+        """Offer, accept or tear up treaties according to difficulty.
+
+        The threshold is the bot's own aggression: a treaty is worth having when
+        you would rather build than fight, and worth breaking when you would
+        rather fight than build. Accepting is free of the Strategy technology,
+        so even a bot that never researched it can be talked into peace.
+        """
+        from polyengine.core.diplomacy import offered
+
+        offers = by_type.get(C.A_PEACE_OFFER, [])
+        breaks = by_type.get(C.A_PEACE_BREAK, [])
+
+        # One predicate decides all three moves, which is what keeps them
+        # consistent. The first version used separate thresholds and produced a
+        # betrayal loop: a hard bot broke its treaty (freezing its whole army
+        # for the turn), accepted the same tribe's next offer, and broke it
+        # again -- 39 breaks across six games, and it lost more than it won.
+        # If we would tear a treaty up, we must not sign it either.
+        def wants_peace(other: int) -> bool:
+            if self.aggression >= 0.9:
+                return False                    # crazy bots never make peace
+            if self.aggression >= 0.7 and self._stronger_than(s, player, other):
+                return False                    # strong and hostile: take them
+            return True
+
+        hostile = [a for a in breaks if not wants_peace(a.subtype)]
+        if hostile:
+            return self._pick(hostile)
+
+        # Answering an offer already on the table is a separate, easier
+        # decision from opening negotiations -- and the only one an
+        # untechnologied tribe can make.
+        replies = [a for a in offers
+                   if offered(s, a.subtype, player) and wants_peace(a.subtype)]
+        if replies:
+            return self._pick(replies)
+        if self.aggression <= 0.5:
+            # Only bother opening talks with a tribe we have actually met.
+            known = [a for a in offers
+                     if wants_peace(a.subtype)
+                     and (s.fog_explored[player]
+                          & (s.mem_city_owner[player] == a.subtype)).any()]
+            if known:
+                return self._pick(known)
+        return None
+
+    def _stronger_than(self, s, player: int, other: int) -> bool:
+        """A crude balance of power: more cities, or the same and more units.
+
+        Deliberately not the score function — a bot deciding whether to betray
+        looks at what it can see on the board, not at a points total.
+        """
+        def tally(p):
+            cities = int(((s.city_owner == p) & (s.city_level > 0)).sum())
+            units = int(((s.unit_owner == p) & (s.unit_type != C.U_NONE)).sum())
+            return cities, units
+        return tally(player) > tally(other)
+
+    def _best_attack(self, s, rules: Ruleset,
+                     attacks: list[Action]) -> Action | None:
+        best, best_score = None, 0.0
+        for a in attacks:
+            score = self._attack_score(s, rules, a)
+            if score > best_score:
+                best, best_score = a, score
+        return best
+
     def _attack_score(self, s, rules: Ruleset, a: Action) -> float:
-        at, dt = s.unit_type[a.src], s.unit_type[a.dst]
-        from polyengine.core.combat import defense_bonus_for
-        bonus = defense_bonus_for(s, a.dst, rules)
+        at = int(s.unit_type[a.src])
+
+        # Infiltration consumes the Cloak but takes the city's income, wounds the
+        # garrison and spawns daggers — worth more against a big city.
+        if "infiltrate" in rules.unit_skills[at]:
+            return 12.0 + 4.0 * float(s.city_level[a.dst])
+
+        dt = int(s.unit_type[a.dst])
+        if dt == C.U_NONE:
+            return 0.0
         atk_res, def_res = damage_numbers(
             float(rules.unit_attack[at]), int(s.unit_hp[a.src]),
-            int(rules.unit_max_hp[at]), float(rules.unit_defense[dt]),
-            int(s.unit_hp[a.dst]), int(rules.unit_max_hp[dt]), bonus, rules.accuracy)
+            effective_max_hp(s, a.src, rules),
+            float(rules.unit_defense[dt]), int(s.unit_hp[a.dst]),
+            effective_max_hp(s, a.dst, rules),
+            defense_bonus_for(s, a.dst, rules), rules.accuracy)
+
         lethal = atk_res >= int(s.unit_hp[a.dst])
         ranged = int(rules.unit_range[at]) > 1
-        retaliation = 0 if (lethal or ranged) else def_res
-        # Reward damage dealt and kills; penalise damage taken.
-        return atk_res + (10.0 if lethal else 0.0) - retaliation
+        retaliation = 0.0 if (lethal or ranged) else float(def_res)
+        suicidal = retaliation >= int(s.unit_hp[a.src])
 
-    def _march(self, game, player: int, moves: list[Action]) -> Action | None:
+        value = float(atk_res) + (10.0 if lethal else 0.0) - retaliation
+        if suicidal and not lethal:
+            # Dying to the reply is a losing trade even when the damage looks
+            # fine: Domination scores kills as a RATIO against our own losses.
+            # A timid bot refuses; an aggressive one will still take it.
+            value -= 15.0 * (1.0 - self.aggression)
+        return value * (0.4 + 0.6 * self.aggression)
+
+    def _best_build(self, s, rules: Ruleset, player: int,
+                    builds: list[Action]) -> Action | None:
+        if not builds:
+            return None
+        # Monuments are free and yield 3 population; never pass one up.
+        monuments = [a for a in builds if rules.imp_requires_task[a.subtype] >= 0]
+        if monuments:
+            return monuments[0]
+
+        # A road is only worth it when it completes a connection to the capital,
+        # which is +1 population to BOTH ends. Decided by trying it, not guessing.
+        roads = [a for a in builds if rules.imp_connector[a.subtype]]
+        if roads and int(s.stars[player]) >= 8:
+            connecting = self._connecting_road(s, rules, player, roads)
+            if connecting is not None:
+                return connecting
+
+        priced = min(((self._pop_cost(s, a, rules), i, a)
+                      for i, a in enumerate(builds)), key=lambda t: t[:2])
+        return priced[2] if priced[0] < 1e8 else None
+
+    def _connecting_road(self, s, rules: Ruleset, player: int,
+                         roads: list[Action]) -> Action | None:
+        """A road that raises the number of cities connected to the capital."""
+        from polyengine.core.economy import connected_cities
+        before = len(connected_cities(s, player, rules))
+        for a in roads[:12]:            # bounded: this copies state per candidate
+            probe = s.copy()
+            probe.improvement[a.src] = a.subtype
+            if len(connected_cities(probe, player, rules)) > before:
+                return a
+        return None
+
+    def _march(self, game, player: int, moves: list[Action],
+               rules: Ruleset) -> Action | None:
         if not moves:
             return None
         s = game.state
+        # "If a unit does not take any action in a given turn, it will
+        # automatically heal" — so a badly hurt unit standing in our own
+        # territory is better left alone than walked one tile closer.
+        healthy = [a for a in moves
+                   if not (int(s.unit_hp[a.src]) * 2 < effective_max_hp(s, a.src, rules)
+                           and int(s.owner[a.src]) == player)]
+        moves = healthy or moves
+
         targets = [t for t in range(s.n_tiles)
-                   if (s.unit_type[t] != C.U_NONE and s.unit_owner[t] != player)
+                   if (s.unit_type[t] != C.U_NONE and s.unit_owner[t] != player
+                       and s.unit_owner[t] != C.NEUTRAL)
                    or (s.city_level[t] > 0 and s.city_owner[t] != player)]
         if not targets:
             return self._pick(moves)
-        best, best_d = None, 1 << 30
-        for a in moves:
-            d = min(s.chebyshev(a.dst, t) for t in targets)
-            if d < best_d:
-                best_d, best = d, a
-        return best
+        # Step onto a ruin for free if one is on the way: examining costs a turn
+        # but pays a tech or a veteran Swordsman, and "examine ruins that
+        # otherwise may be taken by enemies".
+        onto_ruin = [a for a in moves if s.improvement[a.dst] == C.IMP_RUIN]
+        if onto_ruin:
+            return self._pick(onto_ruin)
+        return min(moves, key=lambda a: min(s.chebyshev(a.dst, t) for t in targets))
 
     def _pop_cost(self, state, action: Action, rules: Ruleset) -> float:
         """Stars per population for this build — lower is better value."""
         from polyengine.core.economy import improvement_population
         pop = improvement_population(state, action.src, action.subtype, rules)
-        cost = int(rules.imp_cost[action.subtype])
-        return cost / pop if pop > 0 else 1e9
+        if pop <= 0:
+            return 1e9
+        return int(rules.imp_cost[action.subtype]) / pop
 
     def _best_reward(self, rewards: list[Action], rules: Ruleset) -> Action:
         """Prefer compounding rewards (income, population) over one-off ones."""

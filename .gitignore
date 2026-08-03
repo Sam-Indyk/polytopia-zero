@@ -17,15 +17,20 @@ venv/
 *.nbc
 
 # Training artifacts.
-# Trained checkpoints ARE committed (see checkpoints_11x11/) so a fresh clone
-# starts from a trained agent instead of from noise. Throwaway runs should use
-# their own --out directory, which is what these patterns cover — a flag test
-# once overwrote a 300-iteration run by defaulting into a real one.
-checkpoints_scratch/
-checkpoints_smoke/
-checkpoints_tmp/
+# No checkpoints are committed at present: every net trained before 28 Jul is
+# architecturally dead (the observation grew 64 -> 77 planes and the action head
+# 8 -> 10), so keeping them in git only invited someone to try loading one.
+# Throwaway runs should still use their own --out directory — a flag test once
+# overwrote a 300-iteration run by defaulting into a real one.
+checkpoints*/
 runs/
 runs_*.log
+
+# league.pt is capacity x model size (hundreds of MB) and the .bak/.tmp files
+# are crash-recovery scratch -- none of it belongs in git.
+*.pt.bak
+*.pt.tmp
+league.pt
 
 # Replays are regenerable and large (an 1,800-frame 11x11 game is ~8 MB of
 # embedded JSON). Recreate with scripts/record_replay.py.

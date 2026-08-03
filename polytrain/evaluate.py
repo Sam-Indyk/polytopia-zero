@@ -22,12 +22,16 @@ from polyengine.agents.heuristic import evaluate as material
 from polyengine.core.game import Game
 
 
-def play_pair(agent_a, agent_b, seed: int, size: int, max_steps: int = 800
-              ) -> tuple[float, float]:
-    """Play one map twice with swapped seats. Returns A's score in each game."""
+def play_pair(agent_a, agent_b, seed: int, size: int, max_steps: int = 800,
+              map_type: str = "drylands") -> tuple[float, float]:
+    """Play one map twice with swapped seats. Returns A's score in each game.
+
+    Both games use the same map AND the same map type, so the mirrored pair
+    cancels terrain luck as well as spawn luck.
+    """
     scores = []
     for a_seat in (0, 1):
-        game = Game.new(size=size, seed=seed)
+        game = Game.new(size=size, seed=seed, map_type=map_type)
         agents = {a_seat: agent_a, 1 - a_seat: agent_b}
         steps = 0
         while not game.is_terminal() and steps < max_steps:
@@ -66,12 +70,24 @@ class MatchResult:
         return -400.0 * math.log10(1.0 / p - 1.0)
 
 
+DEFAULT_MAP_TYPES = ("drylands", "lakes", "continents", "archipelago")
+
+
 def play_match(agent_a, agent_b, n_pairs: int, size: int, seed: int = 12345,
-               max_steps: int = 800) -> MatchResult:
-    """Mirrored-seed match: `n_pairs` maps, each played from both seats."""
+               max_steps: int = 800,
+               map_types=DEFAULT_MAP_TYPES) -> MatchResult:
+    """Mirrored-seed match: `n_pairs` maps, each played from both seats.
+
+    Map types rotate across the pairs, so a win rate averages over the kinds of
+    world the agent will actually meet rather than over drylands alone. An agent
+    that only knows how to play dry maps now shows it here instead of looking
+    fine right up to the point someone puts it on water.
+    """
     total = 0.0
     for i in range(n_pairs):
-        s0, s1 = play_pair(agent_a, agent_b, seed + i, size, max_steps)
+        kind = map_types[i % len(map_types)]
+        s0, s1 = play_pair(agent_a, agent_b, seed + i, size, max_steps,
+                           map_type=kind)
         total += s0 + s1
     return MatchResult(games=2 * n_pairs, score=total, pairs=n_pairs)
 

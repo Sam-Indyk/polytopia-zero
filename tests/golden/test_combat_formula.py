@@ -31,8 +31,15 @@ GOLDEN = [
     ((2.0, 10, 10, 2.0, 10, 10, 1.0), (5, 5)),
     # Warrior vs Defender, full HP, open ground.
     ((2.0, 10, 10, 3.0, 15, 15, 1.0), (4, 8)),
-    # Warrior vs Defender fortified in a walled city (1.5x).
+    # Warrior vs Defender in a friendly city with no walls (standard 1.5x).
     ((2.0, 10, 10, 3.0, 15, 15, 1.5), (3, 9)),
+    # Warrior vs Defender behind a city wall (4x). The wall bonus was 1.5 here
+    # until it was reconciled against the wiki's damage formula, which makes
+    # walls nearly three times weaker than they should be.
+    # attack 2*(10/10)=2, defence 3*(15/15)*4=12, total 14
+    #   attack_result  = round_half_up(2/14  * 2 * 4.5) = round(1.29)  =  1
+    #   defence_result = round_half_up(12/14 * 3 * 4.5) = round(11.57) = 12
+    ((2.0, 10, 10, 3.0, 15, 15, 4.0), (1, 12)),
     # Wounded Warrior (5/10) vs full Warrior.
     ((2.0, 5, 10, 2.0, 10, 10, 1.0), (3, 6)),
     # Catapult (att 4) vs full Warrior.

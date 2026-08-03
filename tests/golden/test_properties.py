@@ -9,6 +9,7 @@ import pytest
 from polyengine.agents.random_agent import RandomAgent
 from polyengine.core import constants as C
 from polyengine.core.actions import apply_action, enumerate_actions
+from polyengine.core.combat import effective_max_hp
 from polyengine.core.game import Game
 from polyengine.core.rules import load_ruleset
 
@@ -20,11 +21,14 @@ def _check_invariants(game):
     s = game.state
     # Stars are never negative.
     assert (s.stars >= 0).all(), f"negative stars: {s.stars}"
-    # Live units have HP in (0, max]; empty tiles carry no HP.
+    # Live units have HP in (0, max]; empty tiles carry no HP. The ceiling is
+    # `effective_max_hp`, not the hull's own stat: a boat is a vehicle, so a
+    # Raft carrying a Swordsman has the Swordsman's 15, which is exactly why
+    # the wiki lists naval health as "Varies".
     for t in range(s.n_tiles):
         ut = s.unit_type[t]
         if ut != C.U_NONE:
-            assert 0 < s.unit_hp[t] <= RULES.unit_max_hp[ut]
+            assert 0 < s.unit_hp[t] <= effective_max_hp(s, t, RULES)
     # Visible implies explored, for every player.
     for p in range(s.n_players):
         vis = s.fog_visible[p]

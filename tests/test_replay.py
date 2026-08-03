@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 import pytest
 
@@ -125,7 +126,10 @@ def test_identical_replays_do_not_diverge():
 # --- viewer -------------------------------------------------------------------
 def test_viewer_html_is_self_contained():
     html = render_html(a_replay())
-    assert "__REPLAY__" not in html            # payload substituted
+    # Every template placeholder substituted. Checking one specific token would
+    # not have caught the rename from __REPLAY__ to {{BOOT}}, so check the shape.
+    for hole in ("{{BOOT}}", "{{MODE}}", "{{TITLE}}", "/*{{CSS}}*/", "/*{{JS}}*/"):
+        assert hole not in html, f"unsubstituted {hole}"
     assert "polyzero-replay/1" in html
     assert "</script>" not in html.split("<script>")[1].rsplit("</script>", 1)[0]
     assert "src=\"http" not in html and "href=\"http" not in html
@@ -133,8 +137,9 @@ def test_viewer_html_is_self_contained():
 
 def test_viewer_renders_the_panels_that_prevent_hidden_state():
     html = render_html(a_replay())
-    for marker in ("tile inspector", "tech tree", "action log",
-                   "not simulated yet", "renderTechs", "renderTile"):
+    for marker in ("tile inspector", "action log", "not simulated",
+                   "renderTile", "renderDiplomacy", "renderTasks",
+                   "class TechTree", "class Board"):
         assert marker in html, f"viewer is missing {marker!r}"
 
 
@@ -144,3 +149,36 @@ def test_viewer_css_colours_are_well_formed():
     css = html.split("<style>")[1].split("</style>")[0]
     for colour in re.findall(r"#[0-9a-zA-Z]+", css):
         assert re.fullmatch(r"#[0-9a-fA-F]{3,8}", colour), f"bad colour {colour}"
+
+
+# --- the "not simulated" panel must stay honest --------------------------------
+def test_not_simulated_does_not_name_something_we_do_simulate():
+    """The panel exists so an empty log never reads as "nothing happened".
+
+    It went stale once and claimed roads, markets, naval embarking and cloaks
+    were missing long after they landed. A panel whose whole job is to tell you
+    what you are NOT seeing is the worst possible thing to let drift, so this
+    cross-checks it against the names the ruleset actually defines.
+    """
+    from polyengine.core.rules import load_ruleset
+    from polyengine.replay import NOT_SIMULATED
+
+    rules = load_ruleset()
+    text = " ".join(NOT_SIMULATED).lower()
+    implemented = set(rules.imp_names) | set(rules.unit_names)
+    # Whole words, so "port" does not trip on "important"; and singularised,
+    # because the stale entries said "roads" and "markets" where the ruleset
+    # names are "road" and "market" -- without this the guard misses exactly
+    # the wording that went stale.
+    words = set(re.findall(r"[a-z_]+", text))
+    words |= {w[:-1] for w in words if w.endswith("s")}
+    claimed_missing = words & implemented
+    assert not claimed_missing, (
+        f"NOT_SIMULATED claims these are missing, but the ruleset defines them: "
+        f"{sorted(claimed_missing)}")
+
+
+def test_not_simulated_still_mentions_special_tribes():
+    """The one thing genuinely out of scope should stay listed."""
+    from polyengine.replay import NOT_SIMULATED
+    assert any("tribe" in entry.lower() for entry in NOT_SIMULATED)

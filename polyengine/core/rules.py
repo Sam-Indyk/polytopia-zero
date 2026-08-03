@@ -28,11 +28,14 @@ class Ruleset:
     terrain_symbol: tuple[str, ...]
     terrain_is_land: np.ndarray          # bool[T]
     terrain_move_cost: np.ndarray        # int8[T]
+    terrain_rough: np.ndarray            # bool[T] — enterable but halts movement
     terrain_requires_tech: np.ndarray    # int8[T]  (tech id or -1)
     terrain_defense_bonus: np.ndarray    # float32[T]
+    terrain_defense_tech: np.ndarray     # int8[T]  (tech gating the bonus, or -1)
 
     resource_names: tuple[str, ...]
     resource_symbol: tuple[str, ...]
+    resource_terrains: tuple[frozenset, ...]   # terrain ids it may sit on
 
     # units (indexed by unit id)
     unit_names: tuple[str, ...]
@@ -49,6 +52,8 @@ class Ruleset:
     unit_naval: np.ndarray               # bool[U]
     unit_hull_hp_varies: np.ndarray      # bool[U]  (HP comes from the passenger)
     unit_skills: tuple[frozenset, ...]   # frozenset[str] per unit
+    unit_sight: np.ndarray               # int16[U] — Chebyshev sight radius
+    terrain_sight: np.ndarray            # int16[T] — sight from this terrain
 
     # techs
     tech_names: tuple[str, ...]
@@ -68,6 +73,18 @@ class Ruleset:
     imp_requires_tech: np.ndarray        # int8[I]
     imp_resource: np.ndarray             # int8[I]  (resource id or -1)
     imp_terrain: np.ndarray              # int8[I]  (terrain id or -1)
+    imp_terrains: tuple[frozenset, ...]  # frozenset[terrain id] per improvement
+    imp_adjacent_any: tuple[frozenset, ...]   # partner improvement ids (Market)
+    imp_allow_neutral: np.ndarray        # bool[I]  roads/bridges on neutral land
+    imp_connector: np.ndarray            # bool[I]  carries a city connection
+    imp_needs_bridge_span: np.ndarray    # bool[I]  water between two land tiles
+    imp_income_per_level: np.ndarray     # int8[I]  stars per adjacent partner level
+    imp_income_max_levels: np.ndarray    # int8[I]  cap on those levels
+    imp_on_enemy_capital: np.ndarray     # bool[I]  Embassy only
+    imp_income_flat: np.ndarray          # int8[I]  flat stars per turn
+    imp_requires_task: np.ndarray        # int8[I]  task id, or -1
+    imp_score: np.ndarray                # int16[I] points the tile is worth
+    imp_map_feature: np.ndarray          # bool[I]  placed by mapgen, never built
 
     # city level-up rewards
     reward_names: tuple[str, ...]
@@ -170,18 +187,28 @@ def load_ruleset(name: str = "current") -> Ruleset:
     terrain_symbol = _symbols(terr_entries, n_terr)
     terrain_is_land = _fill_by_id(terr_entries, n_terr, "land", bool, False)
     terrain_move_cost = _fill_by_id(terr_entries, n_terr, "move_cost", np.int8, 1)
+    terrain_rough = _fill_by_id(terr_entries, n_terr, "rough", np.bool_, False)
     terrain_requires_tech = np.full(n_terr, -1, dtype=np.int8)
     dbmap = combat["defense_bonus"]
     terrain_defense_bonus = np.ones(n_terr, dtype=np.float32)
+    terrain_defense_tech = np.full(n_terr, -1, dtype=np.int8)
     for e in terr_entries.values():
         terrain_requires_tech[e["id"]] = tech_or_none(e["requires_tech"])
         terrain_defense_bonus[e["id"]] = dbmap[e["defense_bonus"]]
+        terrain_defense_tech[e["id"]] = tech_or_none(e.get("defense_tech", ""))
 
     res_entries = terr["resource"]
     n_res = len(res_entries)
     _assert_dense_ids((e["id"] for e in res_entries.values()), n_res, "resource")
     resource_names = tuple(sorted(res_entries, key=lambda k: res_entries[k]["id"]))
     resource_symbol = _symbols(res_entries, n_res)
+    # A resource may name one terrain or several (Starfish: water and ocean).
+    terr_index_early = {name: i for i, name in enumerate(terrain_names)}
+    res_terrains: list[frozenset] = [frozenset()] * n_res
+    for e in res_entries.values():
+        names = e.get("terrains") or ([e["terrain"]] if e.get("terrain") else [])
+        res_terrains[e["id"]] = frozenset(terr_index_early[n] for n in names)
+    resource_terrains = tuple(res_terrains)
 
     # --- units ---
     unit_entries = units["unit"]
@@ -197,15 +224,28 @@ def load_ruleset(name: str = "current") -> Ruleset:
     unit_movement = _fill_by_id(unit_entries, n_units, "movement", np.int8)
     unit_range = _fill_by_id(unit_entries, n_units, "range", np.int8)
     unit_trainable = _fill_by_id(unit_entries, n_units, "trainable", bool, False)
-    unit_naval = _fill_by_id(unit_entries, n_units, "naval", bool, False)
-    unit_hull_hp_varies = _fill_by_id(unit_entries, n_units, "hull_hp_varies",
-                                      bool, False)
     unit_requires_tech = np.full(n_units, -1, dtype=np.int8)
     skills_by_id: list[frozenset] = [frozenset()] * n_units
     for e in unit_entries.values():
         unit_requires_tech[e["id"]] = tech_or_none(e["requires_tech"])
         skills_by_id[e["id"]] = frozenset(e.get("skills", []))
     unit_skills = tuple(skills_by_id)
+    # Both of these ARE skills, so they are derived from the skill list rather
+    # than duplicated as separate TOML flags. Two sources of truth for one rule
+    # is how a skill ends up present in the data and read by nobody.
+    #   "Water: restricts a unit to only being able to move on water tiles."
+    #   "Carry: allows a unit to carry another unit inside" -- and a hull has no
+    #   health of its own, which is why the wiki lists naval HP as "Varies".
+    unit_naval = np.array(["water" in s for s in unit_skills], dtype=bool)
+    unit_hull_hp_varies = np.array(["carry" in s for s in unit_skills],
+                                   dtype=bool)
+    # "Scout: allows a unit to explore a 5x5 area instead of a 3x3 area."
+    unit_sight = np.array(
+        [C.SIGHT_RADIUS_SCOUT if "scout" in s else C.SIGHT_RADIUS_UNIT
+         for s in unit_skills], dtype=np.int16)
+    # "Mountain: all units on this terrain have a sight radius of two tiles."
+    terrain_sight = np.full(n_terr, C.SIGHT_RADIUS_UNIT, dtype=np.int16)
+    terrain_sight[C.T_MOUNTAIN] = C.SIGHT_RADIUS_MOUNTAIN
 
     # --- improvements ---
     imp_entries = improvements["improvement"]
@@ -223,6 +263,22 @@ def load_ruleset(name: str = "current") -> Ruleset:
     imp_terrain = np.full(n_imp, -1, dtype=np.int8)
     res_index = {name: i for i, name in enumerate(resource_names)}
     terr_index = {name: i for i, name in enumerate(terrain_names)}
+    # Roads take field OR forest and the Market takes any of three partner
+    # buildings, so the single-valued `terrain` / `adjacent_to` columns above are
+    # kept for the entries that have one, and these carry the general case.
+    imp_terrains: list[frozenset] = [frozenset()] * n_imp
+    imp_adjacent_any: list[frozenset] = [frozenset()] * n_imp
+    imp_allow_neutral = np.zeros(n_imp, dtype=np.bool_)
+    imp_connector = np.zeros(n_imp, dtype=np.bool_)
+    imp_needs_bridge_span = np.zeros(n_imp, dtype=np.bool_)
+    imp_income_per_level = np.zeros(n_imp, dtype=np.int8)
+    imp_income_max_levels = np.zeros(n_imp, dtype=np.int8)
+    imp_on_enemy_capital = np.zeros(n_imp, dtype=np.bool_)
+    imp_income_flat = np.zeros(n_imp, dtype=np.int8)
+    imp_requires_task = np.full(n_imp, -1, dtype=np.int8)
+    imp_score = np.zeros(n_imp, dtype=np.int16)
+    imp_map_feature = np.zeros(n_imp, dtype=np.bool_)
+
     for name, e in imp_entries.items():
         i = e["id"]
         imp_kind_list[i] = e["kind"]
@@ -231,9 +287,27 @@ def load_ruleset(name: str = "current") -> Ruleset:
             imp_resource[i] = res_index[e["resource"]]
         if e.get("terrain"):
             imp_terrain[i] = terr_index[e["terrain"]]
+            imp_terrains[i] = frozenset({terr_index[e["terrain"]]})
+        if e.get("terrains"):
+            imp_terrains[i] = frozenset(terr_index[t] for t in e["terrains"])
+        imp_allow_neutral[i] = bool(e.get("allow_neutral", False))
+        imp_connector[i] = bool(e.get("connector", False))
+        imp_needs_bridge_span[i] = bool(e.get("needs_bridge_span", False))
+        imp_income_per_level[i] = int(e.get("income_per_level", 0))
+        imp_income_max_levels[i] = int(e.get("income_max_levels", 0))
+        imp_on_enemy_capital[i] = bool(e.get("on_enemy_capital", False))
+        imp_income_flat[i] = int(e.get("income_flat", 0))
+        imp_score[i] = int(e.get("score", 0))
+        imp_map_feature[i] = bool(e.get("map_feature", False))
+        task = e.get("requires_task", "")
+        imp_requires_task[i] = C.TASK_ID[task] if task else -1
     for name, e in imp_entries.items():
         if e.get("adjacent_to"):
             imp_adjacent_to[e["id"]] = imp_id[e["adjacent_to"]]
+            imp_adjacent_any[e["id"]] = frozenset({imp_id[e["adjacent_to"]]})
+        if e.get("adjacent_any"):
+            imp_adjacent_any[e["id"]] = frozenset(
+                imp_id[p] for p in e["adjacent_any"])
 
     # --- city level-up rewards ---
     rw_entries = improvements["reward"]
@@ -253,10 +327,13 @@ def load_ruleset(name: str = "current") -> Ruleset:
         terrain_symbol=terrain_symbol,
         terrain_is_land=terrain_is_land,
         terrain_move_cost=terrain_move_cost,
+        terrain_rough=terrain_rough,
         terrain_requires_tech=terrain_requires_tech,
         terrain_defense_bonus=terrain_defense_bonus,
+        terrain_defense_tech=terrain_defense_tech,
         resource_names=resource_names,
         resource_symbol=resource_symbol,
+        resource_terrains=resource_terrains,
         unit_names=unit_names,
         unit_id=unit_id,
         unit_symbol=unit_symbol,
@@ -271,6 +348,8 @@ def load_ruleset(name: str = "current") -> Ruleset:
         unit_naval=unit_naval,
         unit_hull_hp_varies=unit_hull_hp_varies,
         unit_skills=unit_skills,
+        unit_sight=unit_sight,
+        terrain_sight=terrain_sight,
         tech_names=tech_names,
         tech_id=tech_id,
         tech_tier=tech_tier,
@@ -286,6 +365,18 @@ def load_ruleset(name: str = "current") -> Ruleset:
         imp_requires_tech=imp_requires_tech,
         imp_resource=imp_resource,
         imp_terrain=imp_terrain,
+        imp_terrains=tuple(imp_terrains),
+        imp_adjacent_any=tuple(imp_adjacent_any),
+        imp_allow_neutral=imp_allow_neutral,
+        imp_connector=imp_connector,
+        imp_needs_bridge_span=imp_needs_bridge_span,
+        imp_income_per_level=imp_income_per_level,
+        imp_income_max_levels=imp_income_max_levels,
+        imp_on_enemy_capital=imp_on_enemy_capital,
+        imp_income_flat=imp_income_flat,
+        imp_requires_task=imp_requires_task,
+        imp_score=imp_score,
+        imp_map_feature=imp_map_feature,
         reward_names=reward_names,
         reward_id=reward_id,
         reward_level=reward_level,

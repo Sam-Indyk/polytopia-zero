@@ -1,0 +1,92 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{TITLE}}</title>
+<style>/*{{CSS}}*/</style>
+</head><body data-mode="{{MODE}}">
+
+<header id="top">
+  <div class="brand">Poly<span>Zero</span></div>
+  <div id="seats" class="seats"></div>
+  <div class="spacer"></div>
+  <div id="meta" class="muted"></div>
+</header>
+
+<main>
+  <section class="stage">
+    <div class="boardwrap">
+      <canvas id="cv"></canvas>
+      <div id="banner" class="banner hidden"></div>
+      <div id="toast" class="toast hidden"></div>
+      <div class="boardtools">
+        <button id="zin"  title="zoom in">+</button>
+        <button id="zout" title="zoom out">&minus;</button>
+        <button id="zfit" title="fit to view">&#9723;</button>
+      </div>
+      <div id="hud" class="hud"></div>
+      <!-- What the selected tile can do. On the board, never behind a tab:
+           these are the primary interaction and hiding them made the game
+           look as though it had no way to train a unit. -->
+      <div id="acts" class="actbar hidden"></div>
+    </div>
+
+    <div id="transport" class="bar"></div>
+    <div class="bar">
+      <label class="muted">view as</label>
+      <select id="fog"><option value="-1">god's-eye (all)</option></select>
+      <span id="barextra"></span>
+      <span class="spacer"></span>
+      <span class="muted hint" id="hint"></span>
+    </div>
+  </section>
+
+  <aside class="side">
+    <nav class="tabs" id="tabs">
+      <button data-tab="game"  class="on">game</button>
+      <button data-tab="tech">tech</button>
+      <button data-tab="tile">tile</button>
+      <button data-tab="log">log</button>
+      <button data-tab="key">key</button>
+    </nav>
+
+    <div class="panes">
+      <div class="pane on" data-pane="game">
+        <div class="card"><h2>players</h2><div id="players"></div></div>
+        <div class="card"><h2>relations</h2><div id="diplo"></div></div>
+        <div class="card"><h2>tasks &amp; monuments</h2><div id="tasks"></div></div>
+        <div class="card warn"><h2>not simulated</h2>
+          <p class="muted">Absent from the engine, so absent from the log &mdash;
+          nothing is being hidden from you.</p>
+          <ul id="missing" class="muted"></ul></div>
+      </div>
+
+      <div class="pane" data-pane="tech">
+        <div class="card techcard">
+          <div class="techhead">
+            <select id="techplayer"></select>
+            <span id="techstars" class="stars"></span>
+          </div>
+          <div id="techtree" class="techtree"></div>
+          <div id="techinfo" class="techinfo muted">hover a technology</div>
+        </div>
+      </div>
+
+      <div class="pane" data-pane="tile">
+        <div class="card"><h2>tile inspector</h2>
+          <div id="tile" class="muted">click any tile</div></div>
+      </div>
+
+      <div class="pane" data-pane="log">
+        <div class="card"><h2>action log</h2><div class="log" id="log"></div></div>
+      </div>
+
+      <div class="pane" data-pane="key">
+        <div class="card"><h2>key</h2><div class="key" id="key"></div></div>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<script>const BOOT = "{{BOOT}}", MODE = document.body.dataset.mode;</script>
+<script>/*{{JS}}*/</script>
+</body></html>

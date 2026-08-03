@@ -1,0 +1,129 @@
+'''Score''' is a measure of how much a player has achieved in Polytopia. Points are earned in four categories: [[Units|Army]] and Territory, [[Cities]], [[Monuments]] and [[Temples]], and [[Science]]. Points are lost when a city is captured by an enemy, a [[building]] is [[Destroy|destroyed]], or a unit is killed or [[Disband|disbanded]]. 
+
+The following is a breakdown of how score is calculated. 
+
+Army and Territory:
+
+*Units: 5 points per star of a unit's cost. [[Super Unit|Super units]] are worth 50 points each. (They have a theoretical cost of 10 stars.) Ship and battleship upgrades do not give extra score. Converted units do not change score for either player.
+* Territory: 20 points per tile in the player's territory.
+* Exploration: 5 points per explored tile.
+
+Cities:
+
+* Cities: 100 points plus 50 points per level above level 1. 
+**Each [[population]] gained is worth five points, and upgrading to level 2 gives a 40 point bonus, upgrading to level 3 gives a 35 point bonus, etc. for a total of 50 points per level above level 1. Upgrading to a level of 10 and above will give negative points (not counting park or super unit points).
+* [[Park]]: 250 points each.
+* level 1 city + 9 tiles territory = 280 points
+
+Monuments and Temples:
+
+*Monuments: 400 points each.
+*Temples: 100 points plus 100 points per level above level 1 with a maximum of 500 points at level 5.
+
+Science:
+
+*Technology: 100 points per tier of the technology.
+
+== Starting Scores by Tribe ==
+
+These scores can be used to guess which tribe opponent players are using.
+
+=== Turn 0 Scores ===
+{| class="article-table"
+! Score !! Tribe(s)
+|-
+|415
+|[[Aquarion]]
+|-
+| 515 || [[Xin-xi|Xin-Xi]], [[Imperius]], [[Bardur]], [[Kickoo]], [[Luxidoor]], [[∑∫ỹriȱŋ|Elyrion]]
+|-
+| 520 || [[Oumaji]]
+|-
+| 530 || [[Polaris]]
+|-
+| 615 || [[Zebasi]], [[Yadakk]]
+|-
+| 620 || [[Quetzali]], [[Hoodrick]]
+|-
+| 630 || [[Cymanti]]
+|-
+| 730 || [[Vengir]], [[Ai-Mo]]
+|}
+NOTE: If a tribe spawns in a corner, due to the update where lighthouses have to be revealed by exploration, that corner tile will be obscured by the clouds. This will result in 5 points less than usual. For example, if someone has a starting score of 510 points, they have spawned in a corner and are playing any of the 515 point tribes.
+
+=== Turn 1 Scores ===
+Several tribes start with the same score, but their ideal turns vary, which allows further breakdown of tribe scoring.
+{| class="fandom-table"
+!Score
+!Tribe(s)
+!Notes
+|-
+|555
+|Elyrion
+|Polytaur Expansion
+|-
+|565
+|Imperius, Bardur, Kickoo
+|Upgraded Capital with Workshop
+|-
+|570
+|Xin-Xi
+|Diagonal Mountain expansion and Second Warrior
+|-
+|665
+|Zebasi
+|Upgraded Capital with Workshop
+|-
+|930
+|Ai-Mo
+|Meditation Research
+|}
+
+== Perfection Difficulty Bonus ==
+
+A difficulty bonus is applied to the final score in the Perfection game mode. This bonus is equal to 100% plus 41% of the natural logarithm of the number of opponents, with an additional 20%, 40%, or 80% when the difficulty level is normal, hard, or crazy, respectively. The maximum difficulty bonus, with 15 crazy-level opponents, is 291%. 
+
+{| class="article-table"
+! colspan="16" style="text-align: center;" |Difficulty Bonus (Easy Difficulty Level)
+|-
+!Number of opponents
+|1
+|2
+|3
+|4
+|5
+|6
+|7
+|8
+|9
+|10
+|11
+|12
+|13
+|14
+|15
+|-
+!Difficulty bonus (%)
+|100
+|128
+|145
+|157
+|166
+|174
+|180
+|185
+|190
+|195
+|199
+|202
+|205
+|208
+|211
+|}
+
+== References ==
+
+*[https://docs.google.com/document/d/1HYiUbT-3RtP4b2SwlMQEZB4bTdAUtN_6K8DOvY6wNsk/edit Score Counting] by K3IZ3N 
+
+{{Navbox Game Mechanics}}
+[[Category:Game Mechanics]]

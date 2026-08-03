@@ -171,6 +171,44 @@ class League:
                 member.elo -= delta          # frozen opponents still move
             # Scripted baselines are anchors: their Elo is held fixed.
 
+    # --- persistence ----------------------------------------------------------
+    # Without this, `--resume` rebuilt an empty pool: the learner would go back
+    # to pure mirror self-play until snapshots accumulated again, and Elo across
+    # a resume boundary was meaningless. On a box that reboots several times a
+    # night that is not a footnote, it is most of the training signal.
+    def state_dict(self) -> dict:
+        """Serialisable league state. Snapshot weights travel with it."""
+        return {
+            "capacity": self.capacity,
+            "main_elo": self.main_elo,
+            "snapshots": [
+                {"name": m.name, "iteration": m.iteration, "state": m.state,
+                 "elo": m.elo, "wins": m._wins, "games": m._games}
+                for m in self.snapshots
+            ],
+            # Scripted members are rebuilt from their factories by the caller;
+            # only their accumulated statistics are worth carrying over.
+            "scripted_stats": {
+                m.name: {"elo": m.elo, "wins": m._wins, "games": m._games}
+                for m in self.scripted
+            },
+        }
+
+    def load_state_dict(self, blob: dict) -> None:
+        """Restore snapshots and Elo. Call *after* re-adding scripted members."""
+        self.main_elo = float(blob.get("main_elo", 0.0))
+        self.members = [m for m in self.members if m.kind == "scripted"]
+        for row in blob.get("snapshots", []):
+            self.members.append(Member(
+                name=row["name"], kind="snapshot", iteration=row["iteration"],
+                state=row["state"], elo=row["elo"],
+                _wins=row["wins"], _games=row["games"]))
+        for m in self.scripted:
+            stats = blob.get("scripted_stats", {}).get(m.name)
+            if stats:
+                m.elo, m._wins, m._games = (
+                    stats["elo"], stats["wins"], stats["games"])
+
     def table(self) -> list[dict]:
         rows = [{"name": "main", "kind": "main", "elo": self.main_elo,
                  "win_rate": float("nan"), "games": float("nan")}]

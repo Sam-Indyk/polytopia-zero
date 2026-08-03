@@ -1,0 +1,335 @@
+Every game occurs on a unique, randomly generated square map. Maps come in six sizes and six water amounts. [[Terrain]] is spawned in proportions that vary by [[tribe]]. Each tribe has a unique set of spawn rates and unique aesthetics for terrain and resources. During the initial map generation, the land is distributed roughly equally between all tribes in the game.
+
+==Map Size==
+
+There are six map sizes in Polytopia:
+
+*Tiny: 121 tiles, 11x11
+*Small: 196 tiles, 14x14
+*Normal: 256 tiles, 16x16
+*Large: 324 tiles, 18x18
+*Huge: 400 tiles, 20x20
+*Massive: 900 tiles, 30x30
+
+Map size changes based on the [[Game Modes|game mode]]. Perfection games use a normal map. In Domination, the map size changes depending on the number of opponents: Games with one opponent are on a tiny map, two opponents on a 196-tile (14x14) map, three opponents on a normal map, and four or more on a large map.
+
+In multiplayer and creative, map size is set by the host when creating a new game. Tiny maps support a maximum of nine players, while other maps support up to 16.
+
+==Water Amount==
+Each map type has a different level of wetness that guides the algorithm in how much water to place.
+*Drylands: Entirely land. ([[Kickoo]] and [[Aquarion]] capitals will include two water tiles with a fish in each.)
+*Lakes: A border of land bridges will always generate on the edges of the map. Every player is guaranteed to spawn with land connections to at least two villages.
+*Continents: Large but discrete landmasses. Most similar to pre-[[Moonrise]] maps. 
+*Pangea: A large landmass in the middle of the map surrounded by ocean on the outskirts.
+*Archipelago: Misshapen and discontinuous landmasses. Almost every city is coastal.
+*Water World: Small landmasses of one or two villages.
+{| class="fandom-table"
+|'''Map  Type'''
+|'''Wetness'''
+|'''How  It Affects Water/Ocean'''
+|-
+|'''Drylands'''
+|0-10%
+|Almost no water
+|-
+|'''Lakes'''
+|25-30%
+|Moderate wetness results in  scattered inland lakes.
+|-
+|'''Continents'''
+|40-70%
+|High wetness shrinks continents,  expands surrounding ocean.
+|-
+|'''Pangea'''
+|40-60%
+|Large land mass surrounded by  ocean and the occasional island
+|-
+|'''Archipelago'''
+|60-80%
+|High wetness leads to small  island chains and more ocean.
+|-
+|'''Waterworld'''
+|90-100%
+|Almost all tiles become water or  ocean; land is manually forced for cities.
+|}
+
+==Spawn Rates==
+
+The standard spawn rates for land tiles are listed in the table below. "Inner city" refers to tiles that are adjacent to a city or village, while "outer city" refers to those that are not.
+
+Since [[Update History|update 2.0.58 (Balance Pass 2)]], terrain will always be generated in accordance with the percentage rates - for example, [[Luxidoor]] will always have 48% of their biome (or as close as possible) as field tiles. 
+
+{| class="article-table"
+!
+!Inner City
+!Outer City
+|-
+!Field (Total)
+!48%
+!48%
+|-
+|Fruit
+|18%
+|6%
+|-
+|Crop
+|18%
+|6%
+|-
+|Empty Field
+|12%
+|36%
+|-
+!Forest (Total)
+!38%
+!38%
+|-
+|Animal
+|19%
+|6%
+|-
+|Empty Forest
+|19%
+|32%
+|-
+!Mountain (Total)
+!14%
+!14%
+|-
+|Metal
+|11%
+|3%
+|-
+|Empty Mountain
+|3%
+|11%
+|}
+
+The standard spawn rate for fish is 50% among shallow water tiles. Fish can also spawn in ocean tiles within a tribe's borders and some outside borders, which can be obtained with Border Growth. Starfish can spawn on any water tiles, and are scattered across the map.
+
+All resources spawn only within two tiles of cities or villages. This fact can be used to locate villages and enemy cities.
+
+===Spawn Rate Modifiers by Tribe===
+
+Modifiers by tribe are direct multipliers on the base rates. For example, Xin-xi have 1.5 times, or 50% more mountains compared to the base rate (Luxidoor). This will indirectly change the ration of the other resources. Modifiers are a little bit tricky to work with as not every modifier impacts all other terrain.
+
+# First the mountain modifier is checked. If this is not the base rate, it will affect both the forest and field rate. An increase of mountains will thus proportionally change the forest rate and field rate.
+# After this was changed, the forest multiplier is checked. Since this is checked after the mountain modifier, it will no longer impact the mountain rate, but only impact the fields.
+# Finally the field rate. There is no tribe that has a direct modifier for this and fields are thus just calculated via the simple 100% - Mountain% - Forest%.
+Note that if forced in a 121 tile map, surrounding tribes can affect the spawn rates in the capital city. (ex. A naturally spawning Bardur crop.)
+*[[Xin-xi]]: 1.5x mountain, 1.5x metal
+*[[Imperius]]: 0.5x wild animal, 2.0x fruit 
+*[[Bardur]]: 0.8x forest, 0x crop
+*[[Oumaji]]: 0.2x forest, 0.2x wild animal, 0.5x mountain, 0.5x water<ref name="reduce" group="note">Reductions to the amount of water are found in the source code but are not translated into the world generation and do not impact water rates.</ref>
+*[[Kickoo]]: 0.5x mountain, 1.5x fish, 2.0x water<ref name="replace" group="note">On continents, Kickoo and Aquarion should have 40% and 30%, respectively, of their tiles replaced with water after the initial map generation, but this effect is bugged and does not currently apply to map generation.</ref>
+*[[Hoodrick]]: 0.5x mountain, 1.5x forest  
+*[[Luxidoor]]: same as base rate
+*[[Vengir]]: 2.0x metal, 0.1x wild animal, 0.1x fruit, 0.1x fish  
+*[[Zebasi]]: 0.5x mountain, 0.5x forest, 0.5x fruit
+*[[Ai-Mo]]: 1.5x mountain, 0.1x crop
+*[[Quetzali]]: 2.0x fruit, 0.1x crop
+*[[Yădakk]]:  0.5x mountain, 0.5x forest, 1.5x fruit
+*[[Aquarion]]: 0.5x forest, 1.5x water<ref name="replace" group="note" />
+*[[∑∫ỹriȱŋ]]: 0.5x mountain, 1.5x crop
+*[[Polaris]]: same as non-polaris opponent(s), else base rate
+*[[Cymanti]]: 1.2x mountain, crop rate replaced with spore rate, cannot spawn crop.[[File:Resource rates by tribe.png|thumb|Resource rates by tribe]]
+
+<references group="note" />
+
+== Map Generation Process ==
+
+[[File:We Analyzed 2,306 Lines of Code to Discover THIS about Polytopia Maps|thumb|A video explaining the map generation process. By [[User:Espark|Espark]].]]
+
+The typical order for map creation is listed below, however each map has variations in this process:<ref>{{cite social media|author = Espark|website = YouTube|link = https://youtu.be/fJ562xzAIVs}}</ref>
+
+# Capital Spawns
+# Villages
+# Terrain
+# Resources
+# Ruins/Starfish
+
+=== Capital spawns ===
+Most maps use quadrants to place capitals so players don’t start too close to one another. Quadrants are evenly sized zones on the map. The number of quadrands/domains depends on number of players: 1-4 players creates 4 domains, 5-9 players makes 9 domains, and 10-16 players makes 16 domains. For the map types that use quandrants, Drylands, Lakes, Archipelago, and Waterworld, capital cities are distributed in an unoccupied quadrant at the begining of map generation based on weighted randomness. 
+
+=== Village Spawning Rules ===
+Spawning rules can be used to predict the locations of ruins, villages, and cities.
+
+The three kinds of villages are:
+
+# Suburbs (Lakes and Archipelago only)
+# Pre-terrain villages, also called primary villages
+# Post-terrain, also called secondary villages
+
+Depending on the map type, the algorithm uses a different combination of rules to place villages. 
+{| class="fandom-table"
+|'''Feature'''
+|'''Drylands'''
+|'''Archipelago'''
+|'''Lakes'''
+|'''Waterworld'''
+|'''Continents / Pangea'''
+|-
+|Quadrants for capitals
+|✅ Yes
+|✅ Yes
+|✅ Yes
+|✅ Yes
+|❌ No
+|-
+|Suburbs
+|❌  No
+|✅  Yes
+|✅  Yes
+|❌ No
+|❌  No
+|-
+|Pre-Terrain Cities
+|❌ No
+|✅  Yes
+|✅  Yes
+|✅  Yes
+|❌  No (not applicable)
+|-
+|Post-Terrain Cities
+|✅  Yes
+|✅  Yes
+|✅  Yes
+|✅  Yes
+|✅  Yes
+|-
+|Tiny Island Cities
+|❌  No
+|❌  No
+|❌  No
+|✅  Yes
+|✅  Yes
+|-
+|Pre-terrain city coefficient
+|None
+|0.3
+|0.3
+|0.1
+|None
+|}
+
+=== Suburbs ===
+In Polytopia, a '''suburb''' is a special village that is associated with a capital. For Lakes and Archipelago, after the capital city is placed, the algorithm puts up to two villages nearby. It is possible to get zero or only one suburb per capital on any map, but a single suburb is less likely to occur on larger maps; you usually get two. Drylands, Continents, Pangea, and Waterworld do not use the suburb algorithm. While there is no guarantee those suburbs will be close to the capital, because suburbs are placed before terrain, they are usually a couple tiles away. 
+
+=== Pre-terrain villages ===
+Archipelago, Lakes and Waterworld use formulae to determine how many villages are placed after capitals and suburbs. 
+
+Formula:<blockquote>Pre-terrain villages placed = (([map width]/3)^2-[amount of capitals and suburbs])* (map density coefficent) </blockquote>Lakes and Archipelago use a density coefficent of 0.3; waterworld uses a density coefficent of 0.1. The map width/3 number is rounded down before being squared.
+
+Pre-terrain villages must two tiles from other villages and at least one tile from the edge of the map.
+
+=== Post-terrain villages ===
+After terrain is added to the map, including mountains, forests, and water, additional villages are added. At this point, the game does not care about the number of villages on the map. It just randomly throws in villages following post-terrain rules until there is no tile left where it can place one.  
+
+Post terrain villages must:
+
+* not be placed within two tiles of the edge of the map
+* not be within two tiles of other villages
+* not be three tiles from the edge of the map
+
+All Drylands map villages are post-terrain villages.
+
+===== Continents and Pangea maps =====
+Contients and Pangea are made differently than other maps. There are no suburbs or pre-terrain villages. Villages are added after all the land is made, that's why Continents and Pangea don’t use quadrants for capital placement. 
+
+====== Pangea Map Generation process ======
+
+# A single starting point in the center of the map is chosen to seed the landmass. The ratio of land and water generated is based on wetness. For Pangea, about half of the tiles are water. 
+# Pangea does not use quadrants. Instead, villages are placed on land one at a time until there is no space left as long as the villages are two tiles from each other.
+# Next, some of those villages that are already generated are converted to capitals based on two factors.
+#* First, the game wants the capitals to be as far away from each other as possible
+#* Second, the algorithm prefers to have capitals next to water tiles.  The means you almost always get capitals spawns on the coast 
+#* After the villages and capitals are set on the main land mass, island villages are generated based on the map size.
+
+====== Continents Map Generation process ======
+Continents land is added through a procedure called noise, which gives natural looking variation to the map. The number of land masses is based on the number of players, wetness level, and map size. For continents maps, about half the tiles are water. Continents have between 30 and 200 tiles of land and must be at least one tile apart. For a 196 tiles map and two players, half the map being water, then each continent would have about 50 tiles. You often get one tile strips of shallow water, also called rivers, which can be great for bridges.
+
+After continents are created, the algorithm places one village at a time on each continent. Villages must be two tiles away from each other. The game also makes sure to put at least one village on each continent. Because this is a small size map, we get one tiny island village.
+
+Then, like on Pangea, one village per player is converted to a capital. Capitals are placed on different land masses, space permitting. 
+
+==== Tiny Island Villages ====
+Continents and Pangea have a fixed amount of villages that spawn in the water without any land connections. These island villages are created after the mainland villages.
+{| class="fandom-table"
+|'''Map size'''
+|'''Tiles'''
+|'''Tiny Island villages'''
+|-
+|Tiny
+|121
+|0
+|-
+|Small
+|196
+|1
+|-
+|Normal
+|256
+|2
+|-
+|Large
+|324
+|3
+|-
+|Huge
+|400
+|4
+|-
+|Massive
+|900
+|9
+|}
+
+
+One exception to these rules is the [[Aquarion]] tribe’s ability to discover Lost cities from deep water ruins. If aquarion claims a ruin in deep ocean, it will always turn into a level 3 city plus the water around the city will spawn new resources, like fish and aquacrops
+
+=== Ruins ===
+[[Ruin|Ruins]] are placed randomly after villages, resources, and lighthouses. Ruins can spawn on mountains, forests, fields, or deep ocean. They cannot spawn right next to another ruin or a village. The number of ruins is based on the size of the map. On Lakes, a maximum of one third of these ruins are allowed to spawn on water.
+{| class="fandom-table"
+|+Number of ruins based on map size
+|'''Map size'''
+|'''Tiles'''
+|'''Ruins'''
+|-
+|Tiny
+|121
+|4
+|-
+|Small
+|196
+|5
+|-
+|Normal
+|256
+|7
+|-
+|Large
+|324
+|9
+|-
+|Huge
+|400
+|11
+|-
+|Massive
+|900
+|23
+|}
+
+==== Starfish ====
+The map makes approximately one starfish for every 25 water tiles. Starfish may spawn on shallow or deep ocean tiles. Starfish cannot be next to another starfish, lighthouse, or city.
+
+== Other ==
+https://youtu.be/fJ562xzAIVs
+Map Gen explained on PolyChampions YouTube
+{{#ev:youtube|fJ562xzAIVs|480|center|PolyChampions YouTube}}
+
+== References ==
+<references />
+
+{{Navbox Game Mechanics}}
+[[Category:Game Mechanics]]

@@ -1,0 +1,59 @@
+{{Infobox Unit
+| name     = Pirate
+| image    = PirateY.png 
+| previous = [[Dagger]]
+| type     = Naval
+| unlock   = Sailing
+| cost     = None
+| skills   = Water, Carry, Dash, Surprise, Independent, Static
+| health   = 10
+| veteran  = No
+| attack   = 2
+| defence  = 2
+| movement = 2
+| range    = 1
+}}
+
+The '''Pirate''' is the naval form of the [[Dagger]]. It is created when a Dagger moves onto or is spawned on a [[Port]], and it retains the stats and abilities of the Dagger and will be revert to a Dagger if it chooses to land. A Dagger will only spawn as a Pirate if there are no empty land tiles remaining within the borders of an infiltrated city.
+
+Unlike a [[Raft]], the Pirate cannot be upgraded into other naval units.
+
+The pirate is better than daggers, as they can move 2 tiles instead of the usual 1.
+
+==Gallery ==
+<gallery>
+File:PirateX.png|The Xin-xi Pirate
+File:PirateI.png|The Imperius Pirate
+File:PirateB.png|The Bardur Pirate
+File:PirateO.png|The Oumaji Pirate
+File:PirateK.png|The Kickoo Pirate
+File:PirateH.png|The Hoodrick Pirate
+File:PirateL.png|The Luxidoor Pirate
+File:PirateV.png|The Vengir Pirate
+File:PirateZ.png|The Zebasi Pirate
+File:PirateA.png|The Ai-Mo Pirate
+File:PirateQ.png|The Quetzali Pirate
+File:PirateY.png|The Yădakk Pirate
+File:PirateAq.png|The Aquarion Pirate
+File:PirateE.png|The ∑∫ỹriȱŋ Pirate
+File:PirateP.png|The Polaris Pirate
+File:PirateC.png|The Cymanti Pirate
+</gallery>
+
+=== Tribe Skins ===
+<gallery>
+File:Sha-Po Pirate.png|The Xin-xi Sha-Po Pirate
+File:Aumux Pirate.png|The Luxidoor Aumux Pirate
+File:Cultist Pirate.png|The Vengir Cultist Pirate
+File:Anzala Pirate.png|The Zebasi Anzala Pirate
+File:Midnight Pirate.png|The ∑∫ỹriȱŋ ₼idŋighţ Pirate
+File:Forgotten Pirate.png|The Aquarion Forgotten Pirate
+</gallery>
+
+==Trivia==
+
+*The Pirate was added to prevent Daggers in Boats from being upgraded to [[Battleship]]s.
+
+{{Navbox Units}}
+[[Category:Units]]
+[[Category:Diplomacy]]

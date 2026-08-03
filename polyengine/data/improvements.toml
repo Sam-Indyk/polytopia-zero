@@ -82,6 +82,12 @@ requires_tech = "sailing"
 resource = ""
 terrain = "water"
 
+# ---------------- Temples ----------------
+# Four temples, one per terrain, each behind its own technology. All produce one
+# population and start at 100 points, "and increase in point value by 50 points
+# every two turns" up to level 5 -- see `temple_score` in economy.py.
+# "All types of temples cost 20 stars, except for the Forest Temple, which costs
+# only 15 stars."
 [improvement.temple]
 id = 7
 kind = "building"
@@ -90,6 +96,37 @@ population = 1
 requires_tech = "free_spirit"
 resource = ""
 terrain = "field"
+score = 100
+
+[improvement.mountain_temple]
+id = 24
+kind = "building"
+cost = 20
+population = 1
+requires_tech = "meditation"
+resource = ""
+terrain = "mountain"
+score = 100
+
+[improvement.forest_temple]
+id = 25
+kind = "building"
+cost = 15
+population = 1
+requires_tech = "spiritualism"
+resource = ""
+terrain = "forest"
+score = 100
+
+[improvement.water_temple]
+id = 26
+kind = "building"
+cost = 20
+population = 1
+requires_tech = "aquatism"
+resource = ""
+terrains = ["water", "ocean"]
+score = 100
 
 # ---------------- Adjacency buildings ----------------
 # Population scales with friendly adjacent buildings of `adjacent_to`.
@@ -177,3 +214,164 @@ id = 7
 level = 5
 effect = "super_unit"          # spawns a Giant
 value = 0
+
+# ---------------- Roads, bridges and the market ----------------
+# Costs and placement rules from the wiki's Buildings table ("Other
+# improvements"), which is cached in .wikicache/Buildings.wiki.
+#
+# Roads and bridges are the only improvements that may be placed on NEUTRAL
+# land ("Can be built on neutral land" / "neutral water"), hence `allow_neutral`.
+# They also yield no population: their value is movement and city connections.
+
+[improvement.road]
+id = 11
+kind = "building"
+cost = 3
+population = 0
+requires_tech = "roads"
+terrains = ["field", "forest"]     # never on mountains, per Movement#Roads
+allow_neutral = true
+connector = true
+
+[improvement.bridge]
+id = 12
+kind = "building"
+cost = 5
+population = 0
+requires_tech = "roads"
+terrains = ["water"]
+allow_neutral = true
+connector = true
+needs_bridge_span = true           # water with two opposite non-water neighbours
+
+[improvement.market]
+id = 13
+kind = "building"
+cost = 5
+population = 0
+requires_tech = "trade"
+terrains = ["field"]
+adjacent_any = ["sawmill", "windmill", "forge"]
+# The wiki disagrees with itself here: Resources and Trade say 2 stars per
+# adjacent building level, Buildings says 1. RESOLVED to 1 by the project owner,
+# who plays the game -- Buildings is the correct page. Kept as data so it is one
+# number to change, and `check_ruleset.py` reports the disagreement rather than
+# pretending the sources agree.
+income_per_level = 1
+income_max_levels = 8
+
+[improvement.embassy]
+id = 14
+kind = "building"
+cost = 5
+population = 0
+requires_tech = "diplomacy"
+# "It produces two stars per turn for the creator of the Embassy as well as the
+# tribe whose capital it was built in. The income from Embassies is doubled to
+# four stars per turn to each party if they have a Peace Treaty active."
+# Built on "other tribes' capitals" -- the only improvement that goes on a city
+# tile, and on someone else's at that. See core/diplomacy.embassy_income.
+on_enemy_capital = true
+income_flat = 2
+
+# ---------------- Monuments ----------------
+# "A monument is a building awarded for completing a task. Each monument
+# produces 3 population and is worth 400 points. Monuments can be built on field
+# and shallow water terrain." Awarded, not bought: cost is 0, and the gate is
+# `requires_task` rather than stars.
+#
+# Cult of Ciru is omitted -- it is Cymanti-only, and special tribes are out of
+# scope by decision.
+
+[improvement.altar_of_peace]
+id = 15
+kind = "building"
+cost = 0
+population = 3
+requires_tech = "meditation"
+requires_task = "pacifist"
+terrains = ["field", "water"]
+score = 400
+
+[improvement.emperors_tomb]
+id = 16
+kind = "building"
+cost = 0
+population = 3
+requires_tech = "trade"
+requires_task = "wealth"
+terrains = ["field", "water"]
+score = 400
+
+[improvement.eye_of_god]
+id = 17
+kind = "building"
+cost = 0
+population = 3
+requires_tech = ""
+requires_task = "explorer"
+terrains = ["field", "water"]
+score = 400
+
+[improvement.gate_of_power]
+id = 18
+kind = "building"
+cost = 0
+population = 3
+requires_tech = ""
+requires_task = "killer"
+terrains = ["field", "water"]
+score = 400
+
+[improvement.grand_bazaar]
+id = 19
+kind = "building"
+cost = 0
+population = 3
+requires_tech = ""
+requires_task = "network"
+terrains = ["field", "water"]
+score = 400
+
+[improvement.park_of_fortune]
+id = 20
+kind = "building"
+cost = 0
+population = 3
+requires_tech = ""
+requires_task = "metropolis"
+terrains = ["field", "water"]
+score = 400
+
+[improvement.tower_of_wisdom]
+id = 21
+kind = "building"
+cost = 0
+population = 3
+requires_tech = "philosophy"
+requires_task = "genius"
+terrains = ["field", "water"]
+score = 400
+
+# A map feature rather than something a player builds: the four corners carry a
+# lighthouse, and finding them all completes the Explorer task.
+[improvement.lighthouse]
+id = 22
+kind = "building"
+cost = 0
+population = 0
+requires_tech = ""
+map_feature = true
+terrains = ["ocean", "water"]
+
+# A ruin is a map feature, not a build: "A ruin provides a reward when examined
+# by a unit." It blocks the tile until cleared -- "Tiles with ruins cannot be
+# developed until the ruin is examined" -- which falls out of occupying the
+# improvement slot.
+[improvement.ruin]
+id = 23
+kind = "building"
+cost = 0
+population = 0
+requires_tech = ""
+map_feature = true

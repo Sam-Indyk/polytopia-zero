@@ -256,3 +256,21 @@ trainable = false
 naval = true
 requires_tech = "navigation"
 skills = ["water", "carry", "stiff", "stomp", "static"]
+
+[unit.pirate]
+id = 16
+symbol = "R"
+cost = 0
+max_hp = 10
+attack = 2.0
+defense = 2.0
+movement = 2                    # "gains a movement speed increase of +1, like a normal boat"
+range = 1
+trainable = false               # only ever becomes one: a Dagger on a Port
+naval = true
+hull_hp_varies = false          # a Pirate IS the unit, not a vehicle over one
+requires_tech = "sailing"
+# Stats and skills verbatim from the Pirate infobox. "Unlike a Raft, the Pirate
+# cannot be upgraded into other naval units" -- closed by `upgrade_options`,
+# which only accepts a Raft. It "will revert to a Dagger if it chooses to land".
+skills = ["water", "carry", "dash", "surprise", "independent", "static"]

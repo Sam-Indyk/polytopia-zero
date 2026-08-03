@@ -157,3 +157,38 @@ def test_ppo_update_is_numerically_stable_over_several_steps():
         assert np.isfinite(logs["policy_loss"])
     for p in policy.net.parameters():
         assert torch.isfinite(p).all(), "training produced non-finite weights"
+
+
+# --- crash-safe checkpointing ---------------------------------------------------
+# Motivated by a real failure mode on this box: it bugchecks under sustained GPU
+# load (WHEA fatal hardware error on the NVIDIA PCIe link), and a crash landing
+# inside a multi-megabyte torch.save would otherwise leave a truncated
+# `latest.pt` -- costing the run as much as the crash did.
+class TestCrashSafeCheckpoints:
+    def test_save_atomic_leaves_no_tmp_file(self, tmp_path):
+        from polytrain.checkpoint import save_atomic
+        path = tmp_path / "latest.pt"
+        save_atomic({"x": 1}, path)
+        assert path.exists()
+        assert not (tmp_path / "latest.pt.tmp").exists()
+
+    def test_save_atomic_keeps_previous_generation(self, tmp_path):
+        from polytrain.checkpoint import load_resumable, save_atomic
+        path = tmp_path / "latest.pt"
+        save_atomic({"iter": 1}, path)
+        save_atomic({"iter": 2}, path)
+        assert load_resumable(path)["iter"] == 2
+        assert load_resumable(path.with_name("latest.pt.bak"))["iter"] == 1
+
+    def test_load_resumable_falls_back_when_primary_is_torn(self, tmp_path):
+        from polytrain.checkpoint import load_resumable, save_atomic
+        path = tmp_path / "latest.pt"
+        save_atomic({"iter": 1}, path)
+        save_atomic({"iter": 2}, path)
+        # Simulate a crash mid-write: truncate the primary checkpoint.
+        path.write_bytes(path.read_bytes()[: 128])
+        assert load_resumable(path)["iter"] == 1, "should fall back to .bak"
+
+    def test_load_resumable_returns_none_when_nothing_readable(self, tmp_path):
+        from polytrain.checkpoint import load_resumable
+        assert load_resumable(tmp_path / "absent.pt") is None

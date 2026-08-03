@@ -27,6 +27,10 @@ train = [
 [tool.setuptools.packages.find]
 include = ["polyengine*", "polynet*", "polytrain*"]
 
+[tool.setuptools.package-data]
+# The viewer's JS/CSS are real files, not Python strings — they have to ship.
+polyengine = ["data/*.toml", "viewer/assets/*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"

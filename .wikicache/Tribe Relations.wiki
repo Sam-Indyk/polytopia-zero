@@ -1,0 +1,105 @@
+{{Update|version=2.1}}
+
+[[File:Tribe Info.jpg|thumb|A Tribe Info card for a bot tribe]]
+[[File:Bot.png|thumb|The symbol for an AI player in the game creation menu.]]
+[[File:Screenshot 2018-01-19-22-23-59-2.png|thumb|An example of a tribe relations screen|alt=]]
+Relationships are the "alliance status" of you and other players (AI and human). They can be seen in the game stats section in game. 
+
+Against every other player, you are either at war (denoted with flames around their tribe head and 2 swords), neutral, or at peace (denoted by golden shapes below the tribe head). To be at war, either side must have attacked the other side at most a turn ago. After that, the relation goes back to neutral. To be at peace with another tribe, a peace treaty must be sent and the other tribe must have accepted it. During a peace treaty, no hostile actions can be done, roads can be used in allies' territory, and any embassies have doubled income. 
+
+Having a good or bad relation with another tribe will put an adjective before their name in game stats ("The _____ tribe is ruled by the '''[adjective]''' _____"). In a peaceful relationship, the adjective will be either Divine (if the tribe has more points than you) or Faithful (if the tribe has less points than you). In a hostile relationship, the adjective will either be Terrible (if the tribe has more points than you) or Pathetic (if the tribe has less points than you).  
+
+Against bots, there is a system known as relations ranging from horrible to great, which generally determines how aggressive a bot will be against you, and determines how likely they will accept a peace treaty. If the relation is horrible, then red flames will appear around their tribe heads. If the relation is great, then a halo will appear around their tribe head. 
+
+==Greetings==
+There are 5 different greetings when meeting a tribe. 
+
+*'''"They bow in awe of your mighty civilization."''' To get this greeting, you must have more points than the tribe you just met.
+
+*'''"They salute you friendly but pay no attention to your tiny realm."''' To get this greeting, you must have less points than the tribe you just met.
+
+*'''"They seem a bit hostile and greet you suspiciously."''' To get this greeting, you must have about the same amount of points as the tribe you just met.
+
+*'''"They laugh at your puny excuse of a tribe."''' To get this greeting, you must have less points than the tribe you just met.
+
+*'''"A delegation from a distant land arrives in your capital!"''' This greeting happens when a tribe that you cannot see sends a peace treaty or puts an embassy in your capital. This can also happen if a human or bot moves a unit into your capital before you meet them.
+Generally speaking, these greetings are arbitrary and does not impact how aggressive a tribe will be towards you, as of the diplomacy update. This is especially true against human players, where the greeting is arbitrarily chosen.
+
+== Opinions ==
+Opinions are the reasons a tribe may or may not like you, and are the determining factor over whether a tribe is hostile or peaceful towards you. They can be seen in the tribe's info menu, and are labelled in green for positive opinions and red for negative ones. Neutral tribes, upon first meeting you will not have any opinions of you until they know more about you, or you do something they like or dislike.
+
+=== <u>Positive</u> ===
+A tribe having positive opinions of you will cause their relation with you to raise, making them more likely to accept peace treaties and less likely to attack any of your units. Good relationships are labeled "decent" and "great".
+{| class="fandom-table"
+|+
+!Opinion
+!Quote
+!Cause
+|-
+|Wise
+|"You share the same friends or enemies"
+|Occurs if you are at war with a tribe they have a negative relation with, or if you are both at peace with the same tribe.
+|-
+|Charming
+|"For some reason they really like you" 
+|Serves as a way to reward playing against lower level bots. This relation is a lot more rare on higher level bots.
+|-
+|Peaceful
+|"You have not attacked them in a long time"
+|Occurs if you have gone several turns without attacking their units.
+|-
+|Diplomatic
+|"You have good diplomatic connections through your embassies"
+|Occurs if you have established an [[Embassy]] in their capital, or if they established an embassy in your capital.
+|-
+|Powerful
+|"They are impressed by your military power"
+|Occurs if you have more units than them.
+|-
+|Brave
+|"You are fighting against the strongest tribe"
+|Occurs if you are at war with the most powerful tribe (and not them)
+|}
+
+===<u>Negative</u>===
+A tribe having negative opinions of you will cause their relation with you to drop, making them less likely to accept peace treaties and more aggressive towards you. Low relations include "poor" and "horrible".
+{| class="fandom-table"
+|+
+!Opinion
+!Quote
+!Cause
+|-
+|Violent
+|"You recently attacked them"
+|Occurs if you've attacked any of their units recently.
+|-
+|Threatening
+|"You have military units near their territory"
+|Occurs if you have units near or on their territory.
+|-
+|Weak
+|"Your army is weak compared to them, you are an easy target"
+|Occurs if within their line of sight, they see less units than they have.
+|-
+|Annoying
+|"They just don't like you"
+|Penalty for playing on higher difficulties, negative counterpart for Charming (although it is possible to get both on medium or hard bots).
+|-
+|Foolish
+|"You are at war with their friends, or have made peace with their enemies
+|Occurs if you have made peace with a tribe that they have a negative relation with, or are at war with their allies.
+This is also given permanently if you break a peace treaty with them.
+|-
+|Intrusive
+|"Your borders are very close"
+|Occurs if your territory borders are colliding with theirs.
+|-
+|Dominating
+| "You are about to win the game" 
+|Occurs if you are one of the last remaining tribes in Domination, and have captured a majority of [[City|Capitals]].
+|}
+
+===<u>Neutral</u>===
+Neutral relations occur due to a mix of both positive and negative opinions or a lack of any all together. Neutral relations include "indifferent".{{Navbox Game Mechanics}}
+[[Category:Game Mechanics]]
+[[Category:Diplomacy]]

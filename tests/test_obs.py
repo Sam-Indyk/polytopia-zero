@@ -160,6 +160,32 @@ def test_global_vector_hides_opponent_stars():
     assert gv[stride + 0] == 0.0, "opponent stars must not be observable"
 
 
+def test_the_global_vector_says_nothing_about_the_map_type():
+    """Two very different worlds, one identical global vector.
+
+    Training rotates map types, and it is tempting to hand the net a wetness
+    summary so it can tell an archipelago from drylands at a glance. That would
+    be a shortcut with no counterpart on a real screen: a player reads water
+    tile by tile, through fog, and infers the rest. The spatial planes carry the
+    terrain; the global vector must stay silent about it.
+    """
+    dry = Game.new(size=11, seed=11, map_type="drylands")
+    wet = Game.new(size=11, seed=11, map_type="waterworld")
+    water_dry = int((~R.terrain_is_land[dry.state.terrain]).sum())
+    water_wet = int((~R.terrain_is_land[wet.state.terrain]).sum())
+    assert water_wet > water_dry * 5, "the two maps must actually differ"
+
+    a = O.encode_global(dry.state, 0, R)
+    b = O.encode_global(wet.state, 0, R)
+    assert np.array_equal(a, b)
+
+    # ... while the spatial planes plainly do differ, which is where the policy
+    # is supposed to learn "build Ports here, Riders there" from.
+    sp_dry = O.encode_spatial(dry.state, 0, R)
+    sp_wet = O.encode_spatial(wet.state, 0, R)
+    assert not np.array_equal(sp_dry, sp_wet)
+
+
 def test_encode_returns_both_tensors():
     game = Game.new(size=9, seed=6)
     sp, gv = O.encode(game.state, 0, R)

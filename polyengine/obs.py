@@ -17,6 +17,10 @@ Layout (C x H x W float32, C = N_PLANES):
   remembered units                    n_units + 6
                                           type one-hot (from memory)
                                           own, enemy, hp fraction, veteran, moved, attacked
+  cloak_sense                         1   the eye symbol: one of OUR units has a
+                                          hidden enemy Cloak on an adjacent tile.
+                                          It narrows the Cloak to 8 tiles and no
+                                          further -- exactly what a player sees.
   fog                                 3   visible, explored, staleness (normalised)
   geometry                            3   x, y, edge distance
 
@@ -46,7 +50,9 @@ def plane_layout(rules: Ruleset) -> dict[str, tuple[int, int]]:
     blocks = [
         ("terrain", n_t), ("resource", n_r), ("improvement", n_i),
         ("territory", 4), ("city", 9),
-        ("unit_type", n_u), ("unit_attrs", 6), ("fog", 3), ("geometry", 3),
+        ("unit_type", n_u), ("unit_attrs", 6), ("cloak_sense", 1),
+        ("promote_ready", 1),
+        ("fog", 3), ("geometry", 3),
     ]
     out, start = {}, 0
     for name, count in blocks:
@@ -63,8 +69,18 @@ def n_planes(rules: Ruleset) -> int:
 def global_dim(rules: Ruleset) -> int:
     # own: stars, cities, units, techs-known + tech bits
     # opp: stars(known), cities seen, units seen, techs seen + tech bits
-    # plus turn progress and map size
-    return 2 * (4 + rules.n_techs) + 2
+    # plus turn progress, map size, and the two relation summaries
+    #
+    # Deliberately NOT here: any summary of how wet the world is, or which map
+    # type is in play. The net sees water tile by tile in the spatial planes and
+    # has to draw its own conclusion about whether this is a Ports-and-boats map
+    # or a Riders-and-roads one. Handing it an aggregate would be a shortcut the
+    # screen-reading agent of M5 has no way to reproduce.
+    #
+    # Relations ARE fair game: your own treaties are on your own screen, always,
+    # and the fraction of opponents you are at peace or at war with is something
+    # a player reads straight off the tribe list.
+    return 2 * (4 + rules.n_techs) + 4
 
 
 @njit(cache=True)
@@ -189,6 +205,39 @@ def encode_spatial(state, player: int, rules: Ruleset,
         state.fog_visible[player], state.fog_explored[player],
         state.fog_staleness[player],
         out)
+    layout = plane_layout(rules)
+
+    # Resources the player has not unlocked are not on their screen at all:
+    # "crop is hidden until Organization or Farming has been researched", and
+    # Climbing "reveals metal". Scrubbing the plane is not enough -- the
+    # one-hot has to fall back to "no resource", or the absence of every flag
+    # would itself mark the tile as interesting.
+    res_at = layout["resource"][0]
+    for rid, techs in C.HIDDEN_RESOURCE_TECHS.items():
+        if any(state.has_tech(player, rules.tech_id[t])
+               for t in techs if t in rules.tech_id):
+            continue
+        concealed = out[res_at + rid] > 0
+        if concealed.any():
+            out[res_at + rid][concealed] = 0.0
+            out[res_at + C.R_NONE][concealed] = 1.0
+
+    from polyengine.core.fog import cloak_adjacent
+    sense_at = layout["cloak_sense"][0]
+    sensed = cloak_adjacent(state, player)
+    if sensed.any():
+        out[sense_at, :size, :size] = sensed.reshape(size, size)
+
+    # Which of OUR units are sitting on an unclaimed promotion. The real client
+    # shows this as a star on the unit, and it is a live decision every turn --
+    # promoting is a free full heal, so the policy needs to see when one is
+    # banked. Own units only: an enemy's kill count is not on screen.
+    from polyengine.core.actions import can_promote
+    ready_at = layout["promote_ready"][0]
+    for tile in np.flatnonzero((state.unit_owner == player)
+                               & (state.unit_type != C.U_NONE)):
+        if can_promote(state, int(tile), player, rules):
+            out[ready_at, int(tile) // size, int(tile) % size] = 1.0
     if out_size > size:
         off = plane_layout(rules)["territory"][0] + 3
         out[off, size:, :] = 1.0
@@ -231,6 +280,17 @@ def encode_global(state, player: int, rules: Ruleset,
 
     vec[2 * stride + 0] = min(1.0, state.turn / float(max_turns))
     vec[2 * stride + 1] = state.size / 32.0
+    # Own relations, which a player always knows: the share of live opponents
+    # this player has a treaty with, and the share who attacked (or were
+    # attacked by) them within the last turn.
+    from polyengine.core.diplomacy import at_peace, at_war
+    others = [q for q in range(state.n_players)
+              if q != player and state.alive[q]]
+    if others:
+        vec[2 * stride + 2] = sum(at_peace(state, player, q)
+                                  for q in others) / len(others)
+        vec[2 * stride + 3] = sum(at_war(state, player, q)
+                                  for q in others) / len(others)
     return vec
 
 

@@ -26,10 +26,13 @@ from polyengine.core.game import Game
 # Frame fields that must match exactly, in the order they're checked.
 COMPARED_FIELDS = (
     "turn", "cur", "stars", "tech", "alive",
+    "peace", "peace_offer", "attacked_now", "attacked_prev",
     "owner", "resource", "improvement",
     "city_owner", "city_level", "city_pop", "city_walls", "city_capital",
-    "city_workshop", "city_park", "city_pending_reward",
+    "city_workshop", "city_park", "city_pending_reward", "city_conn_pop",
+    "improvement_owner",
     "unit_type", "unit_owner", "unit_hp", "unit_veteran", "unit_home",
+    "unit_carried", "unit_hidden", "unit_facing",
 )
 
 
@@ -104,7 +107,12 @@ def resimulate(replay: dict, strict: bool = True) -> dict:
     """
     from polyengine.replay import ReplayRecorder
 
-    game = Game.new(size=replay["size"], seed=replay["map_seed"])
+    # Tribes and map type are as load-bearing as the seed: rebuilding a
+    # continents game as the default drylands two-tribe map produces a
+    # different board, and every recorded action then looks illegal.
+    game = Game.new(size=replay["size"], seed=replay["map_seed"],
+                    tribes=list(replay.get("tribes") or []) or None,
+                    map_type=replay.get("map_type", "drylands"))
     rec = ReplayRecorder(game, agent_names=replay.get("agents", []))
     rec.capture()
     for n, action in enumerate(actions_of(replay)):
