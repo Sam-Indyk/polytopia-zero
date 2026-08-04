@@ -52,7 +52,8 @@ def make_opponent_fn(member, policy_template, rules, device):
     return fn
 
 
-def make_seat_opponent_fn(assign, primary, policy_template, rules, device):
+def make_seat_opponent_fn(assign, primary, policy_template, rules, device,
+                          built=None):
     """An opponent that fills different seats with *different* league members.
 
     `assign` maps game index -> {seat: member}. Members are grouped per call so
@@ -63,8 +64,18 @@ def make_seat_opponent_fn(assign, primary, policy_template, rules, device):
     Five identical opponents teach the learner to beat one thing five times at
     once; five different ones are the position it will actually be in, and each
     gets its own Elo result rather than sharing a number.
+
+    **`built` must be owned by the caller and reused across iterations.** Each
+    entry is a `FrozenOpponent`, and that constructor does
+    `deepcopy(net).to(device)` — a fresh net on the GPU. When this cache was
+    local, a league iteration allocated one per *distinct member drawn*, so a
+    full 20-snapshot pool meant ~20 new GPU nets every iteration instead of the
+    single one the old single-opponent code built. Measured on the first real
+    run: VRAM climbed from 4.4 GB at iteration 120 to 7.9 GB of 8.1 GB by
+    iteration 2160, heading for an out-of-memory crash.
     """
-    built: dict[str, tuple[str, object]] = {}
+    if built is None:
+        built = {}
 
     def agent_for(member):
         if member.name not in built:
@@ -217,6 +228,7 @@ def main() -> None:
 
     start_iter = 1
     best = -1.0
+    resumed_stage = None
     if resume_from:
         blob = load_resumable(resume_from, map_location=device)
         if blob is None:
@@ -238,6 +250,10 @@ def main() -> None:
                 torch.set_rng_state(
                     torch.as_tensor(blob["torch_rng"], dtype=torch.uint8))
             best = blob.get("best", -1.0)
+            # Which curriculum stage that `best` was measured on. Without it a
+            # restart mid-stage re-anchors best.pt to the first eval after the
+            # restart, discarding the best checkpoint of the stage so far.
+            resumed_stage = blob.get("stage")
             print(f"resumed {resume_from} at iteration {start_iter} "
                   f"(elo {blob.get('elo', 0):+.0f}, scripted {blob.get('wr_scripted')})")
 
@@ -267,6 +283,9 @@ def main() -> None:
     t0 = time.perf_counter()
 
     stage_size = None
+    stage_key = None
+    best_stage = resumed_stage
+    opp_cache: dict[str, tuple[str, object]] = {}
     for it in range(start_iter, args.iters + 1):
         shaping = args.shaping * max(0.0, 1 - it / max(1, args.shaping_anneal))
         member = league.sample(rng)
@@ -274,6 +293,7 @@ def main() -> None:
         size, specs = args.size, None
         if cur is not None:
             size = cur.size_for(it)
+            stage_key = cur.describe(it)
             specs = [cur.spec(it, i, args.seed) for i in range(args.games)]
             # Games persist across iterations to avoid re-generating maps, but a
             # carried-over 11x11 board would quietly ignore a stage that just
@@ -309,7 +329,13 @@ def main() -> None:
                 picks = {q: (m or member) for q, m in enumerate(drawn)}
                 assign[gi] = picks
                 seat_members.append({q: m.name for q, m in picks.items()})
-            opp_fn = make_seat_opponent_fn(assign, member, policy, rules, device)
+            # Cached across iterations, and pruned to the members still in the
+            # pool so an evicted snapshot's net does not sit on the GPU forever.
+            live_names = {m.name for m in league.members}
+            for gone in [k for k in opp_cache if k not in live_names]:
+                opp_cache.pop(gone, None)
+            opp_fn = make_seat_opponent_fn(assign, member, policy, rules, device,
+                                           built=opp_cache)
             roll, stats, games_vs = collect(
                 policy, args.games, args.rollout, size=size,
                 seed=args.seed + it * 1000, shaping=shaping,
@@ -384,7 +410,18 @@ def main() -> None:
                                  vs_osla.win_rate)
             blob["gate"] = gate
             blob["gate_name"] = "osla" if args.league_scripted else "scripted"
+            blob["stage"] = stage_key
             save_atomic(blob, out_dir / "latest.pt")
+            # The gate is only comparable *within* a curriculum stage. Measured
+            # on the first real run: the net hit 100% vs OSLA at iteration 275
+            # on 9x9 duels, then the curriculum widened and the same policy
+            # scored 55-70% on the harder distribution — so `best.pt` froze at
+            # iteration ~275 and stayed a stage-1 checkpoint for 1,800
+            # iterations while the agent got materially stronger. Reset the bar
+            # when the stage changes; a checkpoint that leads its own stage is
+            # the best thing this signal can honestly say.
+            if stage_key != best_stage:
+                best, best_stage = -1.0, stage_key
             if gate > best:
                 best = gate
                 blob["best"] = best

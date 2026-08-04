@@ -127,10 +127,24 @@ def play_match(agent_a, agent_b, n_pairs: int, size: int, seed: int = 12345,
     players = tuple(players) if players else (2,)
     total, games = 0.0, 0
     buckets: dict[tuple, list[float]] = {}
+    # Every (map, size, seats) combination, in a fixed shuffled order.
+    #
+    # Advancing each axis with `i % len(axis)` looked fine and was wrong: two
+    # axes of the same length step together and never separate. On the first
+    # real run `sizes=(11,14)` with `players=(2,3)` reported
+    # "size 11:88% 14:38% | players 2:88% 3:38%" — the same numbers twice,
+    # because 14 was only ever played with 3 seats. It read as two findings and
+    # was one fact, with no way to tell the board from the crowd.
+    #
+    # Walking the product in order fixes the aliasing but biases any eval
+    # shorter than the product, which is the normal case: 6 maps x 2 sizes x 4
+    # seat counts is 48 combinations and `--eval-pairs` is 16. Shuffling once
+    # with a fixed seed makes a short eval a *sample* across all three axes
+    # rather than a prefix of the first one.
+    combos = [(m, s, p) for m in map_types for s in sizes for p in players]
+    random.Random(0xE7A1).shuffle(combos)
     for i in range(n_pairs):
-        kind = map_types[i % len(map_types)]
-        sz = sizes[i % len(sizes)]
-        np_ = players[i % len(players)]
+        kind, sz, np_ = combos[i % len(combos)]
         pool = None
         if tribes:
             # Deal distinct tribes per pair, deterministically in the seed.

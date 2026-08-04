@@ -238,7 +238,8 @@ def test_match_reports_a_breakdown_not_just_an_average():
     from polyengine.agents.scripted import ScriptedBot
     from polytrain.evaluate import play_match
 
-    m = play_match(ScriptedBot(seed=1), RandomAgent(seed=2), n_pairs=4, size=9,
+    # Enough pairs to walk the whole 2x2x2 product, so every bucket is present.
+    m = play_match(ScriptedBot(seed=1), RandomAgent(seed=2), n_pairs=8, size=9,
                    max_steps=200, sizes=(9, 11), players=(2, 3),
                    map_types=("drylands", "lakes"))
     assert m.games > 0
@@ -261,3 +262,25 @@ def test_match_rotates_the_agent_through_every_seat():
                        size=14, max_steps=120,
                        tribes=("imperius", "bardur", "kickoo"), n_players=3)
     assert len(scores) == 3
+
+
+def test_eval_axes_are_not_aliased():
+    """Size and seat count must vary independently.
+
+    Stepping every axis with `i % len(axis)` ties same-length axes together, so
+    a board size is only ever seen with one seat count and the breakdown prints
+    one fact under two headings."""
+    from polytrain.evaluate import play_match
+
+    from polyengine.agents.random_agent import RandomAgent
+
+    m = play_match(RandomAgent(seed=1), RandomAgent(seed=2), n_pairs=8, size=9,
+                   max_steps=60, sizes=(9, 11), players=(2, 3),
+                   map_types=("drylands", "lakes"))
+    by_size = dict((v, n) for v, _, n in m.breakdown("size"))
+    by_players = dict((v, n) for v, _, n in m.breakdown("players"))
+    assert len(by_size) == 2 and len(by_players) == 2
+    # If the axes were locked together, size 11 and 3 players would have played
+    # exactly the same games and so recorded exactly the same game count.
+    assert by_size[11] == by_size[9], "sizes should be balanced"
+    assert by_players[2] == by_players[3], "seat counts should be balanced"
