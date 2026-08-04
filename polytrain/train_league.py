@@ -120,7 +120,12 @@ def main() -> None:
     ap.add_argument("--eval-every", type=int, default=20)
     ap.add_argument("--eval-pairs", type=int, default=12,
                     help="mirrored seed pairs per eval (2 games each)")
-    ap.add_argument("--max-turns", type=int, default=100)
+    ap.add_argument("--max-turns", type=int, default=0,
+                    help="episode truncation. 0 (default) defers to each game's "
+                         "own turn cap, which scales with board size and seat "
+                         "count; a fixed value pins every game to it, which on "
+                         "a curriculum cuts the large boards off before they "
+                         "can be decided.")
     ap.add_argument("--curriculum", default=None,
                     help="widen the training distribution over iterations: a "
                          "preset (legacy|duel|standard|ffa) or an inline spec "
@@ -282,7 +287,7 @@ def main() -> None:
             roll, stats, games_self = collect(
                 policy, args.games, args.rollout, size=size,
                 seed=args.seed + it * 1000, shaping=shaping,
-                max_turns=args.max_turns, games=games_self,
+                max_turns=(args.max_turns or None), games=games_self,
                 map_types=map_types, specs=specs)
             label = "self"
         else:
@@ -308,7 +313,7 @@ def main() -> None:
             roll, stats, games_vs = collect(
                 policy, args.games, args.rollout, size=size,
                 seed=args.seed + it * 1000, shaping=shaping,
-                max_turns=args.max_turns, games=games_vs, opponent=opp_fn,
+                max_turns=(args.max_turns or None), games=games_vs, opponent=opp_fn,
                 map_types=map_types, specs=specs, seat_members=seat_members)
             label = member.name
             # Elo per opponent identity. `learner_result` is now the learner's

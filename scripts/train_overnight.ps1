@@ -39,6 +39,14 @@ param(
   [int]   $Games     = 64,
   [int]   $Rollout   = 192,
   [int]   $MaxRetries = 200,
+  # Widen the training distribution over the run: board size, seat count and
+  # tribes. Empty keeps the old fixed 11x11 Imperius-vs-Bardur behaviour.
+  [string]$Curriculum = "",
+  # 0 defers to each game's own turn cap, which scales with board size and seat
+  # count. Pinning it (the old 100) cuts the large boards off before they can
+  # be decided, which on a curriculum silently makes every late game a
+  # score draw.
+  [int]   $MaxTurns   = 0,
   [string]$Log       = "runs_big.log"
 )
 
@@ -88,15 +96,20 @@ while ($attempt -lt $MaxRetries) {
   Write-Output $banner
   Add-Content -Path $Log -Value $banner -Encoding utf8
 
-  & $py -u -m polytrain.train_league `
-      --out $Out --auto-resume `
-      --size $Size --games $Games --rollout $Rollout `
-      --channels $Channels --blocks $Blocks `
-      --iters $Iters `
-      --league-scripted `
-      --snapshot-every 10 --save-every 5 --league-save-every 20 `
-      --eval-every 25 --eval-pairs 16 `
-      --max-turns 100 2>&1 |
+  $trainArgs = @(
+    "-u", "-m", "polytrain.train_league",
+    "--out", $Out, "--auto-resume",
+    "--size", $Size, "--games", $Games, "--rollout", $Rollout,
+    "--channels", $Channels, "--blocks", $Blocks,
+    "--iters", $Iters,
+    "--league-scripted",
+    "--snapshot-every", "10", "--save-every", "5", "--league-save-every", "20",
+    "--eval-every", "25", "--eval-pairs", "16",
+    "--max-turns", $MaxTurns
+  )
+  if ($Curriculum) { $trainArgs += @("--curriculum", $Curriculum) }
+
+  & $py @trainArgs 2>&1 |
       ForEach-Object { Add-Content -Path $Log -Value $_ -Encoding utf8; $_ }
 
   $code = $LASTEXITCODE
