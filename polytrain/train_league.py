@@ -41,10 +41,22 @@ from polytrain.train import NetAgent, build_policy
 # the curriculum cannot say which checkpoint is best, only which is best right
 # now. 11x11 duels across every map type: big enough that naval play matters
 # (continents and waterworld are where the first run was weakest, at 22%), small
-# enough that the eval is cheap, and never saturating the way 9x9 drylands did.
+# enough that the eval is cheap.
+#
+# The opponent is ScriptedBot at **crazy**, not Greedy-OSLA. OSLA saturated: it
+# sat at 93-100% for hundreds of iterations and could no longer tell an
+# improvement from a regression, which is the one job a gate has. Crazy is also
+# the actual M5 target ("beat the game's built-in Crazy bots"), so the gate now
+# measures progress toward the goal rather than toward a stepping stone.
 GATE_SIZE = 11
 GATE_MAP_TYPES = ("drylands", "lakes", "continents",
                   "archipelago", "pangea", "waterworld")
+GATE_NAME = "crazy@11x11-fixed"
+
+
+def gate_opponent(seed: int = 11):
+    """The fixed gate opponent. `apply_handicap` is called by `play_pair`."""
+    return ScriptedBot.crazy(seed=seed)
 
 
 def shaping_for(it: int, scale: float, anneal: int, floor: float) -> float:
@@ -294,7 +306,7 @@ def main() -> None:
     # unless the gate itself changed, in which case the old number is not a
     # measurement of the same thing and keeping it would silently freeze
     # promotion for the rest of the run.
-    gate_name = f"osla@{GATE_SIZE}x{GATE_SIZE}-fixed"
+    gate_name = GATE_NAME
     prev_best = load_resumable(out_dir / "best.pt", map_location="cpu")
     if prev_best is not None:
         if prev_best.get("gate_name") != gate_name:
@@ -438,6 +450,14 @@ def main() -> None:
             detail = vs_osla.format_breakdown()
             if detail:
                 print(f"    OSLA by bucket: {detail}")
+            # Technology is 100 score points per tier, the densest thing on the
+            # board, and the net was measured taking 3.1 techs where a *random*
+            # player took 6.4 — which is how it lost games it was winning on
+            # material. A win rate cannot show that; this can.
+            mine, theirs = vs_scr.techs
+            flag = "  <- OUT-TECHED" if mine < theirs else ""
+            print(f"    techs researched (vs scripted): "
+                  f"net {mine:.1f} | opponent {theirs:.1f}{flag}")
             # --- the promotion gate --------------------------------------
             # Measured on a FIXED reference: a held-out opponent on a fixed
             # distribution that never moves with the curriculum.
@@ -453,7 +473,7 @@ def main() -> None:
             # best of the *current* stage, which by then was much weaker.
             # Only a yardstick that never changes can say "this is the best
             # checkpoint of the run".
-            ref = play_match(agent, GreedyOSLA(seed=11), args.eval_pairs,
+            ref = play_match(agent, gate_opponent(), args.eval_pairs,
                              GATE_SIZE, seed=9191, max_steps=400,
                              sizes=(GATE_SIZE,), players=(2,),
                              map_types=GATE_MAP_TYPES)
@@ -461,12 +481,33 @@ def main() -> None:
             blob = snapshot_blob(it, league.main_elo, vs_scr.win_rate,
                                  vs_osla.win_rate)
             blob["gate"] = gate
-            blob["gate_name"] = f"osla@{GATE_SIZE}x{GATE_SIZE}-fixed"
+            blob["gate_name"] = GATE_NAME
             blob["stage"] = stage_key
             save_atomic(blob, out_dir / "latest.pt")
-            print(f"    gate (fixed {GATE_SIZE}x{GATE_SIZE} duel vs OSLA): "
+            print(f"    gate (fixed {GATE_SIZE}x{GATE_SIZE} duel vs crazy): "
                   f"{ref.record}"
                   f"{'  <- new best' if gate > best else f'  (best {best:.1%})'}")
+
+            # --- keep Elo honest ------------------------------------------
+            # Elo against a pool of one's own snapshots is a closed loop that
+            # can manufacture rating indefinitely: run 2 reached +842 while
+            # sitting at 52% against ScriptedBot, whose anchor says that is
+            # worth about 0. The only games tied to an external reference were
+            # the ~6% of iterations that happened to draw a scripted opponent,
+            # so the inflation took 800 iterations to start correcting.
+            #
+            # The eval already plays 32 games against ScriptedBot and threw the
+            # results away. Feeding them to the anchor costs nothing and gives
+            # the rating a fixed point at every eval instead of every 15th
+            # iteration.
+            anchor = next((m for m in league.scripted), None)
+            if anchor is None:
+                anchor = league.add_scripted("scripted", lambda s: ScriptedBot(seed=s))
+            before = league.main_elo
+            league.record_results(anchor, [1.0] * round(vs_scr.score)
+                                  + [0.0] * (vs_scr.games - round(vs_scr.score)))
+            print(f"    anchored on {vs_scr.games} scripted games: "
+                  f"elo {before:+.0f} -> {league.main_elo:+.0f}")
             if gate > best:
                 best = gate
                 blob["best"] = best

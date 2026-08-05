@@ -258,10 +258,11 @@ def test_match_rotates_the_agent_through_every_seat():
     from polyengine.agents.random_agent import RandomAgent
     from polytrain.evaluate import play_pair
 
-    scores = play_pair(RandomAgent(seed=1), RandomAgent(seed=2), seed=3,
-                       size=14, max_steps=120,
-                       tribes=("imperius", "bardur", "kickoo"), n_players=3)
+    scores, techs = play_pair(RandomAgent(seed=1), RandomAgent(seed=2), seed=3,
+                              size=14, max_steps=120,
+                              tribes=("imperius", "bardur", "kickoo"), n_players=3)
     assert len(scores) == 3
+    assert len(techs) == 3 and all(len(t) == 2 for t in techs)
 
 
 def test_eval_axes_are_not_aliased():

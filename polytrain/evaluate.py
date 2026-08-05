@@ -25,7 +25,7 @@ from polyengine.core.game import Game
 
 def play_pair(agent_a, agent_b, seed: int, size: int, max_steps: int = 800,
               map_type: str = "drylands", tribes=None,
-              n_players: int = 2) -> tuple[float, ...]:
+              n_players: int = 2) -> tuple[tuple, tuple]:
     """Play one map once per seat, rotating A through all of them.
 
     In a duel this is the mirrored pair it always was: the same map twice with
@@ -34,9 +34,10 @@ def play_pair(agent_a, agent_b, seed: int, size: int, max_steps: int = 800,
     — A takes each seat in turn and B fills the rest — so a lucky corner of the
     map is credited to every agent equally rather than to whoever drew it.
 
-    Returns A's score in each game, so the caller can average however it likes.
+    Returns `(scores, techs)`: A's score in each game so the caller can average
+    however it likes, and `(A's techs, best opponent's techs)` per game.
     """
-    scores = []
+    scores, techs = [], []
     for a_seat in range(n_players):
         game = Game.new(size=size, seed=seed, map_type=map_type,
                         tribes=list(tribes) if tribes else None)
@@ -44,6 +45,13 @@ def play_pair(agent_a, agent_b, seed: int, size: int, max_steps: int = 800,
         if a_seat >= seats:
             break
         agents = {p: (agent_a if p == a_seat else agent_b) for p in range(seats)}
+        # A difficulty handicap is granted once, before play. Without this a
+        # `crazy` ScriptedBot is just a normal one wearing the name — its
+        # aggression is in the policy but its +3 stars per turn are not.
+        for p, ag in agents.items():
+            handicap = getattr(ag, "apply_handicap", None)
+            if handicap:
+                handicap(game, p)
         steps = 0
         while not game.is_terminal() and steps < max_steps:
             game.step(agents[game.current_player].act(game))
@@ -57,7 +65,16 @@ def play_pair(agent_a, agent_b, seed: int, size: int, max_steps: int = 800,
             # thing with more than two tribes on the board.
             m = material(game, a_seat)
             scores.append(1.0 if m > 0 else (0.5 if m == 0 else 0.0))
-    return tuple(scores)
+        # Technology is 100 score points per tier — the densest thing on the
+        # board — and the net was measured researching 3.1 techs where a
+        # *random* player got 6.4. That is invisible in a win rate, and it is
+        # what loses turn-capped games, so it gets counted here.
+        s = game.state
+        mine = bin(int(s.tech[a_seat])).count("1")
+        theirs = max((bin(int(s.tech[p])).count("1")
+                      for p in range(seats) if p != a_seat), default=0)
+        techs.append((mine, theirs))
+    return tuple(scores), tuple(techs)
 
 
 @dataclass
@@ -69,6 +86,10 @@ class MatchResult:
     # what tells you *where* the agent is weak, which is the whole reason for
     # rotating size, map type and seat count in the first place.
     buckets: dict = field(default_factory=dict)
+    # (mean techs researched by A, mean by the strongest opponent). Technology
+    # is the densest thing on the scoreboard at 100 points per tier, and a win
+    # rate cannot show that the net is being out-teched by a random player.
+    techs: tuple = (0.0, 0.0)
 
     @property
     def win_rate(self) -> float:
@@ -142,6 +163,8 @@ def play_match(agent_a, agent_b, n_pairs: int, size: int, seed: int = 12345,
     players = tuple(players) if players else (2,)
     total, games = 0.0, 0
     buckets: dict[tuple, list[float]] = {}
+    tech_mine: list[int] = []
+    tech_theirs: list[int] = []
     # Every (map, size, seats) combination, in a fixed shuffled order.
     #
     # Advancing each axis with `i % len(axis)` looked fine and was wrong: two
@@ -166,15 +189,19 @@ def play_match(agent_a, agent_b, n_pairs: int, size: int, seed: int = 12345,
             rng = random.Random(seed * 1_000_003 + i)
             pool = (rng.sample(list(tribes), np_) if np_ <= len(tribes)
                     else [rng.choice(list(tribes)) for _ in range(np_)])
-        scores = play_pair(agent_a, agent_b, seed + i, sz, max_steps,
-                           map_type=kind, tribes=pool, n_players=np_)
+        scores, techs = play_pair(agent_a, agent_b, seed + i, sz, max_steps,
+                                  map_type=kind, tribes=pool, n_players=np_)
+        tech_mine += [t[0] for t in techs]
+        tech_theirs += [t[1] for t in techs]
         total += sum(scores)
         games += len(scores)
         buckets.setdefault(("size", sz), []).extend(scores)
         buckets.setdefault(("map", kind), []).extend(scores)
         buckets.setdefault(("players", np_), []).extend(scores)
+    mean = lambda xs: (sum(xs) / len(xs)) if xs else 0.0
     return MatchResult(games=games, score=total, pairs=n_pairs,
-                       buckets={k: (sum(v), len(v)) for k, v in buckets.items()})
+                       buckets={k: (sum(v), len(v)) for k, v in buckets.items()},
+                       techs=(mean(tech_mine), mean(tech_theirs)))
 
 
 # --- SPRT ----------------------------------------------------------------------
@@ -226,9 +253,9 @@ def sprt_match(agent_a, agent_b, size: int, max_pairs: int = 200,
     games = 0
     result = SPRTResult("continue", 0.0, 0.0, 0.0, 0)
     for i in range(max_pairs):
-        s0, s1 = play_pair(agent_a, agent_b, seed + i, size, max_steps)
-        total += s0 + s1
-        games += 2
+        scores, _ = play_pair(agent_a, agent_b, seed + i, size, max_steps)
+        total += sum(scores)
+        games += len(scores)
         result = sprt(total, games, p0, p1)
         if result.decided:
             break
