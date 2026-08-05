@@ -165,11 +165,28 @@ def test_exploiter_does_not_reset_while_losing():
 
 
 # --- evaluation protocol -------------------------------------------------------
-def test_match_result_reports_stderr_and_elo():
+def test_match_result_reports_the_record_and_elo():
     m = MatchResult(games=200, score=120.0, pairs=100)
     assert m.win_rate == pytest.approx(0.6)
-    assert 0.0 < m.stderr < 0.05
+    assert m.record == "120/200"
     assert m.elo_diff > 0
+
+
+def test_the_record_shows_draws_and_drops_trailing_zeros():
+    """Half points are real — a drawn game scores 0.5 — so the record has to
+    show them, without printing "31.0/32" for a clean result."""
+    assert MatchResult(games=32, score=31.0, pairs=16).record == "31/32"
+    assert MatchResult(games=32, score=29.5, pairs=16).record == "29.5/32"
+    assert MatchResult(games=0, score=0.0, pairs=0).record == "0/0"
+
+
+def test_match_result_has_no_error_bar():
+    """The binomial standard error described the wrong quantity: the eval plays
+    the same fixed maps every time, so the games are not independent draws.
+    Measured over five identical repeats, the Random match returned one value
+    all five times against a quoted +-3.1%, while Scripted swung 19 points
+    against a quoted +-8.8%. It is gone rather than merely unprinted."""
+    assert not hasattr(MatchResult(games=2, score=1.0, pairs=1), "stderr")
 
 
 def test_even_match_is_zero_elo():

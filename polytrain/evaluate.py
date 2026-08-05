@@ -86,16 +86,31 @@ class MatchResult:
             rows = self.breakdown(axis)
             if len(rows) > 1:          # a single bucket says nothing new
                 parts.append(axis + " " + " ".join(
-                    f"{v}:{100 * wr:.0f}%" for v, wr, _ in rows))
+                    f"{v}:{self._frac(wr * n)}/{n}" for v, wr, n in rows))
         return " | ".join(parts)
 
+    @staticmethod
+    def _frac(x: float) -> str:
+        return f"{x:.1f}".rstrip("0").rstrip(".")
+
     @property
-    def stderr(self) -> float:
-        """Standard error of the win rate (binomial approximation)."""
-        if self.games < 2:
-            return float("nan")
-        p = self.win_rate
-        return math.sqrt(max(p * (1 - p), 1e-9) / self.games)
+    def record(self) -> str:
+        """Points out of games — "29.5/32" — which is what was actually played.
+
+        This replaces a percentage with a binomial standard error, which was
+        worse than no error bar at all. The binomial formula assumes each game
+        is an independent draw; these are the *same fixed maps* every eval, so
+        it describes the wrong quantity in both directions. Measured on five
+        identical repeats (same weights, same maps): the Random match returned
+        the same number all five times against a quoted +-3.1%, while Scripted
+        swung 56.2%-75.0% against a quoted +-8.8%.
+
+        A raw fraction cannot mislead like that. It shows the resolution (32
+        games move in steps of 1/32), and it makes saturation obvious: 31/32
+        says "one specific map is lost" rather than "96.9%, give or take".
+        """
+        pts = f"{self.score:.1f}".rstrip("0").rstrip(".")
+        return f"{pts}/{self.games}"
 
     @property
     def elo_diff(self) -> float:

@@ -429,9 +429,9 @@ def main() -> None:
                                  args.size, seed=5353, max_steps=400, **ev)
             vs_scr = play_match(agent, ScriptedBot(seed=7), args.eval_pairs,
                                 args.size, seed=6464, max_steps=400, **ev)
-            print(f"  eval@{it}: Random {vs_rand.win_rate:5.1%}+-{vs_rand.stderr:.1%} | "
-                  f"OSLA {vs_osla.win_rate:5.1%}+-{vs_osla.stderr:.1%} (held out) | "
-                  f"Scripted {vs_scr.win_rate:5.1%}+-{vs_scr.stderr:.1%} | "
+            print(f"  eval@{it}: Random {vs_rand.record:>9} | "
+                  f"OSLA {vs_osla.record:>9} (held out) | "
+                  f"Scripted {vs_scr.record:>9} | "
                   f"elo {league.main_elo:+.0f}")
             # Where it is weak, not just how weak. One average over a curriculum
             # hides 90% on the small duels and 30% on the crowded boards.
@@ -465,7 +465,7 @@ def main() -> None:
             blob["stage"] = stage_key
             save_atomic(blob, out_dir / "latest.pt")
             print(f"    gate (fixed {GATE_SIZE}x{GATE_SIZE} duel vs OSLA): "
-                  f"{gate:5.1%}+-{ref.stderr:.1%}"
+                  f"{ref.record}"
                   f"{'  <- new best' if gate > best else f'  (best {best:.1%})'}")
             if gate > best:
                 best = gate
