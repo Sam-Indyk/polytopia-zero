@@ -43,7 +43,11 @@ class BatchEncoder:
         self.n_planes = O.n_planes(rules)
         self.subtype_dim = M.subtype_dim(rules)
 
-    def encode(self, pairs: list[tuple[object, int]]) -> dict:
+    def encode(self, pairs: list[tuple[object, int]],
+               with_masks: bool = True) -> dict:
+        """`with_masks=False` skips building `ActionMasks`, which is most of the
+        cost here. Only the value head needs encoding without them — it has no
+        action to constrain."""
         rules = self.rules
         sizes = [s.size for s, _ in pairs]
         pad = self.pad_to or max(sizes)
@@ -57,6 +61,8 @@ class BatchEncoder:
         all_masks = []
         for i, (state, player) in enumerate(pairs):
             valid[i, 0, :state.size, :state.size] = 1.0
+            if not with_masks:
+                continue
             am = M.ActionMasks(state, player, rules)
             type_mask[i] = am.types()
             all_masks.append(am)
@@ -106,6 +112,22 @@ class ARPolicy:
         self._sub_types = np.array(sorted(M.NEEDS_SUBTYPE), dtype=np.int64)
 
     # --- acting ---------------------------------------------------------------
+    @torch.no_grad()
+    def state_value(self, pairs: list[tuple[object, int]]) -> np.ndarray:
+        """V(s) for each (state, player), without sampling an action.
+
+        GAE needs this at a rollout boundary: the episode continues into the
+        next segment, so the bootstrap has to come from the value of the state
+        the player will act from next. Going through `act` would work but pays
+        for four masked head samples per game to throw them all away, and the
+        masks are the expensive part.
+        """
+        if not pairs:
+            return np.zeros(0, dtype=np.float32)
+        batch = self.enc.encode(pairs, with_masks=False)
+        _, ctx = self.net.trunk(batch["spatial"], batch["global"], batch["valid"])
+        return self.net.value(ctx).detach().cpu().numpy().reshape(-1)
+
     @torch.no_grad()
     def act(self, pairs: list[tuple[object, int]], greedy: bool = False,
             generator=None) -> tuple[list[Action], dict]:

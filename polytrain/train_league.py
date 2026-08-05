@@ -37,6 +37,30 @@ from polytrain.rollout import collect
 from polytrain.train import NetAgent, build_policy
 
 
+# The promotion yardstick. Fixed for the life of a run — a gate that moves with
+# the curriculum cannot say which checkpoint is best, only which is best right
+# now. 11x11 duels across every map type: big enough that naval play matters
+# (continents and waterworld are where the first run was weakest, at 22%), small
+# enough that the eval is cheap, and never saturating the way 9x9 drylands did.
+GATE_SIZE = 11
+GATE_MAP_TYPES = ("drylands", "lakes", "continents",
+                  "archipelago", "pangea", "waterworld")
+
+
+def shaping_for(it: int, scale: float, anneal: int, floor: float) -> float:
+    """Reward-shaping weight at iteration `it`, decaying to a *floor*, not zero.
+
+    The shaping term is potential-based, so it cannot change which policy is
+    optimal — only how quickly the value function finds it. Annealing it to
+    exactly zero was fine while episodes were short and terminal rewards
+    plentiful (23 per iteration on 9x9). On the boards the curriculum reaches
+    they arrive about four times per iteration across 48 games, and a value
+    function updated 160 steps at a time with almost no terminal anchor drifts.
+    """
+    decay = max(0.0, 1.0 - it / max(1, anneal))
+    return scale * (floor + (1.0 - floor) * decay)
+
+
 def make_opponent_fn(member, policy_template, rules, device):
     """Turn a league member into `opponent(games) -> [Action]`."""
     if member.kind == "scripted":
@@ -124,6 +148,14 @@ def main() -> None:
     ap.add_argument("--entropy", type=float, default=0.01)
     ap.add_argument("--shaping", type=float, default=0.01)
     ap.add_argument("--shaping-anneal", type=int, default=100)
+    ap.add_argument("--shaping-floor", type=float, default=0.25,
+                    help="fraction of --shaping that survives the anneal. "
+                         "Annealing to exactly zero leaves the terminal reward "
+                         "as the only signal, and on large boards that arrives "
+                         "about four times per iteration across 48 games "
+                         "(measured: 23/iteration on 9x9, 4.4 on 14x14). The "
+                         "shaping is potential-based, so a standing floor does "
+                         "not change which policy is optimal.")
     ap.add_argument("--snapshot-every", type=int, default=10)
     ap.add_argument("--league-size", type=int, default=20)
     ap.add_argument("--league-scripted", action="store_true",
@@ -228,7 +260,6 @@ def main() -> None:
 
     start_iter = 1
     best = -1.0
-    resumed_stage = None
     if resume_from:
         blob = load_resumable(resume_from, map_location=device)
         if blob is None:
@@ -250,10 +281,6 @@ def main() -> None:
                 torch.set_rng_state(
                     torch.as_tensor(blob["torch_rng"], dtype=torch.uint8))
             best = blob.get("best", -1.0)
-            # Which curriculum stage that `best` was measured on. Without it a
-            # restart mid-stage re-anchors best.pt to the first eval after the
-            # restart, discarding the best checkpoint of the stage so far.
-            resumed_stage = blob.get("stage")
             print(f"resumed {resume_from} at iteration {start_iter} "
                   f"(elo {blob.get('elo', 0):+.0f}, scripted {blob.get('wr_scripted')})")
 
@@ -263,11 +290,20 @@ def main() -> None:
             print(f"  league restored: {len(league.snapshots)} snapshots, "
                   f"elo {league.main_elo:+.0f}")
 
-    # Never let a resumed run overwrite a better best.pt with a worse one.
+    # Never let a resumed run overwrite a better best.pt with a worse one --
+    # unless the gate itself changed, in which case the old number is not a
+    # measurement of the same thing and keeping it would silently freeze
+    # promotion for the rest of the run.
+    gate_name = f"osla@{GATE_SIZE}x{GATE_SIZE}-fixed"
     prev_best = load_resumable(out_dir / "best.pt", map_location="cpu")
     if prev_best is not None:
-        prior = prev_best.get("gate", prev_best.get("wr_scripted"))
-        best = max(best, prior if prior is not None else -1.0)
+        if prev_best.get("gate_name") != gate_name:
+            print(f"  best.pt was gated on {prev_best.get('gate_name')!r}, now "
+                  f"{gate_name!r}; the old score is not comparable, resetting")
+            best = -1.0
+        else:
+            prior = prev_best.get("gate", prev_best.get("wr_scripted"))
+            best = max(best, prior if prior is not None else -1.0)
 
     games_self = None
     games_vs = None
@@ -284,10 +320,10 @@ def main() -> None:
 
     stage_size = None
     stage_key = None
-    best_stage = resumed_stage
     opp_cache: dict[str, tuple[str, object]] = {}
     for it in range(start_iter, args.iters + 1):
-        shaping = args.shaping * max(0.0, 1 - it / max(1, args.shaping_anneal))
+        shaping = shaping_for(it, args.shaping, args.shaping_anneal,
+                              args.shaping_floor)
         member = league.sample(rng)
 
         size, specs = args.size, None
@@ -402,26 +438,35 @@ def main() -> None:
             detail = vs_osla.format_breakdown()
             if detail:
                 print(f"    OSLA by bucket: {detail}")
-            # Select on a gate we do NOT train against. With --league-scripted,
-            # ScriptedBot is a training opponent, so promoting on it selects for
-            # having just sparred with it rather than for general strength.
-            gate = vs_osla.win_rate if args.league_scripted else vs_scr.win_rate
+            # --- the promotion gate --------------------------------------
+            # Measured on a FIXED reference: a held-out opponent on a fixed
+            # distribution that never moves with the curriculum.
+            #
+            # The eval above deliberately follows the curriculum, which makes it
+            # the wrong thing to promote on. On the first real run the net hit
+            # 100% vs OSLA at iteration 275 on 9x9 duels; the curriculum then
+            # widened and the same policy scored 55-70% on the harder
+            # distribution, so `best.pt` froze at iteration ~275 and stayed a
+            # stage-1 checkpoint for 1,800 iterations. Resetting the bar per
+            # stage does not fix it either: strength actually peaked around
+            # iteration 1,340 and then collapsed, and a per-stage best keeps the
+            # best of the *current* stage, which by then was much weaker.
+            # Only a yardstick that never changes can say "this is the best
+            # checkpoint of the run".
+            ref = play_match(agent, GreedyOSLA(seed=11), args.eval_pairs,
+                             GATE_SIZE, seed=9191, max_steps=400,
+                             sizes=(GATE_SIZE,), players=(2,),
+                             map_types=GATE_MAP_TYPES)
+            gate = ref.win_rate
             blob = snapshot_blob(it, league.main_elo, vs_scr.win_rate,
                                  vs_osla.win_rate)
             blob["gate"] = gate
-            blob["gate_name"] = "osla" if args.league_scripted else "scripted"
+            blob["gate_name"] = f"osla@{GATE_SIZE}x{GATE_SIZE}-fixed"
             blob["stage"] = stage_key
             save_atomic(blob, out_dir / "latest.pt")
-            # The gate is only comparable *within* a curriculum stage. Measured
-            # on the first real run: the net hit 100% vs OSLA at iteration 275
-            # on 9x9 duels, then the curriculum widened and the same policy
-            # scored 55-70% on the harder distribution — so `best.pt` froze at
-            # iteration ~275 and stayed a stage-1 checkpoint for 1,800
-            # iterations while the agent got materially stronger. Reset the bar
-            # when the stage changes; a checkpoint that leads its own stage is
-            # the best thing this signal can honestly say.
-            if stage_key != best_stage:
-                best, best_stage = -1.0, stage_key
+            print(f"    gate (fixed {GATE_SIZE}x{GATE_SIZE} duel vs OSLA): "
+                  f"{gate:5.1%}+-{ref.stderr:.1%}"
+                  f"{'  <- new best' if gate > best else f'  (best {best:.1%})'}")
             if gate > best:
                 best = gate
                 blob["best"] = best

@@ -7,6 +7,8 @@ where the right answer can be computed by hand.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -192,3 +194,131 @@ class TestCrashSafeCheckpoints:
     def test_load_resumable_returns_none_when_nothing_readable(self, tmp_path):
         from polytrain.checkpoint import load_resumable
         assert load_resumable(tmp_path / "absent.pt") is None
+
+
+# --- GAE across rollout boundaries --------------------------------------------
+#
+# A rollout is a fixed number of micro-steps, not a whole game, so most
+# trajectories are cut mid-episode. What happens at that cut decides whether a
+# terminal reward can influence anything before the last segment.
+
+def test_gae_bootstraps_the_boundary_from_the_next_state():
+    """The bug that broke the first real run.
+
+    The boundary used to bootstrap from `values[i]` — the value of the state the
+    transition *left*, not the one it arrived at — making
+    `delta = r + (gamma - 1) * V(s)`, essentially zero, and self-referential. No
+    information could cross a segment boundary, so on large boards (episodes of
+    ~1,235 micro-steps against a 160-step rollout) seven eighths of every
+    trajectory was cut off from the only unbiased signal in the run.
+    """
+    import numpy as np
+
+    from polytrain.rollout import Rollout, _gae
+
+    class FakePolicy:
+        """Bootstraps every open chain at a large positive value."""
+        def state_value(self, pairs):
+            return np.full(len(pairs), 10.0, dtype=np.float32)
+
+    import torch
+
+    def build():
+        roll = Rollout()
+        for _ in range(3):
+            roll.logp.append(torch.zeros(1))
+            roll.traj.append((0, 0))
+            roll.value.append(torch.zeros(1))     # as `collect` stores it
+            roll.reward.append(0.0)
+            roll.terminal.append(False)
+        return roll
+
+    games = [type("G", (), {"state": object()})()]
+    roll = build()
+    adv_boot, ret_boot = _gae(roll, FakePolicy(), games, gamma=0.99, lam=0.95)
+    # Without a policy there is nothing to bootstrap from and the old
+    # self-referential behaviour is the fallback.
+    adv_none, _ = _gae(build(), None, None, gamma=0.99, lam=0.95)
+
+    assert adv_boot[-1] > 9.0, "boundary did not bootstrap from the next state"
+    assert abs(adv_none[-1]) < 1e-6, "fallback should be the degenerate case"
+    # And the bootstrapped value must propagate *backwards* through the chain,
+    # which is the whole point.
+    assert adv_boot[0] > 8.0, "value did not travel back across the segment"
+
+
+def test_gae_still_zeroes_the_bootstrap_at_a_real_terminal():
+    """A finished game has no future to bootstrap from; only the cut does."""
+    import numpy as np
+
+    from polytrain.rollout import Rollout, _gae
+
+    class FakePolicy:
+        def state_value(self, pairs):
+            return np.full(len(pairs), 10.0, dtype=np.float32)
+
+    import torch
+
+    roll = Rollout()
+    for r, term in ((0.0, False), (1.0, True)):
+        roll.logp.append(torch.zeros(1))
+        roll.traj.append((0, 0))
+        roll.value.append(torch.zeros(1))
+        roll.reward.append(r)
+        roll.terminal.append(term)
+    games = [type("G", (), {"state": object()})()]
+    adv, ret = _gae(roll, FakePolicy(), games, gamma=0.99, lam=0.95)
+    # The terminal transition sees its own reward and nothing beyond it.
+    assert abs(adv[-1] - 1.0) < 1e-9, "terminal bootstrapped from a future"
+
+
+def test_state_value_matches_the_value_act_reports():
+    """`state_value` skips the action masks; it must not skip the value."""
+    import torch
+
+    from polyengine.core.game import Game
+    from polyengine.core.rules import load_ruleset
+    from polytrain.train import build_policy
+
+    rules = load_ruleset()
+    policy, _ = build_policy(rules, torch.device("cpu"), small=True)
+    g = Game.new(size=9, seed=3)
+    pairs = [(g.state, 0)]
+    _, info = policy.act(pairs)
+    from_act = float(info["value"].reshape(-1)[0])
+    from_value = float(policy.state_value(pairs)[0])
+    assert abs(from_act - from_value) < 1e-4, (from_act, from_value)
+
+
+def test_shaping_decays_to_a_floor_not_to_zero():
+    """Terminal rewards get rare as boards grow; the dense signal has to stay.
+
+    Measured on the first real run: 23 episodes per iteration on 9x9, 4.4 on
+    14x14, and 1.7 through the collapse. With shaping at exactly zero from
+    iteration 100 the value function had almost nothing to learn from."""
+    from polytrain.train_league import shaping_for
+
+    s, anneal, floor = 0.01, 100, 0.25
+    assert shaping_for(0, s, anneal, floor) == pytest.approx(s)
+    assert shaping_for(50, s, anneal, floor) == pytest.approx(s * 0.625)
+    late = shaping_for(100, s, anneal, floor)
+    assert late == pytest.approx(s * floor)
+    assert shaping_for(5000, s, anneal, floor) == pytest.approx(late), \
+        "must hold the floor, not keep decaying"
+    assert late > 0.0, "annealing to zero is the bug this exists to prevent"
+    # floor=0 reproduces the old schedule exactly, so the flag is a superset.
+    assert shaping_for(100, s, anneal, 0.0) == pytest.approx(0.0)
+
+
+def test_the_promotion_gate_is_fixed_for_the_life_of_a_run():
+    """A gate that follows the curriculum cannot name the best checkpoint.
+
+    On the first run it froze best.pt at iteration ~275 while true strength
+    peaked near 1,340 and then collapsed."""
+    from polytrain import train_league as T
+
+    assert isinstance(T.GATE_SIZE, int)
+    assert len(T.GATE_MAP_TYPES) == 6, "the gate should span every map type"
+    src = (Path(T.__file__).read_text(encoding="utf-8"))
+    assert "sizes=(GATE_SIZE,)" in src and "players=(2,)" in src, \
+        "the gate eval must pin size and seat count, not read the stage"

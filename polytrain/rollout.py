@@ -313,7 +313,26 @@ def _score_winner(game) -> int:
 
 
 def _gae(roll: Rollout, policy, games, gamma: float, lam: float):
-    """Generalised advantage estimation along each (game, player) chain."""
+    """Generalised advantage estimation along each (game, player) chain.
+
+    The subtle part is the **segment boundary**: a rollout is a fixed number of
+    micro-steps, not a whole game, so most chains are cut mid-episode and have
+    to bootstrap from the value of the state the player will act from next.
+
+    That bootstrap used to read `values[i]` — the value of the *current* state,
+    not the next one — which makes `delta = r + (gamma - 1) * V(s)`, very nearly
+    zero. Self-referential, so **no information could travel backwards across a
+    boundary at all**: the terminal reward could only ever reach the segment it
+    landed in. That was survivable while episodes were short. It stopped being
+    survivable when the curriculum grew the boards: measured on the first real
+    run, episodes went from 256 micro-steps in stage 1 to 1,235 in stage 3
+    against a 160-step rollout, so an episode spanned about eight segments and
+    seven eighths of every trajectory was cut off from the only unbiased signal
+    in the run. Strength peaked around iteration 1,340 and fell apart after.
+
+    `policy` and `games` were already parameters, for exactly this, and were
+    never used.
+    """
     n = len(roll)
     values = np.array([float(v) for v in roll.value], dtype=np.float64)
     rewards = np.array(roll.reward, dtype=np.float64)
@@ -322,6 +341,19 @@ def _gae(roll: Rollout, policy, games, gamma: float, lam: float):
     chains: dict[tuple[int, int], list[int]] = defaultdict(list)
     for i, key in enumerate(roll.traj):
         chains[key].append(i)
+
+    # One batched value pass for every chain still running at the cut. A chain
+    # whose last transition is terminal needs no bootstrap, and a game that was
+    # replaced after finishing already terminated its chain.
+    open_chains = [key for key, idxs in chains.items() if not roll.terminal[idxs[-1]]]
+    boot: dict[tuple[int, int], float] = {}
+    if open_chains and games is not None and policy is not None:
+        pairs = [(games[gi].state, p) for gi, p in open_chains
+                 if gi < len(games)]
+        keys = [k for k in open_chains if k[0] < len(games)]
+        if pairs:
+            vals = policy.state_value(pairs)
+            boot = {k: float(v) for k, v in zip(keys, vals)}
 
     for key, idxs in chains.items():
         last_gae = 0.0
@@ -332,9 +364,9 @@ def _gae(roll: Rollout, policy, games, gamma: float, lam: float):
             elif pos + 1 < len(idxs):
                 next_value, next_nonterminal = values[idxs[pos + 1]], 1.0
             else:
-                # Segment boundary: bootstrap from the stored value (the game
-                # continues into the next rollout).
-                next_value, next_nonterminal = values[i], 1.0
+                # Segment boundary: the game continues into the next rollout,
+                # so bootstrap from where this player will act next.
+                next_value, next_nonterminal = boot.get(key, values[i]), 1.0
             delta = rewards[i] + gamma * next_value * next_nonterminal - values[i]
             last_gae = delta + gamma * lam * next_nonterminal * last_gae
             adv[i] = last_gae
