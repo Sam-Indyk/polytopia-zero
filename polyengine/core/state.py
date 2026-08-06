@@ -117,7 +117,14 @@ class GameState:
         self.unit_moved = np.zeros(n, dtype=C.DT_FLAG)
         self.unit_attacked = np.zeros(n, dtype=C.DT_FLAG)
         self.unit_veteran = np.zeros(n, dtype=C.DT_FLAG)
-        self.unit_kills = np.zeros(n, dtype=np.int8)
+        # int16, not int8. A veteran needs three kills, so eight bits looks like
+        # plenty -- but kills accumulate for the life of the unit and nothing
+        # resets them. In a long game a Knight with `persist` (it attacks again
+        # after every kill) runs past 127 and wraps negative, at which point
+        # `can_promote` refuses forever because the count is below three. Found
+        # by removing the turn cap; unreachable while games end in a few hundred
+        # turns, which is why it survived.
+        self.unit_kills = np.zeros(n, dtype=np.int16)
         # Tile of the city supporting this unit (-1 = unsupported/independent).
         # A city supports at most `level + 1` units, so this is what makes unit
         # count a scarce resource rather than a function of spare stars.

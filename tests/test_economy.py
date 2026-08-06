@@ -487,3 +487,30 @@ class TestIncomeCorrections:
         s.unit_type[tile] = R.unit_id["warrior"]
         s.unit_owner[tile] = 0
         assert not is_under_siege(s, tile)
+
+
+def test_stars_do_not_overflow_in_a_long_game():
+    """Stars are the one player counter with no ceiling in the rules — nothing
+    forces you to spend them — so a hoarding bot accumulates forever.
+
+    At int16 they wrapped negative at turn 1595 of a no-cap duel, after which
+    every `cost > stars` check refuses and the player silently freezes: it can
+    no longer build, train or research. That reads as a strategic stalemate and
+    is an integer bug.
+    """
+    import numpy as np
+
+    from polyengine.core import constants as C
+    from polyengine.core.game import Game
+
+    assert np.iinfo(C.DT_STARS).max > 2_000_000, \
+        "stars need headroom for a game with no turn cap"
+    g = Game.new(size=11, seed=3)
+    # A hoard far beyond anything int16 could hold, through a round trip.
+    g.state.stars[0] = 5_000_000
+    assert int(g.state.stars[0]) == 5_000_000
+    g.state.stars[0] += 1000
+    assert int(g.state.stars[0]) == 5_001_000, "stars overflowed"
+    from polyengine.core.state import GameState
+    back = GameState.from_dict(g.state.to_dict(), g.rules)
+    assert int(back.stars[0]) == 5_001_000, "overflowed through serialisation"

@@ -270,7 +270,19 @@ DT_UNIT_TYPE = np.int8
 DT_HP = np.int16
 DT_FLAG = np.uint8
 DT_STALE = np.int16
-DT_STARS = np.int16
+# int32, not int16. Stars are the one player counter with no ceiling in the
+# rules: nothing forces you to spend them, and a bot that hoards accumulates
+# income every turn forever. Measured on a no-turn-cap ScriptedBot duel, they
+# hit int16's 32,767 at **turn 1595** and wrapped to -32,751 -- after which
+# every `cost > stars` check refuses and the player can no longer build, train
+# or research anything. The game does not crash; it silently freezes into a
+# stalemate that looks like a strategic dead end.
+#
+# Unreachable under the turn caps training uses (100-600 turns peaks in the
+# low thousands), which is why it survived this long. It is reachable the
+# moment anyone asks "what happens with no cap?", which is exactly the question
+# that found it.
+DT_STARS = np.int32
 DT_TECH = np.uint32
 DT_SCORE = np.int32
 
