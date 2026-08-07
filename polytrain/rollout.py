@@ -94,8 +94,12 @@ def _make_game(size: int, seed: int, map_types, spec=None) -> Game:
     an 11x11 Imperius-versus-Bardur duel for the whole of training.
     """
     if spec is not None:
+        cap = None
+        if getattr(spec, "turn_cap_scale", 1.0) != 1.0:
+            cap = max(C.TURN_CAP_MIN, int(round(
+                C.turn_cap_for(spec.size, spec.n_players) * spec.turn_cap_scale)))
         return Game.new(size=spec.size, seed=seed, map_type=spec.map_type,
-                        tribes=list(spec.tribes))
+                        tribes=list(spec.tribes), turn_cap=cap)
     kind = map_types[seed % len(map_types)]
     return Game.new(size=size, seed=seed, map_type=kind)
 
@@ -181,9 +185,21 @@ def collect(policy, n_games: int, rollout_steps: int, size: int = 9,
             roll.terminal.append(False)
 
             if shaping:
-                mat = evaluate(game, player)
+                # Strictly potential-based: gamma * Phi(s') - Phi(s), and scaled
+                # into win-equivalents. Both matter.
+                #
+                # Without the gamma this is not the Ng-Harada-Russell form and
+                # the policy-invariance guarantee does not hold -- the agent
+                # gains by *sitting* on a high potential rather than converting
+                # it, which is precisely the stall-and-hoard behaviour we were
+                # trying to remove. Without the scale, Phi is in raw score
+                # points (thousands), and shaping measured **96% of all reward
+                # magnitude** -- the heuristic was the objective and the game
+                # outcome was a rounding error.
+                mat = evaluate(game, player) / C.SHAPING_SCALE
                 if key in prev_material:
-                    roll.reward[last_idx[key]] += shaping * (mat - prev_material[key])
+                    roll.reward[last_idx[key]] += shaping * (
+                        gamma * mat - prev_material[key])
                 prev_material[key] = mat
 
             last_idx[key] = idx
@@ -263,6 +279,61 @@ def pairwise_score(game, seat: int) -> float:
                for q in range(n) if q != seat) / (n - 1)
 
 
+def conquered(game) -> int:
+    """The seat that destroyed everyone, or -1 if the game merely ran out.
+
+    `Game.winner()` deliberately conflates the two — it returns the score
+    leader at the cap, because that is how a capped game is adjudicated. For
+    *training* they must be told apart: one is winning Domination, the other is
+    having the most points when nobody won.
+    """
+    alive = [p for p in range(game.state.n_players) if game.owns_city(p)]
+    return alive[0] if len(alive) == 1 else -1
+
+
+def speed_factor(game) -> float:
+    """How much of a victory survives the time it took.
+
+    "Speed skills: 100% at 10 turns per enemy." A win at or inside par is worth
+    full value and decays toward `SPEED_FLOOR` after that, so a grinding
+    hundred-turn conquest still beats stalling by a wide margin but a decisive
+    one is plainly better. Without this the agent has no reason to ever finish:
+    a win on turn 300 pays exactly what a win on turn 20 does.
+    """
+    par = C.SPEED_PAR_TURNS_PER_ENEMY * max(1, game.state.n_players - 1)
+    turns = max(1, int(game.state.turn))
+    # Decays toward the floor rather than onto it: par/turns alone collapses to
+    # the floor almost immediately and stops distinguishing a 40-turn win from
+    # a 300-turn one.
+    return C.SPEED_FLOOR + (1.0 - C.SPEED_FLOOR) * min(1.0, par / turns)
+
+
+def terminal_rewards(game) -> list[float]:
+    """One reward per seat, with **victory worth far more than points**.
+
+    Three outcomes, deliberately far apart:
+
+      conquest      the winner takes +1 scaled by speed; everyone else -1
+      eliminated    -1, whether you came second or died on turn three
+      ran out       nobody won: +-STALL_REWARD by relative standing
+
+    The old rule was `2 * pairwise - 1` with `standing = (alive, score)`, which
+    made a score lead at the cap worth exactly as much as destroying the
+    opponent. Watching a trained net play showed precisely what that buys:
+    Warriors only, an early peace treaty, and monuments farmed to 2,800 points.
+    Every one of those is optimal under a reward that pays for points.
+    """
+    n = game.state.n_players
+    champion = conquered(game)
+    if champion >= 0:
+        speed = speed_factor(game)
+        return [speed if p == champion else -1.0 for p in range(n)]
+    # Nobody won. Rank still matters a little -- it is the only gradient left
+    # when a win is out of reach -- but it is worth a tenth of one.
+    return [C.STALL_REWARD * (2.0 * pairwise_score(game, p) - 1.0)
+            for p in range(n)]
+
+
 def _finish(game, gi, roll, last_idx, stats, length, learner_seat=None,
             seat_members=None):
     """Credit terminal reward to each stored player's final transition."""
@@ -283,18 +354,24 @@ def _finish(game, gi, roll, last_idx, stats, length, learner_seat=None,
                     continue
                 per.setdefault(name, []).append(
                     head_to_head(game, learner_seat, seat))
+    rewards = terminal_rewards(game)
+    stats.setdefault("conquests", 0)
+    stats.setdefault("stalls", 0)
+    if conquered(game) >= 0:
+        stats["conquests"] += 1
+    else:
+        stats["stalls"] += 1
+    # A treaty makes a game unwinnable by construction -- neither side may take
+    # the other's cities -- so peace-locked games are exactly the ones that run
+    # the cap and pay nothing. Counted so the log can show it happening.
+    if any(int(v) for v in game.state.peace):
+        stats["peace_games"] = stats.get("peace_games", 0) + 1
     for p in range(game.state.n_players):
         key = (gi, p)
         if key not in last_idx:
             continue
-        idx = last_idx[key]
-        # Rank-based, not winner-take-all. With sixteen tribes the old rule gave
-        # an identical -1 to the runner-up and to whoever was eliminated on turn
-        # three, throwing away nearly all of the signal in a free-for-all.
-        # 2 * pairwise - 1 spans [-1, +1] and at N = 2 is exactly the old
-        # +1 / 0 / -1, so duel training is unchanged.
-        roll.reward[idx] += 2.0 * pairwise_score(game, p) - 1.0
-        roll.terminal[idx] = True
+        roll.reward[last_idx[key]] += rewards[p]
+        roll.terminal[last_idx[key]] = True
 
 
 def _score_winner(game) -> int:

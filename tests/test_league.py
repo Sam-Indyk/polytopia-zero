@@ -406,3 +406,78 @@ def test_seat_opponent_fn_gives_different_seats_different_members():
         game.state.current_player = seat
         fn([game], [0])
     assert [n for n, _ in seen] == ["A", "B", "A"], seen
+
+
+# --- victory is worth more than points ----------------------------------------
+#
+# Watching a trained net play showed Warriors only, an early peace treaty, and
+# all seven monuments farmed for 2,800 points. Every one of those was optimal
+# under a reward where leading on score at the turn cap paid the same as
+# destroying the opponent. These pin the separation.
+
+def _duel_won_by(seed=4, turn=20):
+    from polyengine.core.game import Game
+    g = Game.new(size=11, seed=seed)
+    s = g.state
+    s.turn = turn
+    s.city_owner[s.city_owner == 1] = -1
+    s.city_level[s.city_owner == -1] = 0
+    return g
+
+
+def test_conquest_pays_far_more_than_the_best_possible_stall():
+    from polyengine.core import constants as C
+    from polyengine.core.game import Game
+    from polytrain.rollout import terminal_rewards
+
+    won = terminal_rewards(_duel_won_by(turn=20))
+    assert won[0] == pytest.approx(1.0), "an on-par conquest is a full win"
+    assert won[1] == -1.0, "being eliminated is a full loss"
+
+    # The most lopsided possible cap-terminated game still pays a tenth of it.
+    stalled = Game.new(size=11, seed=4)
+    stalled.state.turn = stalled.state.turn_cap
+    best_stall = max(abs(r) for r in terminal_rewards(stalled))
+    assert best_stall <= C.STALL_REWARD + 1e-9
+    assert min(won) < 0 < max(won)
+    assert C.SPEED_FLOOR / C.STALL_REWARD >= 4.0, (
+        "even the slowest conquest must clearly beat the best stall")
+
+
+def test_a_slow_win_is_worth_less_than_a_fast_one():
+    """Without this, a win on turn 300 pays exactly what a win on turn 20 does
+    and nothing ever pushes the agent to finish."""
+    from polytrain.rollout import terminal_rewards
+    fast = terminal_rewards(_duel_won_by(turn=20))[0]
+    mid = terminal_rewards(_duel_won_by(turn=60))[0]
+    slow = terminal_rewards(_duel_won_by(turn=400))[0]
+    assert fast > mid > slow, (fast, mid, slow)
+    from polyengine.core import constants as C
+    assert slow >= C.SPEED_FLOOR, "a slow win is still a win"
+
+
+def test_a_cap_terminated_game_has_no_winner():
+    """`Game.winner()` names a score leader at the cap because that is how a
+    capped game is adjudicated. Training must not confuse that with Domination."""
+    from polyengine.core.game import Game
+    from polytrain.rollout import conquered
+
+    g = Game.new(size=11, seed=4)
+    g.state.turn = g.state.turn_cap
+    assert g.is_terminal()
+    assert g.winner() >= 0, "the engine still adjudicates a capped game"
+    assert conquered(g) == -1, "but nobody conquered anyone"
+    assert conquered(_duel_won_by()) == 0
+
+
+def test_monuments_cannot_outweigh_winning():
+    """Seven monuments are 2,800 score points, which the old reward valued at a
+    full win. They are now worth at most a tenth of one."""
+    from polyengine.core import constants as C
+    from polyengine.core.game import Game
+    from polytrain.rollout import terminal_rewards
+
+    g = Game.new(size=11, seed=4)
+    g.state.turn = g.state.turn_cap
+    for r in terminal_rewards(g):
+        assert abs(r) <= C.STALL_REWARD + 1e-9

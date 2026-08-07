@@ -29,11 +29,18 @@ FFA". So the default ramps, and the wide end is opt-in.
 from __future__ import annotations
 
 import random
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
-from polyengine.core.mapgen import MAP_TYPES, max_players_for_size
+from polyengine.core.mapgen import (MAP_SIZES, MAP_TYPES,
+                                    max_players_for_size)
 
 ALL_MAP_TYPES = tuple(sorted(MAP_TYPES))
+# The only board sizes the real game deals: tiny 11, small 14, normal 16,
+# large 18, huge 20, massive 30 (wiki, Map Generation). Earlier presets used 6
+# and 9 because they were fast, which trains on boards Polytopia never
+# produces -- and board size is not a free parameter, it decides how far apart
+# capitals start and therefore the whole shape of the opening.
+CANONICAL_SIZES = tuple(sorted(MAP_SIZES.values()))
 # The twelve regular tribes. Special tribes modify core rules and are out of
 # scope for the engine, so they are out of scope here too.
 ALL_TRIBES = ("ai_mo", "bardur", "hoodrick", "imperius", "kickoo", "luxidoor",
@@ -47,6 +54,7 @@ class GameSpec:
     size: int
     map_type: str
     tribes: tuple[str, ...]
+    turn_cap_scale: float = 1.0
 
     @property
     def n_players(self) -> int:
@@ -62,6 +70,14 @@ class Stage:
     players: tuple[int, ...] = (2,)
     tribes: tuple[str, ...] = ALL_TRIBES
     mirror: bool = False             # both seats get the same tribe
+    # Multiplier on the engine's turn cap. The cap is a training device, so the
+    # curriculum owns it. Early on a shorter cap recycles games quickly and
+    # keeps terminal rewards arriving while the agent is too weak to finish
+    # anything; later a generous one lets a real game play out rather than
+    # being cut off mid-conquest. Episode starvation killed both previous runs
+    # (0.5 episodes/iteration, 63% of iterations finishing nothing), so this is
+    # the dial that matters most.
+    turn_cap_scale: float = 1.0
 
     def __post_init__(self):
         for m in self.map_types:
@@ -111,7 +127,8 @@ class Curriculum:
             tribes = tuple(rng.sample(st.tribes, n))
         else:                        # more seats than tribes: repeats allowed
             tribes = tuple(rng.choice(st.tribes) for _ in range(n))
-        return GameSpec(size=size, map_type=map_type, tribes=tribes)
+        return GameSpec(size=size, map_type=map_type, tribes=tribes,
+                        turn_cap_scale=st.turn_cap_scale)
 
     def describe(self, iteration: int) -> str:
         st = self.stage_for(iteration)
@@ -123,49 +140,58 @@ class Curriculum:
 
 
 # --- presets ------------------------------------------------------------------
-# `until` values are iteration indices, chosen so each stage gets a few hundred
-# iterations at the measured ~25s/iteration of the 128x10 config.
+# Every stage is a MIXTURE, not a replacement. Stage 4 of the previous
+# curriculum contained only 14x14 and 16x16 boards, and the measured
+# consequence was fatal: **0.5 episodes per iteration, with 63% of iterations
+# finishing no game at all** across 48 games in flight. A learner cannot be
+# taught by a reward it never receives, and strength peaked at iteration 1,925
+# and then decayed for 1,100 iterations.
+#
+# So the later stages keep the small boards in the mix and merely shift weight
+# toward the large ones. Sizes are drawn per iteration (see `size_for`), so a
+# mixture means "this fraction of iterations", and the fast games keep terminal
+# rewards flowing while the slow ones teach the hard positions.
+#
+# Sizes are all canonical. `weights` gives the relative frequency of each size.
 
 PRESETS: dict[str, Curriculum] = {
-    # What training did before any of this existed. Kept so a run can be
-    # reproduced, and so "did the curriculum help?" has a control.
+    # What training did before any of this existed. Kept as a control.
     "legacy": Curriculum(name="legacy", stages=(
         Stage(until=-1, sizes=(11,), players=(2,),
               map_types=("drylands", "lakes", "continents", "archipelago"),
               tribes=("imperius", "bardur")),
     )),
 
-    # The default. Duels throughout, widening in board size and tribe variety.
-    # Diplomacy stays inert here, which is honest: in a 1v1 a treaty is a draw
-    # you both agreed to.
+    # Duels throughout, widening in board size and tribe variety. Tiny boards
+    # never leave the mix.
     "duel": Curriculum(name="duel", stages=(
-        Stage(until=99, sizes=(9, 11), players=(2,),
+        Stage(until=199, sizes=(11,), players=(2,), turn_cap_scale=0.35,
               map_types=("drylands", "lakes"), tribes=("imperius", "bardur")),
-        Stage(until=299, sizes=(11,), players=(2,)),
-        Stage(until=699, sizes=(11, 14), players=(2,)),
-        Stage(until=-1, sizes=(14, 16), players=(2,)),
+        Stage(until=599, sizes=(11,), players=(2,), turn_cap_scale=0.5),
+        Stage(until=1199, sizes=(11, 11, 14), players=(2,), turn_cap_scale=0.7),
+        Stage(until=-1, sizes=(11, 14, 14, 16), players=(2,)),
     )),
 
-    # Duels first, then crowds. Three players is the smallest game in which a
-    # treaty can pay for itself, so that is where diplomacy starts to matter.
+    # The default. Duels first, then crowds -- three seats is the smallest game
+    # in which a treaty can pay for itself. Small boards stay in every stage.
     "standard": Curriculum(name="standard", stages=(
-        Stage(until=99, sizes=(9, 11), players=(2,),
+        Stage(until=199, sizes=(11,), players=(2,), turn_cap_scale=0.35,
               map_types=("drylands", "lakes"), tribes=("imperius", "bardur")),
-        Stage(until=299, sizes=(11,), players=(2,)),
-        Stage(until=599, sizes=(11, 14), players=(2, 3)),
-        Stage(until=999, sizes=(14, 16), players=(2, 3, 4)),
-        Stage(until=-1, sizes=(16, 18), players=(2, 3, 4, 6)),
+        Stage(until=599, sizes=(11,), players=(2,), turn_cap_scale=0.5),
+        Stage(until=1199, sizes=(11, 11, 14), players=(2, 2, 3), turn_cap_scale=0.7),
+        Stage(until=1999, sizes=(11, 14, 14, 16), players=(2, 3, 3, 4), turn_cap_scale=0.85),
+        Stage(until=-1, sizes=(11, 14, 16, 16, 18), players=(2, 3, 4, 4, 6)),
     )),
 
-    # The wide end: everything the engine can deal, up to sixteen tribes.
-    # Expect slow, diffuse credit assignment — a win among sixteen is rare.
+    # The wide end: up to sixteen tribes on a massive board. Even here a fifth
+    # of iterations are 11x11 duels, purely to keep episodes finishing.
     "ffa": Curriculum(name="ffa", stages=(
-        Stage(until=99, sizes=(9, 11), players=(2,),
+        Stage(until=199, sizes=(11,), players=(2,), turn_cap_scale=0.35,
               map_types=("drylands", "lakes"), tribes=("imperius", "bardur")),
-        Stage(until=299, sizes=(11,), players=(2, 3)),
-        Stage(until=599, sizes=(14,), players=(3, 4)),
-        Stage(until=999, sizes=(16, 18), players=(4, 6, 8)),
-        Stage(until=-1, sizes=(18, 20, 30), players=(4, 8, 12, 16)),
+        Stage(until=599, sizes=(11,), players=(2, 2, 3), turn_cap_scale=0.5),
+        Stage(until=1199, sizes=(11, 11, 14), players=(2, 3, 3, 4), turn_cap_scale=0.7),
+        Stage(until=1999, sizes=(11, 14, 14, 16), players=(2, 3, 4, 4, 6), turn_cap_scale=0.85),
+        Stage(until=-1, sizes=(11, 14, 16, 18, 20), players=(2, 4, 6, 8, 12, 16)),
     )),
 }
 
@@ -206,9 +232,11 @@ def with_horizon(cur: Curriculum, iters: int) -> Curriculum:
     if n == 1:
         return cur
     step = max(1, iters // n)
+    # `replace` rather than re-listing the fields: the hand-written version
+    # silently dropped `turn_cap_scale` the moment it was added, so every
+    # rescaled curriculum quietly ran at the full cap. Copying by construction
+    # means a new Stage field can never be lost here again.
     stages = tuple(
-        Stage(until=(-1 if i == n - 1 else (i + 1) * step - 1),
-              sizes=st.sizes, map_types=st.map_types, players=st.players,
-              tribes=st.tribes, mirror=st.mirror)
+        replace(st, until=(-1 if i == n - 1 else (i + 1) * step - 1))
         for i, st in enumerate(cur.stages))
     return Curriculum(name=cur.name, stages=stages)

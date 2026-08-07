@@ -408,8 +408,19 @@ def main() -> None:
 
         res = stats.get("learner_result", [])
         wr = f"{np.mean(res):5.1%}" if res else "  --  "
+        # `win` and `peace` are the two numbers that would have caught the last
+        # two failures on sight. Episode starvation (0.5 episodes/iteration at
+        # stage 4, 63% of iterations finishing nothing) was invisible because
+        # only the total was logged; and a peace treaty makes a game unwinnable
+        # by construction, so a rising peace rate is the agent discovering that
+        # it can opt out of Domination entirely.
+        eps = stats["episodes"]
+        conq, stall = stats.get("conquests", 0), stats.get("stalls", 0)
+        won = f"{conq}/{conq + stall}" if (conq + stall) else "  -  "
+        peace = stats.get("peace_games", 0)
         print(f"it {it:4d} | {label:>12} | wr {wr} | steps {len(roll):5d} | "
-              f"eps {stats['episodes']:3d} | pl {logs['policy_loss']:+.4f} | "
+              f"eps {eps:3d} | win {won:>7} | peace {peace:2d} | "
+              f"pl {logs['policy_loss']:+.4f} | "
               f"ent {logs['entropy']:.3f} | elo {league.main_elo:+6.0f} | "
               f"{time.perf_counter()-t0:.0f}s")
 

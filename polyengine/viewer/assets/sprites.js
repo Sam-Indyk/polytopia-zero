@@ -292,22 +292,98 @@ function drawImprovement(g, sx, sy, z, name, f, k, board) {
       g.fillRect(sx + 7 * z, y - 8 * z, 4.5 * z, 8 * z);
       g.fillStyle = '#8f887c'; g.fillRect(sx - 12 * z, y, 24 * z, 3 * z);
       break;
-    default: {
-      // Monuments: one shape, gilded, unmistakably a trophy. Which one it is
-      // matters less on the board than that a monument is standing there.
-      shadow(g, sx, y, z, 12, 4.5);
-      g.fillStyle = '#e0b64a';
-      g.fillRect(sx - 11 * z, y - 5 * z, 22 * z, 5 * z);
-      g.fillStyle = '#f0cf72';
+    default:
+      // Monuments. All seven used to share one gilded obelisk, which made a
+      // board look like it was covered in them and made counting impossible —
+      // there is exactly one per task, seven per player at most. Each now has
+      // its own silhouette so you can read which ones a tribe has earned.
+      drawMonument(g, sx, y, z, name);
+  }
+}
+
+/** The seven monuments, one per task, each with its own silhouette.
+ *
+ *  They are the densest scoring tiles in the game at 400 points apiece, so
+ *  "how many has this tribe built, and which" is a question the board should
+ *  answer at a glance rather than hide behind seven identical obelisks. */
+function drawMonument(g, sx, y, z, name) {
+  const plinth = (w, col) => {
+    shadow(g, sx, y, z, 12, 4.5);
+    g.fillStyle = col;
+    g.fillRect(sx - w * z, y - 5 * z, 2 * w * z, 5 * z);
+  };
+  switch (name) {
+    case 'altar_of_peace': {          // pacifist: a pale altar under a dove
+      plinth(11, '#cfd8e6');
+      g.fillStyle = '#eef3fa';
+      g.fillRect(sx - 7 * z, y - 16 * z, 14 * z, 11 * z);
+      g.fillStyle = '#ffffff';
+      g.beginPath();                  // dove
+      g.ellipse(sx, y - 23 * z, 7 * z, 4 * z, -0.3, 0, 7); g.fill();
       g.beginPath();
-      g.moveTo(sx - 8 * z, y - 5 * z); g.lineTo(sx - 5 * z, y - 24 * z);
-      g.lineTo(sx + 5 * z, y - 24 * z); g.lineTo(sx + 8 * z, y - 5 * z);
+      g.moveTo(sx - 2 * z, y - 25 * z); g.lineTo(sx + 5 * z, y - 32 * z);
+      g.lineTo(sx + 6 * z, y - 24 * z); g.closePath(); g.fill();
+      break;
+    }
+    case 'emperors_tomb': {           // wealth: a stepped pyramid
+      plinth(12, '#c9b08a');
+      g.fillStyle = '#e2c79c';
+      for (let i = 0; i < 4; i++) {
+        const w = (10 - i * 2.4) * z;
+        g.fillRect(sx - w, y - 10 * z - i * 5 * z, 2 * w, 5 * z);
+      }
+      break;
+    }
+    case 'eye_of_god': {              // explorer: an eye on a pillar
+      plinth(9, '#b9a7d8');
+      g.fillStyle = '#d8ccee';
+      g.fillRect(sx - 4 * z, y - 20 * z, 8 * z, 15 * z);
+      g.fillStyle = '#ffffff';
+      g.beginPath(); g.ellipse(sx, y - 25 * z, 9 * z, 5.5 * z, 0, 0, 7); g.fill();
+      g.fillStyle = '#4a3f7a';
+      g.beginPath(); g.arc(sx, y - 25 * z, 3.4 * z, 0, 7); g.fill();
+      break;
+    }
+    case 'gate_of_power': {           // killer: a war arch
+      plinth(13, '#8d6a6a');
+      g.fillStyle = '#b98a8a';
+      g.fillRect(sx - 12 * z, y - 24 * z, 6 * z, 19 * z);
+      g.fillRect(sx + 6 * z, y - 24 * z, 6 * z, 19 * z);
+      g.fillRect(sx - 13 * z, y - 30 * z, 26 * z, 7 * z);
+      break;
+    }
+    case 'grand_bazaar': {            // network: a domed market
+      plinth(12, '#c88a4a');
+      g.fillStyle = '#e8a95e';
+      g.fillRect(sx - 10 * z, y - 15 * z, 20 * z, 10 * z);
+      g.beginPath();                  // dome
+      g.ellipse(sx, y - 15 * z, 11 * z, 9 * z, 0, Math.PI, 0); g.fill();
+      g.fillStyle = '#ffd9a0';
+      g.beginPath(); g.arc(sx, y - 26 * z, 2.6 * z, 0, 7); g.fill();
+      break;
+    }
+    case 'park_of_fortune': {         // metropolis: a garden with a fountain
+      plinth(12, '#7fae6a');
+      blob(g, sx - 8 * z, y - 14 * z, 7 * z, 6 * z, '#4fb35e');
+      blob(g, sx + 8 * z, y - 13 * z, 6 * z, 5 * z, '#3f9c4f');
+      g.fillStyle = '#bcd9ee';
+      g.beginPath(); g.ellipse(sx, y - 8 * z, 7 * z, 3.2 * z, 0, 0, 7); g.fill();
+      g.strokeStyle = '#dceaf6'; g.lineWidth = 2 * z;
+      g.beginPath(); g.moveTo(sx, y - 9 * z); g.lineTo(sx, y - 20 * z); g.stroke();
+      break;
+    }
+    default: {                        // tower_of_wisdom (genius): a tall spire
+      plinth(9, '#a8b7c9');
+      g.fillStyle = '#cddaea';
+      g.beginPath();
+      g.moveTo(sx - 6 * z, y - 5 * z); g.lineTo(sx - 3.5 * z, y - 30 * z);
+      g.lineTo(sx + 3.5 * z, y - 30 * z); g.lineTo(sx + 6 * z, y - 5 * z);
       g.closePath(); g.fill();
-      g.fillStyle = '#fff3c4';
+      g.fillStyle = '#ffe08a';
       g.beginPath();
       for (let i = 0; i < 10; i++) {
-        const r = (i % 2 ? 2.6 : 6) * z, a = -Math.PI / 2 + i * Math.PI / 5;
-        const px = sx + Math.cos(a) * r, py = y - 29 * z + Math.sin(a) * r;
+        const r = (i % 2 ? 2.2 : 5.5) * z, a = -Math.PI / 2 + i * Math.PI / 5;
+        const px = sx + Math.cos(a) * r, py = y - 35 * z + Math.sin(a) * r;
         i ? g.lineTo(px, py) : g.moveTo(px, py);
       }
       g.closePath(); g.fill();

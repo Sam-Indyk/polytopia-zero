@@ -32,11 +32,18 @@ disagreed with `Game.winner` about who had won 15% of turn-capped games.
 """
 from __future__ import annotations
 
-# A city is 100 points and a monument 400, which is the scale this tilt is
-# measured against: a maximal Domination advantage is worth about two cities.
-# Enough to break an even position toward the aggressive line, not enough to
-# talk the agent into trading an army for one kill.
-DOMINATION_WEIGHT = 200.0
+# How much a maximal Domination advantage is worth against the score lead.
+#
+# This was 200 -- about two cities -- which made the tilt a rounding error next
+# to score totals in the thousands, and the agent behaved accordingly: watching
+# a trained net play showed Warriors only, an early peace treaty, and all seven
+# monuments farmed for 2,800 points. It had correctly concluded that points win
+# games, because under that weighting they did.
+#
+# At 1500 the tilt is comparable to a large score lead, so "the opponent is
+# close to losing their last city" moves the potential as much as "I am ahead
+# on points". The goal is Domination; the potential should point at it.
+DOMINATION_WEIGHT = 1500.0
 
 # Equal split across the three mid-game-observable rating parts, matching "four
 # equally weighted parts" (the fourth, difficulty, is fixed for a given game).

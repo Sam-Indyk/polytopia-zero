@@ -299,10 +299,53 @@ SIGHT_RADIUS_MOUNTAIN = 2
 SIGHT_RADIUS_CITY = 1
 
 # Domination turn cap; ties broken by score().
-TURN_CAP = 100
+# --- what training rewards -----------------------------------------------------
+# The goal is Domination: destroy every opponent. It is NOT "lead on score when
+# the clock runs out", and conflating the two produced an agent that trained
+# only Warriors, made peace, and farmed monuments to 2,800 points -- a perfectly
+# rational response to a reward where a score win paid the same as a conquest.
+#
+# So a game that reaches the cap is scored as **nobody won**, worth a small
+# fraction of a real victory. That fraction is not zero: it breaks ties and
+# leaves a gradient when winning is out of reach, which matters while the agent
+# is bad. But it is small enough that no amount of score-farming approaches
+# eliminating the opponent.
+STALL_REWARD = 0.10          # magnitude of a cap-terminated game's reward
+
+# Score points per unit of shaped reward. The shaping potential is a score
+# lead, which lives in the thousands, while a win is +-1 -- so unscaled it
+# drowned the outcome completely (measured at 96% of all reward magnitude).
+SHAPING_SCALE = 400.0
+
+# Polytopia rates a Domination win partly on speed ("100% at 10 turns per
+# enemy", wiki Game Modes), and so do we -- otherwise a win on turn 300 pays
+# exactly what a win on turn 20 does and there is no reason to ever finish.
+#
+# Par is 20 turns per enemy rather than the wiki's 10, calibrated against what
+# this engine actually produces: 36 no-turn-cap ScriptedBot(crazy) duels ended
+# at a **median of 37 turns, range 21-125**. Par of 10 would put essentially
+# every achievable win on the floor, which is a flat incentive wearing the
+# shape of a gradient.
+SPEED_PAR_TURNS_PER_ENEMY = 20
+SPEED_FLOOR = 0.45
+
+TURN_CAP = 200
 # ...at the reference game the cap was tuned on: an 11x11 duel. Real Domination
 # has *no* time limit -- "play until there is only one tribe left" -- so the cap
 # is a training necessity, not a rule, and the shape of it is ours to choose.
+#
+# Doubled from 100. Two measurements drove it. First, 36 no-turn-cap
+# ScriptedBot(crazy) duels on 11x11 ended at a median of 37 turns but a
+# **maximum of 125**, so a cap of 100 was truncating genuinely winnable games
+# and scoring them as stalls. Second, and more importantly, a cap only distorts
+# the objective if reaching it pays -- and it no longer does (STALL_REWARD is a
+# tenth of a win). With stalling worthless the cap costs throughput and nothing
+# else, so it can afford to be generous.
+#
+# It is still finite on purpose: 32 of 38 no-cap ScriptedBot(normal) duels never
+# ended at all, every one of them under a peace treaty, which forbids the
+# hostile acts a Domination win requires. Removing the cap entirely would hang
+# on those.
 #
 # It scales with the board's *linear* size rather than its area, because what a
 # bigger map really costs is travel: crossing a 30x30 takes about three times as
