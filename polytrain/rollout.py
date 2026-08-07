@@ -221,6 +221,16 @@ def collect(policy, n_games: int, rollout_steps: int, size: int = 9,
                 games[gi] = _make_game(
                     size, seed + 10_000 + gi * 7919 + stats["episodes"],
                     map_types, specs[gi] if specs else None)
+                # ...but NOT the same seat count. `learner_seats` was computed
+                # once from the games this call started with, and a replacement
+                # can have fewer seats -- a finished 4-player game becomes a
+                # 2-player one and the stale seat index 2 no longer exists.
+                # That crashed in `Game.score` with an out-of-bounds player, and
+                # before crashing it did something quieter and worse: the
+                # learner's seat matched nothing, so every transition in that
+                # game was silently discarded.
+                if learner_seats is not None:
+                    learner_seats[gi] = gi % games[gi].state.n_players
                 steps_played[gi] = 0
                 for p in range(game.state.n_players):
                     last_idx.pop((gi, p), None)

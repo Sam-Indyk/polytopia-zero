@@ -322,3 +322,48 @@ def test_the_promotion_gate_is_fixed_for_the_life_of_a_run():
     src = (Path(T.__file__).read_text(encoding="utf-8"))
     assert "sizes=(GATE_SIZE,)" in src and "players=(2,)" in src, \
         "the gate eval must pin size and seat count, not read the stage"
+
+
+def test_learner_seat_follows_a_replaced_game_with_fewer_players():
+    """Games persist across `collect` calls so long episodes can finish, and a
+    curriculum mixes seat counts — so a persisted 4-player game can be replaced
+    mid-call by a 2-player one from the *new* iteration's spec.
+
+    `learner_seats` is computed once, from the games the call started with.
+    Left stale it indexed a seat the replacement does not have: `Game.score(2)`
+    on a 2-player board raised IndexError and took the run down 29 times.
+    Quieter and worse, before crashing it made `is_learner` match nothing, so
+    every transition collected in that game was silently discarded.
+    """
+    import torch
+
+    from polyengine.core.rules import load_ruleset
+    from polytrain.curriculum import GameSpec
+    from polytrain.rollout import collect
+    from polytrain.train import build_policy
+
+    rules = load_ruleset()
+    policy, _ = build_policy(rules, torch.device("cpu"), small=True)
+    duel = GameSpec(size=11, map_type="drylands", tribes=("imperius", "bardur"),
+                    turn_cap_scale=0.05)
+    crowd = GameSpec(size=11, map_type="drylands", turn_cap_scale=0.05,
+                     tribes=("imperius", "bardur", "kickoo", "vengir"))
+
+    def opponent(games):
+        return [g.legal_actions()[0] for g in games]
+
+    # Iteration 1: game index 2 has four seats, so its learner seat is 2.
+    _, _, games = collect(policy, n_games=3, rollout_steps=8, size=11, seed=5,
+                          opponent=opponent, specs=[duel, duel, crowd],
+                          max_turns=None)
+    assert games[2].state.n_players == 4
+
+    # Iteration 2: the same games carry over, but the stage now deals duels, so
+    # when game 2 finishes it is replaced by a 2-player board — and seat 2 is
+    # gone. A tiny cap guarantees the replacement happens inside this call.
+    roll, stats, games = collect(policy, n_games=3, rollout_steps=600, size=11,
+                                 seed=6, opponent=opponent, games=games,
+                                 specs=[duel, duel, duel], max_turns=None)
+    assert stats["episodes"] > 0, "nothing was replaced; the test proves nothing"
+    assert games[2].state.n_players == 2
+    assert len(roll) > 0
