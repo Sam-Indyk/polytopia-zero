@@ -261,7 +261,20 @@ class ARPolicy:
 
         value, aux_score, aux_tech = self.net.value_and_aux(ctx)
         return {"logp": logp, "entropy": entropy, "value": value,
-                "aux_score": aux_score, "aux_tech": aux_tech}
+                "aux_score": aux_score, "aux_tech": aux_tech,
+                # Per head as well as summed. One global entropy number cannot
+                # distinguish "exploring movement richly" from "the action-type
+                # head has collapsed onto one option", and those need opposite
+                # responses. Measured on run 3 at iteration 1987: total entropy
+                # 0.79 looked survivable while the *type* head was at 0.070 out
+                # of a possible 2.30, putting P(research) at five in a million.
+                "ent_type": ent_type,
+                "ent_source": ent_src * a_src,
+                "ent_target": ent_tgt * a_tgt,
+                "ent_subtype": ent_sub * a_sub,
+                "applies_source": a_src,
+                "applies_target": a_tgt,
+                "applies_subtype": a_sub}
 
 
 def _score(logits, mask, index):

@@ -30,6 +30,18 @@ class PPOConfig:
     minibatch: int = 1024
     value_coef: float = 0.5
     entropy_coef: float = 0.01
+    # Minimum entropy each head must keep, as a fraction of the maximum it
+    # could have. A single global entropy bonus cannot prevent one head
+    # collapsing while the others stay busy: measured on run 3 at iteration
+    # 1987, summed entropy was a healthy-looking 0.79 while the action-TYPE
+    # head sat at 0.070 of a possible 2.30 -- P(research) was 0.000005, so the
+    # agent could not have discovered the tech tree in a thousand lifetimes.
+    #
+    # Below the floor a head gets an extra, sharply rising penalty; above it,
+    # nothing. So this costs nothing on a healthy run and only bites on a head
+    # that is dying.
+    entropy_floor: float = 0.22
+    entropy_floor_coef: float = 0.5
     aux_coef: float = 0.25
     max_grad_norm: float = 0.5
     normalise_adv: bool = True
@@ -98,6 +110,32 @@ class PPOLearner:
                         + cfg.value_coef * value_loss
                         - cfg.entropy_coef * entropy)
 
+                # Per-head entropy floor. Each head is measured against the
+                # entropy of a uniform choice over the options that were
+                # actually legal for it, so "collapsed" means collapsed
+                # relative to the freedom it had, not to a fixed constant.
+                floor_pen = 0.0
+                head_ent = {}
+                for name, key, mask_key in (
+                        ("type", "ent_type", "type_mask"),
+                        ("source", "ent_source", "src_mask"),
+                        ("target", "ent_target", "tgt_mask"),
+                        ("subtype", "ent_subtype", "sub_mask")):
+                    ent_h = out[key].float()
+                    n_legal = sub[mask_key].float().sum(-1).clamp(min=1.0)
+                    ceiling = torch.log(n_legal)
+                    if name == "type":
+                        applies = torch.ones_like(ent_h)
+                    else:
+                        applies = out["applies_" + name].float()
+                    live = applies > 0
+                    if not bool(live.any()):
+                        continue
+                    frac = (ent_h[live] / ceiling[live].clamp(min=1e-6)).mean()
+                    head_ent[name] = float(frac.detach())
+                    floor_pen = floor_pen + torch.relu(cfg.entropy_floor - frac) ** 2
+                loss = loss + cfg.entropy_floor_coef * floor_pen
+
                 if aux_targets is not None:
                     score_t = aux_targets["score"][mb_t]
                     tech_t = aux_targets["tech"][mb_t]
@@ -116,6 +154,8 @@ class PPOLearner:
                     logs["policy_loss"].append(float(policy_loss))
                     logs["value_loss"].append(float(value_loss))
                     logs["entropy"].append(float(entropy))
+                    for name, frac in head_ent.items():
+                        logs.setdefault("ent_" + name, []).append(frac)
                     logs["clip_frac"].append(
                         float(((ratio - 1).abs() > cfg.clip).float().mean()))
                     logs["approx_kl"].append(float((sub["old_logp"] - out["logp"]).mean()))

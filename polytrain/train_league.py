@@ -33,7 +33,7 @@ from polytrain.league import League, MainExploiter
 from polytrain.pool import FrozenOpponent
 from polytrain import profiles
 from polytrain.ppo import PPOConfig, PPOLearner
-from polytrain.rollout import collect
+from polytrain.rollout import TypeNovelty, collect
 from polytrain.train import NetAgent, build_policy
 
 
@@ -158,6 +158,14 @@ def main() -> None:
     ap.add_argument("--minibatch", type=int, default=1024)
     ap.add_argument("--epochs", type=int, default=3)
     ap.add_argument("--entropy", type=float, default=0.01)
+    ap.add_argument("--entropy-floor", type=float, default=0.22,
+                    help="minimum entropy each head must keep, as a "
+                         "fraction of a uniform choice over its legal "
+                         "options. 0 disables. One global bonus cannot "
+                         "stop a single head collapsing.")
+    ap.add_argument("--novelty", type=float, default=0.05,
+                    help="count-based exploration bonus on action TYPES "
+                         "(beta/sqrt(N)). 0 disables.")
     ap.add_argument("--shaping", type=float, default=0.01)
     ap.add_argument("--shaping-anneal", type=int, default=100)
     ap.add_argument("--shaping-floor", type=float, default=0.25,
@@ -258,6 +266,7 @@ def main() -> None:
     learner = PPOLearner(policy, PPOConfig(lr=args.lr, minibatch=args.minibatch,
                                            epochs=args.epochs,
                                            entropy_coef=args.entropy,
+                                           entropy_floor=args.entropy_floor,
                                            precision=args.precision))
     league = League(capacity=args.league_size)
     if args.league_scripted:
@@ -331,6 +340,7 @@ def main() -> None:
     t0 = time.perf_counter()
 
     stage_size = None
+    novelty = TypeNovelty(beta=args.novelty) if args.novelty > 0 else None
     stage_key = None
     opp_cache: dict[str, tuple[str, object]] = {}
     for it in range(start_iter, args.iters + 1):
@@ -356,7 +366,7 @@ def main() -> None:
                 policy, args.games, args.rollout, size=size,
                 seed=args.seed + it * 1000, shaping=shaping,
                 max_turns=(args.max_turns or None), games=games_self,
-                map_types=map_types, specs=specs)
+                map_types=map_types, specs=specs, novelty=novelty)
             label = "self"
         else:
             # Who sits where. Every seat gets its own draw from the league,
@@ -388,7 +398,7 @@ def main() -> None:
                 policy, args.games, args.rollout, size=size,
                 seed=args.seed + it * 1000, shaping=shaping,
                 max_turns=(args.max_turns or None), games=games_vs, opponent=opp_fn,
-                map_types=map_types, specs=specs, seat_members=seat_members)
+                map_types=map_types, specs=specs, seat_members=seat_members, novelty=novelty)
             label = member.name
             # Elo per opponent identity. `learner_result` is now the learner's
             # *average pairwise* result, which is unbiased at any seat count;
@@ -421,7 +431,9 @@ def main() -> None:
         print(f"it {it:4d} | {label:>12} | wr {wr} | steps {len(roll):5d} | "
               f"eps {eps:3d} | win {won:>7} | peace {peace:2d} | "
               f"pl {logs['policy_loss']:+.4f} | "
-              f"ent {logs['entropy']:.3f} | elo {league.main_elo:+6.0f} | "
+              f"ent {logs['entropy']:.3f}"
+              f"(t{logs.get('ent_type', 0):.2f}/s{logs.get('ent_source', 0):.2f}"
+              f"/b{logs.get('ent_subtype', 0):.2f}) | elo {league.main_elo:+6.0f} | "
               f"{time.perf_counter()-t0:.0f}s")
 
         if args.snapshot_every and it % args.snapshot_every == 0:

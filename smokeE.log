@@ -1,0 +1,41 @@
+curriculum standard: standard: size 11 · 2 map types · 2 players · 2 tribes | standard: size 11/11/14 · 6 map types · 2/2/3 players · 12 tribes | standard: size 11/14/16/16/18 · 6 map types · 2/3/4/4/6 players · 12 tribes
+device=cuda params=0.42M size=9 league_size=20
+league includes ScriptedBot -> OSLA is the held-out gate
+it    1 |         self | wr   --   | steps  3840 | eps   1 | win     1/1 | peace  0 | pl -0.0150 | ent 2.200(t0.91/s0.54/b0.46) | elo     +0 | 8s
+it    2 |         self | wr   --   | steps  3840 | eps   0 | win     -   | peace  0 | pl -0.0187 | ent 2.613(t0.93/s0.65/b0.32) | elo     +0 | 15s
+it    3 |         self | wr   --   | steps  3840 | eps   0 | win     -   | peace  0 | pl -0.0146 | ent 2.398(t0.91/s0.59/b0.25) | elo     +0 | 22s
+it    4 |         self | wr   --   | steps  3840 | eps   4 | win     0/4 | peace  2 | pl -0.0135 | ent 2.417(t0.90/s0.62/b0.19) | elo     +0 | 29s
+it    5 |         self | wr   --   | steps  3840 | eps  15 | win    1/15 | peace  2 | pl -0.0077 | ent 2.283(t0.86/s0.61/b0.23) | elo     +0 | 35s
+it    6 |     scripted | wr  0.0% | steps  1413 | eps  20 | win   20/20 | peace  0 | pl -0.0066 | ent 1.604(t0.81/s0.35/b0.51) | elo   -130 | 39s
+it    7 |         self | wr   --   | steps  3840 | eps   6 | win     0/6 | peace  0 | pl -0.0166 | ent 2.056(t0.84/s0.54/b0.33) | elo   -130 | 46s
+it    8 |         self | wr   --   | steps  3840 | eps   0 | win     -   | peace  0 | pl -0.0177 | ent 2.173(t0.86/s0.61/b0.24) | elo   -130 | 53s
+it    9 |         self | wr   --   | steps  3840 | eps   3 | win     0/3 | peace  1 | pl -0.0127 | ent 2.089(t0.87/s0.55/b0.20) | elo   -130 | 59s
+it   10 |         self | wr   --   | steps  3840 | eps   1 | win     0/1 | peace  0 | pl -0.0160 | ent 2.117(t0.86/s0.56/b0.22) | elo   -130 | 67s
+it   11 |         self | wr   --   | steps  3840 | eps   1 | win     1/1 | peace  0 | pl -0.0111 | ent 1.733(t0.84/s0.49/b0.38) | elo   -130 | 74s
+it   12 |         self | wr   --   | steps  3840 | eps   1 | win     1/1 | peace  0 | pl -0.0097 | ent 1.743(t0.86/s0.48/b0.35) | elo   -130 | 81s
+it   13 |         self | wr   --   | steps  3840 | eps   0 | win     -   | peace  0 | pl -0.0132 | ent 1.807(t0.84/s0.43/b0.33) | elo   -130 | 88s
+it   14 |         self | wr   --   | steps  3840 | eps   0 | win     -   | peace  0 | pl -0.0150 | ent 1.681(t0.85/s0.50/b0.31) | elo   -130 | 96s
+it   15 |         self | wr   --   | steps  3840 | eps   0 | win     -   | peace  0 | pl -0.0176 | ent 1.569(t0.83/s0.48/b0.28) | elo   -130 | 106s
+it   16 |      snap@10 | wr  0.0% | steps  1218 | eps   1 | win     1/1 | peace  0 | pl -0.0061 | ent 1.454(t0.83/s0.41/b0.29) | elo   -138 | 111s
+it   17 |         self | wr   --   | steps  3840 | eps   0 | win     -   | peace  0 | pl -0.0145 | ent 1.445(t0.79/s0.41/b0.28) | elo   -138 | 119s
+it   18 |         self | wr   --   | steps  3840 | eps   0 | win     -   | peace  0 | pl -0.0138 | ent 1.500(t0.75/s0.32/b0.35) | elo   -138 | 127s
+it   19 |      snap@10 | wr   --   | steps  1366 | eps   0 | win     -   | peace  0 | pl -0.0096 | ent 1.437(t0.81/s0.38/b0.31) | elo   -138 | 134s
+it   20 |         self | wr   --   | steps  3840 | eps   0 | win     -   | peace  0 | pl -0.0137 | ent 1.390(t0.81/s0.33/b0.27) | elo   -138 | 141s
+it   21 |         self | wr   --   | steps  3840 | eps   0 | win     -   | peace  0 | pl -0.0102 | ent 1.321(t0.79/s0.32/b0.28) | elo   -138 | 150s
+it   22 |         self | wr   --   | steps  3840 | eps   0 | win     -   | peace  0 | pl -0.0130 | ent 1.253(t0.75/s0.31/b0.24) | elo   -138 | 159s
+it   23 |      snap@20 | wr   --   | steps  1063 | eps   0 | win     -   | peace  0 | pl -0.0056 | ent 1.165(t0.73/s0.32/b0.21) | elo   -138 | 166s
+it   24 |      snap@20 | wr   --   | steps  1198 | eps   0 | win     -   | peace  0 | pl -0.0100 | ent 1.263(t0.73/s0.33/b0.25) | elo   -138 | 174s
+it   25 |     scripted | wr 25.0% | steps   872 | eps   2 | win     2/2 | peace  0 | pl -0.0038 | ent 1.185(t0.73/s0.24/b0.29) | elo   -140 | 179s
+  eval@25: Random     26/43 | OSLA      9/43 (held out) | Scripted      1/43 | elo -140
+    OSLA by bucket: size 11:1/7 14:0/5 16:7/20 18:1/11 | players 2:1/4 3:0/9 4:6/24 6:2/6 | map archipelago:0/2 continents:4/17 lakes:1/7 pangea:4/14 waterworld:0/3
+    techs researched (vs scripted): net 8.9 | opponent 13.3  <- OUT-TECHED
+    gate (fixed 11x11 duel vs crazy): 0/24  <- new best
+    anchored on 43 scripted games: elo -140 -> -283
+
+      opponent      kind     elo  p(win)  games
+          main      main    -283   --     --  
+      scripted  scripted       0   1.4%   48.0
+       snap@10  snapshot    -122   0.0%    1.0
+       snap@20  snapshot    -146 100.0%    1.0
+
+done in 392s

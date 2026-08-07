@@ -80,6 +80,43 @@ class Rollout:
 DEFAULT_MAP_TYPES = ("drylands", "lakes", "continents", "archipelago")
 
 
+class TypeNovelty:
+    """A count-based exploration bonus over *action types*.
+
+    The classic `beta / sqrt(N)` intrinsic reward, counted per action type and
+    persisted across iterations so it reflects the whole run rather than one
+    batch.
+
+    Action types are the right granularity because that is the axis that
+    collapsed: measured on run 3, the type head put 0.000005 of its mass on
+    RESEARCH, which was legal at a third of all decisions. At that rate the
+    agent needs ~200,000 decisions to research once by accident and an episode
+    is a thousand. Bonusing rare *types* pays for the first step onto an
+    unexplored branch -- and researching is exactly a first step whose payoff
+    arrives dozens of actions later, which is the case undirected exploration
+    is worst at.
+
+    It is deliberately small and decays as counts grow, so it shapes the early
+    run and fades rather than becoming an objective of its own.
+    """
+
+    def __init__(self, beta: float = 0.05, prior: float = 50.0):
+        self.beta = beta
+        self.counts = np.full(C.N_ACTION_TYPES, prior, dtype=np.float64)
+
+    def bonus(self, atype: int) -> float:
+        return self.beta / float(np.sqrt(self.counts[atype]))
+
+    def record(self, atype: int) -> None:
+        self.counts[atype] += 1.0
+
+    def report(self) -> str:
+        share = self.counts / self.counts.sum()
+        rare = np.argsort(share)[:3]
+        return " ".join(f"{C.ACTION_NAMES[i][:5].lower()}:{share[i]:.4f}"
+                        for i in rare)
+
+
 def _make_game(size: int, seed: int, map_types, spec=None) -> Game:
     """One game, with its world chosen from the rotation by seed.
 
@@ -109,7 +146,8 @@ def collect(policy, n_games: int, rollout_steps: int, size: int = 9,
             shaping: float = 0.0, max_turns: int = 100,
             games: list[Game] | None = None,
             opponent=None, learner_seats: list[int] | None = None,
-            map_types=DEFAULT_MAP_TYPES, specs=None, seat_members=None
+            map_types=DEFAULT_MAP_TYPES, specs=None, seat_members=None,
+            novelty=None
             ) -> tuple[Rollout, dict, list[Game]]:
     """Play `rollout_steps` micro-steps across `n_games` games.
 
@@ -135,7 +173,8 @@ def collect(policy, n_games: int, rollout_steps: int, size: int = 9,
     # per (game, player): index into roll of that trajectory's previous transition
     last_idx: dict[tuple[int, int], int] = {}
     prev_material: dict[tuple[int, int], float] = {}
-    stats = {"episodes": 0, "wins": defaultdict(int), "lengths": []}
+    stats = {"episodes": 0, "wins": defaultdict(int), "lengths": [],
+             "type_counts": defaultdict(int)}
     steps_played = [0] * len(games)
 
     def is_learner(gi: int, player: int) -> bool:
@@ -181,7 +220,13 @@ def collect(policy, n_games: int, rollout_steps: int, size: int = 9,
             roll.logp.append(info["logp"][slot:slot + 1])
             roll.value.append(info["value"][slot:slot + 1])
             roll.traj.append(key)
-            roll.reward.append(0.0)
+            # Count-based novelty on the action *type*. Paid on the transition
+            # that took it, so the credit lands where the choice was made.
+            at = int(actions_by_game[gi].atype)
+            roll.reward.append(novelty.bonus(at) if novelty else 0.0)
+            if novelty:
+                novelty.record(at)
+                stats["type_counts"][at] += 1
             roll.terminal.append(False)
 
             if shaping:

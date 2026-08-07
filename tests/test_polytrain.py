@@ -367,3 +367,98 @@ def test_learner_seat_follows_a_replaced_game_with_fewer_players():
     assert stats["episodes"] > 0, "nothing was replaced; the test proves nothing"
     assert games[2].state.n_players == 2
     assert len(roll) > 0
+
+
+# --- exploration: the run-3 collapse ------------------------------------------
+#
+# Measured at iteration 1987: the action-TYPE head sat at 0.070 entropy out of a
+# possible 2.30, putting P(pick RESEARCH) at 0.000005 while research was legal
+# at a third of all decisions. The agent could not have found the tech tree in a
+# thousand lifetimes. Summed entropy was 0.79 and looked survivable, which is
+# why one global number is not enough.
+
+def test_evaluate_reports_entropy_per_head_not_just_the_sum():
+    """A single entropy number cannot tell 'exploring movement richly' from
+    'the type head has collapsed', and those need opposite responses."""
+    import torch
+
+    from polyengine.core.game import Game
+    from polyengine.core.rules import load_ruleset
+    from polytrain.rollout import collect
+    from polytrain.train import build_policy
+
+    rules = load_ruleset()
+    policy, _ = build_policy(rules, torch.device("cpu"), small=True)
+    roll, _, games = collect(policy, n_games=2, rollout_steps=12, size=11, seed=1)
+    out = policy.evaluate(roll.stack(torch.device("cpu")))
+    for key in ("ent_type", "ent_source", "ent_target", "ent_subtype"):
+        assert key in out, f"{key} missing"
+        assert out[key].shape == out["logp"].shape
+    total = (out["ent_type"] + out["ent_source"]
+             + out["ent_target"] + out["ent_subtype"])
+    assert torch.allclose(total, out["entropy"], atol=1e-4), \
+        "per-head entropies must sum to the reported total"
+
+
+def test_entropy_floor_penalises_only_a_collapsed_head():
+    """Below the floor a head is penalised; above it, nothing. So the term
+    costs a healthy run zero and only bites on a head that is dying."""
+    from polytrain.ppo import PPOConfig
+
+    cfg = PPOConfig()
+    assert 0.0 < cfg.entropy_floor < 1.0, "floor is a fraction of uniform"
+    assert cfg.entropy_floor_coef > 0
+
+    import torch
+    relu = torch.nn.functional.relu
+    healthy = float(relu(torch.tensor(cfg.entropy_floor - 0.9)) ** 2)
+    collapsed = float(relu(torch.tensor(cfg.entropy_floor - 0.07)) ** 2)
+    assert healthy == 0.0, "a healthy head must pay nothing"
+    assert collapsed > 0.0, "a collapsed head must pay"
+
+
+def test_novelty_bonus_favours_rarely_taken_action_types():
+    from polyengine.core import constants as C
+    from polytrain.rollout import TypeNovelty
+
+    nov = TypeNovelty(beta=0.05)
+    common, rare = C.A_MOVE, C.A_RESEARCH
+    before = nov.bonus(rare)
+    for _ in range(5000):
+        nov.record(common)
+    assert nov.bonus(common) < nov.bonus(rare), \
+        "a heavily-used type must be worth less than an unused one"
+    assert nov.bonus(rare) == pytest.approx(before), "untouched type unchanged"
+    # It fades: the bonus must not become an objective of its own.
+    for _ in range(100_000):
+        nov.record(rare)
+    assert nov.bonus(rare) < 0.001
+
+
+def test_option_value_rewards_tech_for_what_it_unlocks():
+    """Technology already scores 100 a tier, and paying for that is paying for
+    points. This pays for the Rider, which is why you actually buy Riding."""
+    from polyengine.agents.heuristic import option_value
+    from polyengine.core.game import Game
+
+    g = Game.new(size=11, seed=4)
+    start = option_value(g, 0)
+    g.state.grant_tech(0, g.rules.tech_id["riding"])
+    with_rider = option_value(g, 0)
+    assert with_rider > start, "unlocking a unit must raise the potential"
+
+    # A tech that unlocks no unit should not be paid as if it did.
+    g2 = Game.new(size=11, seed=4)
+    before = option_value(g2, 0)
+    g2.state.grant_tech(0, g2.rules.tech_id["mining"])
+    assert option_value(g2, 0) == before
+
+    # And it pays for the option, not for owning an army -- so it cannot be
+    # farmed by hoarding units.
+    g3 = Game.new(size=11, seed=4)
+    base = option_value(g3, 0)
+    for t in range(g3.state.n_tiles):
+        if g3.state.unit_type[t] < 0 and g3.state.owner[t] == 0:
+            g3.state.unit_type[t] = 0
+            g3.state.unit_owner[t] = 0
+    assert option_value(g3, 0) == base
