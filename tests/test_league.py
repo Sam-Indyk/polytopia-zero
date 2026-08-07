@@ -434,14 +434,11 @@ def test_conquest_pays_far_more_than_the_best_possible_stall():
     assert won[0] == pytest.approx(1.0), "an on-par conquest is a full win"
     assert won[1] == -1.0, "being eliminated is a full loss"
 
-    # The most lopsided possible cap-terminated game still pays a tenth of it.
+    # Every seat in a cap-terminated game is penalised.
     stalled = Game.new(size=11, seed=4)
     stalled.state.turn = stalled.state.turn_cap
-    best_stall = max(abs(r) for r in terminal_rewards(stalled))
-    assert best_stall <= C.STALL_REWARD + 1e-9
+    assert all(r < 0 for r in terminal_rewards(stalled)),         "a stall must cost everyone; a neutral stall is worth avoiding combat for"
     assert min(won) < 0 < max(won)
-    assert C.SPEED_FLOOR / C.STALL_REWARD >= 4.0, (
-        "even the slowest conquest must clearly beat the best stall")
 
 
 def test_a_slow_win_is_worth_less_than_a_fast_one():
@@ -480,7 +477,7 @@ def test_monuments_cannot_outweigh_winning():
     g = Game.new(size=11, seed=4)
     g.state.turn = g.state.turn_cap
     for r in terminal_rewards(g):
-        assert abs(r) <= C.STALL_REWARD + 1e-9
+        assert r < 0, "farming points into a stall must not pay"
 
 
 def test_a_new_snapshot_inherits_the_current_rating():
@@ -521,3 +518,61 @@ def test_snapshots_are_minted_after_anchoring_not_before():
     # And it must be inside the eval block, not on every Nth iteration.
     assert "it % args.snapshot_every == 0" not in src, (
         "snapshots are minted at eval points, not on a raw iteration count")
+
+
+def test_fighting_beats_stalling_in_symmetric_self_play():
+    """The arithmetic that made the agent pacifist.
+
+    In self-play both seats are the same net, so a fight is a coin flip: the
+    winner takes +speed and the loser -1, for an expected value of
+    (speed - 1) / 2 -- negative for any win slower than par. Against a stall
+    worth 0 the agent was literally paid to avoid combat, and it learned to
+    make peace on contact in nearly every game.
+
+    Making the stall *small* could never fix this: zero is still better than a
+    losing coin flip. The stall has to be worse than fighting.
+    """
+    from polyengine.core import constants as C
+
+    worst_fight = 0.5 * C.SPEED_FLOOR + 0.5 * (-1.0)
+    best_stall = -C.STALL_PENALTY + C.STALL_RANK_TILT
+    assert worst_fight > best_stall, (
+        f"even the worst fight ({worst_fight:+.3f}) must beat the best stall "
+        f"({best_stall:+.3f}), or peace is the rational line")
+    # And the margin should be real, not a rounding artefact.
+    assert worst_fight - best_stall >= 0.1
+
+
+def test_a_training_scripted_bot_refuses_every_treaty():
+    """A treaty makes a game unwinnable by construction, so a peaceful sparring
+    partner supplies an endless stream of games that cannot be won."""
+    from polyengine.agents.scripted import ScriptedBot
+    from polyengine.core import constants as C
+    from polyengine.core.diplomacy import at_peace, offer_peace
+    from polyengine.core.game import Game
+
+    for difficulty in ("easy", "normal", "hard"):
+        g = Game.new(size=11, seed=6)
+        s = g.state
+        s.grant_tech(1, g.rules.tech_id["strategy"])
+        offer_peace(s, 1, 0, g.rules)          # the human side proposes
+        bot = ScriptedBot(seed=1, difficulty=difficulty, never_peace=True)
+        for _ in range(60):
+            if g.is_terminal() or g.current_player != 0:
+                g.step(g.legal_actions()[0])
+                continue
+            a = bot.act(g)
+            assert a.atype != C.A_PEACE_OFFER, \
+                f"{difficulty} bot accepted a treaty despite never_peace"
+            g.step(a)
+        assert not at_peace(s, 0, 1), f"{difficulty} bot ended up at peace"
+
+
+def test_difficulty_diplomacy_survives_by_default():
+    """never_peace is a *training* switch. The wiki's difficulty-linked
+    diplomacy is a real rule and the engine must keep modelling it."""
+    from polyengine.agents.scripted import ScriptedBot
+
+    assert ScriptedBot(seed=0).never_peace is False
+    assert ScriptedBot.crazy(seed=0).never_peace is False, \
+        "crazy already refuses peace through aggression, not through this flag"

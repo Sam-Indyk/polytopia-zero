@@ -275,7 +275,7 @@ def main() -> None:
                                            precision=args.precision))
     league = League(capacity=args.league_size)
     if args.league_scripted:
-        league.add_scripted("scripted", lambda s: ScriptedBot(seed=s))
+        league.add_scripted("scripted", lambda s: ScriptedBot(seed=s, never_peace=True))
         print("league includes ScriptedBot -> OSLA is the held-out gate")
     exploiter = MainExploiter()
     rng = np.random.default_rng(args.seed)
@@ -465,7 +465,8 @@ def main() -> None:
                                  args.size, seed=4242, max_steps=400, **ev)
             vs_osla = play_match(agent, GreedyOSLA(seed=7), args.eval_pairs,
                                  args.size, seed=5353, max_steps=400, **ev)
-            vs_scr = play_match(agent, ScriptedBot(seed=7), args.eval_pairs,
+            vs_scr = play_match(agent, ScriptedBot(seed=7, never_peace=True),
+                                args.eval_pairs,
                                 args.size, seed=6464, max_steps=400, **ev)
             print(f"  eval@{it}: Random {vs_rand.record:>9} | "
                   f"OSLA {vs_osla.record:>9} (held out) | "
@@ -528,7 +529,7 @@ def main() -> None:
             # iteration.
             anchor = next((m for m in league.scripted), None)
             if anchor is None:
-                anchor = league.add_scripted("scripted", lambda s: ScriptedBot(seed=s))
+                anchor = league.add_scripted("scripted", lambda s: ScriptedBot(seed=s, never_peace=True))
             before = league.main_elo
             league.record_results(anchor, [1.0] * round(vs_scr.score)
                                   + [0.0] * (vs_scr.games - round(vs_scr.score)))

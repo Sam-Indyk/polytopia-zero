@@ -383,9 +383,14 @@ def terminal_rewards(game) -> list[float]:
     if champion >= 0:
         speed = speed_factor(game)
         return [speed if p == champion else -1.0 for p in range(n)]
-    # Nobody won. Rank still matters a little -- it is the only gradient left
-    # when a win is out of reach -- but it is worth a tenth of one.
-    return [C.STALL_REWARD * (2.0 * pairwise_score(game, p) - 1.0)
+    # Nobody won: everyone is penalised. A stall must cost more than the
+    # expected value of fighting, or a symmetric self-play agent is paid to
+    # avoid combat -- which is precisely what it learned to do, making peace on
+    # contact in nearly every game. Rank still tilts it slightly, so a hopeless
+    # position is worse than a strong one and there is a gradient when winning
+    # is out of reach.
+    return [-C.STALL_PENALTY
+            + C.STALL_RANK_TILT * (2.0 * pairwise_score(game, p) - 1.0)
             for p in range(n)]
 
 

@@ -310,7 +310,22 @@ SIGHT_RADIUS_CITY = 1
 # leaves a gradient when winning is out of reach, which matters while the agent
 # is bad. But it is small enough that no amount of score-farming approaches
 # eliminating the opponent.
-STALL_REWARD = 0.10          # magnitude of a cap-terminated game's reward
+# A cap-terminated game is a **failure for everyone in it**, not a neutral
+# outcome, and it has to be priced below the expected value of fighting.
+#
+# The arithmetic that forced this: in self-play both seats are the same net, so
+# a fight is a coin flip -- winner +speed, loser -1, expected value (speed-1)/2,
+# which is *negative* for any win slower than par. Against a stall worth 0 the
+# agent was being paid to avoid combat, and it learned exactly that: it made
+# peace on contact in nearly every self-play game. Lowering the stall reward
+# toward zero could never fix it, because zero is still better than a losing
+# coin flip. The stall has to be worse than fighting, not merely small.
+#
+# STALL_PENALTY is flat and applies to every seat; STALL_RANK_TILT is a small
+# extra spread by relative standing, so a hopeless position is still worse than
+# a strong one and there is a gradient when a win is out of reach.
+STALL_PENALTY = 0.50
+STALL_RANK_TILT = 0.10
 
 # Score points per unit of shaped reward. The shaping potential is a score
 # lead, which lives in the thousands, while a win is +-1 -- so unscaled it
@@ -327,7 +342,11 @@ SHAPING_SCALE = 400.0
 # every achievable win on the floor, which is a flat incentive wearing the
 # shape of a gradient.
 SPEED_PAR_TURNS_PER_ENEMY = 20
-SPEED_FLOOR = 0.45
+# 0.60, not 0.45. The floor is the *worst* a victory can pay, and a loss always
+# costs the full -1, so too low a floor makes attempting to win negative-value
+# in symmetric play: at 0.45 a coin-flip fight was worth -0.275 against a stall
+# worth 0. Speed should shade a victory, not make winning slowly a mistake.
+SPEED_FLOOR = 0.60
 
 TURN_CAP = 200
 # ...at the reference game the cap was tuned on: an 11x11 duel. Real Domination
