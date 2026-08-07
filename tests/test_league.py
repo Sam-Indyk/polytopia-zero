@@ -481,3 +481,43 @@ def test_monuments_cannot_outweigh_winning():
     g.state.turn = g.state.turn_cap
     for r in terminal_rewards(g):
         assert abs(r) <= C.STALL_REWARD + 1e-9
+
+
+def test_a_new_snapshot_inherits_the_current_rating():
+    """That inheritance is correct in principle -- a snapshot *is* the current
+    net -- which is exactly why the rating it copies has to be a measured one.
+
+    Taken mid-run, `main_elo` has drifted on nothing but self-play results since
+    the last anchor, and self-play against one's own past is a closed loop that
+    manufactures rating: run 2 reached +842 while sitting at 52% against
+    ScriptedBot. Snapshots minted in between inherit that inflation, and two
+    things read their ratings -- `_evict`, which preserves a spread across
+    *elo*, and the `expected` term of every later Elo update.
+
+    `train_league` therefore mints snapshots only at eval points, immediately
+    after anchoring on real games against ScriptedBot.
+    """
+    import torch.nn as nn
+
+    league = League(capacity=8)
+    league.main_elo = 321.0
+    m = league.add_snapshot(nn.Linear(2, 2), iteration=7)
+    assert m.elo == 321.0
+
+
+def test_snapshots_are_minted_after_anchoring_not_before():
+    """A structural check on the training loop: the snapshot call must sit
+    *below* the line that anchors Elo, or it copies the pre-anchor number."""
+    from pathlib import Path
+
+    from polytrain import train_league as T
+
+    src = Path(T.__file__).read_text(encoding="utf-8")
+    anchor = src.index("anchored on")
+    snapshot = src.index("league.add_snapshot(policy.net, it)")
+    assert snapshot > anchor, (
+        "add_snapshot runs before Elo is anchored, so the snapshot inherits a "
+        "rating that drifted on self-play alone")
+    # And it must be inside the eval block, not on every Nth iteration.
+    assert "it % args.snapshot_every == 0" not in src, (
+        "snapshots are minted at eval points, not on a raw iteration count")

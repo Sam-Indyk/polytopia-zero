@@ -176,7 +176,12 @@ def main() -> None:
                          "(measured: 23/iteration on 9x9, 4.4 on 14x14). The "
                          "shaping is potential-based, so a standing floor does "
                          "not change which policy is optimal.")
-    ap.add_argument("--snapshot-every", type=int, default=10)
+    ap.add_argument("--snapshot-every", type=int, default=25,
+                    help="minimum iterations between league snapshots. "
+                         "Snapshots are only minted at eval points, "
+                         "right after Elo is anchored on real games, so "
+                         "the effective interval rounds up to a multiple "
+                         "of --eval-every.")
     ap.add_argument("--league-size", type=int, default=20)
     ap.add_argument("--league-scripted", action="store_true",
                     help="include scripted baselines in the league (PLAN: 5%%)")
@@ -340,6 +345,7 @@ def main() -> None:
     t0 = time.perf_counter()
 
     stage_size = None
+    last_snapshot = -10**9   # snapshots are minted at eval points only
     novelty = TypeNovelty(beta=args.novelty) if args.novelty > 0 else None
     stage_key = None
     opp_cache: dict[str, tuple[str, object]] = {}
@@ -436,9 +442,6 @@ def main() -> None:
               f"/b{logs.get('ent_subtype', 0):.2f}) | elo {league.main_elo:+6.0f} | "
               f"{time.perf_counter()-t0:.0f}s")
 
-        if args.snapshot_every and it % args.snapshot_every == 0:
-            league.add_snapshot(policy.net, it)
-
         # Cheap, frequent save so a bugcheck costs minutes rather than the night.
         # Evaluation is the expensive part, so this deliberately skips it and
         # carries the last known win rates forward.
@@ -531,6 +534,28 @@ def main() -> None:
                                   + [0.0] * (vs_scr.games - round(vs_scr.score)))
             print(f"    anchored on {vs_scr.games} scripted games: "
                   f"elo {before:+.0f} -> {league.main_elo:+.0f}")
+
+            # --- snapshot, AFTER anchoring --------------------------------
+            # A new snapshot inherits `main_elo`, which is right in principle --
+            # it *is* the current net -- but only as good as that number. Taken
+            # mid-run, `main_elo` has drifted on nothing but self-play results
+            # since the last anchor, and self-play against one's own past is a
+            # closed loop that manufactures rating: run 2 reached +842 while
+            # sitting at 52% against ScriptedBot, which the anchor prices near
+            # zero. Every snapshot minted in between inherited that inflation,
+            # so the pool's ratings were an echo of the drift rather than a
+            # measurement, and two things read them: `_evict`, which keeps the
+            # pool spread across *elo* and was therefore preserving a spread of
+            # noise, and the Elo update itself, whose `expected` term is
+            # computed from the opponent's rating.
+            #
+            # Minting here, immediately after 32 anchored games, means a
+            # snapshot's starting rating is something that was measured against
+            # a fixed external opponent.
+            if args.snapshot_every and (it - last_snapshot) >= args.snapshot_every:
+                league.add_snapshot(policy.net, it)
+                last_snapshot = it
+
             if gate > best:
                 best = gate
                 blob["best"] = best
