@@ -278,8 +278,15 @@ class ScriptedBot:
             defense_bonus_for(s, a.dst, rules), rules.accuracy)
 
         lethal = atk_res >= int(s.unit_hp[a.dst])
-        ranged = int(rules.unit_range[at]) > 1
-        retaliation = 0.0 if (lethal or ranged) else float(def_res)
+        # Whether the reply lands is the *defender's* reach, not our own kind:
+        # shooting an Archer from two tiles is answered, shooting a Warrior from
+        # two tiles is not. Estimating it as "ranged is safe" made the bot value
+        # every ranged attack as free and walk bowmen into melee.
+        reaches = s.chebyshev(a.src, a.dst) <= int(rules.unit_range[dt])
+        stiff = "stiff" in rules.unit_skills[dt]
+        surprise = "surprise" in rules.unit_skills[at]
+        retaliation = (0.0 if (lethal or not reaches or stiff or surprise)
+                       else float(def_res))
         suicidal = retaliation >= int(s.unit_hp[a.src])
 
         value = float(atk_res) + (10.0 if lethal else 0.0) - retaliation

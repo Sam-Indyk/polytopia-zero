@@ -390,7 +390,57 @@ def check_combat(rules, pages: dict[str, str]) -> Report:
                 _cmp(rep, f"defence_bonus {key}", wiki["standard"], ours[key])
     if "wall" in wiki and "city_walls" in ours:
         _cmp(rep, "defence_bonus city_walls", wiki["wall"], ours["city_walls"])
+    _check_retaliation(rep, rules, pages)
     return rep
+
+
+def _check_retaliation(rep: Report, rules, pages: dict[str, str]) -> None:
+    """Who hits back, checked by *running* the engine rather than diffing a number.
+
+    Retaliation is a code rule, not a TOML value, so the usual data diff cannot
+    see it -- and it was wrong for a long time underneath a passing test whose
+    setup happened to be the one case both rules agree on. The wiki states the
+    exclusions in a single sentence, so this asserts the clause that was
+    inverted: the reach that matters is the **defender's**.
+    """
+    text = pages.get("Combat", "")
+    sentence = next((ln for ln in text.splitlines()
+                     if "No retaliation occurs" in ln), None)
+    if not sentence:
+        rep.notes.append("no retaliation sentence on the Combat page; unchecked")
+        return
+    if "outside the unit's range" not in sentence:
+        rep.notes.append(f"retaliation sentence changed shape: {sentence[:120]}")
+        return
+
+    from polyengine.core import constants as C
+    from polyengine.core.combat import resolve_attack
+    from polyengine.core.game import Game
+
+    def hp_lost_by_attacker(atk_unit, def_unit, gap) -> int:
+        # A cleared board, so terrain and city defence cannot colour the answer.
+        s = Game.new(size=9, seed=1).state
+        for t in range(s.n_tiles):
+            s.unit_type[t] = C.U_NONE
+            s.unit_owner[t] = C.NEUTRAL
+            s.improvement[t] = C.IMP_NONE
+            s.terrain[t] = C.T_FIELD
+        src, dst = 4 * 9 + 2, 4 * 9 + 2 + gap
+        for tile, u, p in ((src, atk_unit, 0), (dst, def_unit, 1)):
+            s.unit_type[tile] = u
+            s.unit_owner[tile] = p
+            s.unit_hp[tile] = 99
+        before = int(s.unit_hp[src])
+        resolve_attack(s, src, dst, rules)
+        return before - int(s.unit_hp[src])
+
+    # A defender inside its own range answers; one standing off cannot.
+    for label, args, want_reply in (
+            ("archer shot by archer at 2", (C.U_ARCHER, C.U_ARCHER, 2), True),
+            ("warrior shot by archer at 1", (C.U_ARCHER, C.U_DEFENDER, 1), True),
+            ("warrior shot by archer at 2", (C.U_ARCHER, C.U_DEFENDER, 2), False)):
+        got = hp_lost_by_attacker(*args) > 0
+        _cmp(rep, f"retaliation: {label}", want_reply, got)
 
 
 def parse_other_improvement_costs(text: str) -> dict[str, int]:
