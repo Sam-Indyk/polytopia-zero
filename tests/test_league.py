@@ -659,3 +659,47 @@ def test_only_size_and_seats_are_staged():
         last = curriculum.PRESETS[name].stages[-1]
         assert len(last.sizes) > len(first.sizes)
         assert len(last.players) > len(first.players)
+
+
+def test_the_intrinsic_bonus_must_vanish():
+    """The guarantee that makes count-based exploration safe, restored.
+
+    Cumulative counts carry it implicitly: `beta / sqrt(N)` goes to zero as N
+    grows, so the intrinsic reward disappears and the optimal policy is
+    asymptotically the true one. Decaying counts reach a *steady state*, so the
+    bonus is permanent and the agent is optimising a different game forever.
+
+    Run 5 paid for this. Expected bonus per step is
+    `beta/sqrt(T) * sum_i sqrt(s_i)`, maximised when the action-type shares are
+    uniform -- so a flat bonus literally pays for playing at random. Measured:
+    +0.58 an episode against a terminal reward of +-1, and 675 iterations
+    without improving against any baseline.
+    """
+    import numpy as np
+    from polytrain.rollout import TypeNovelty
+    from polytrain.train_league import explore_scale, ENTROPY_FLOOR_FINAL
+
+    rng = np.random.default_rng(0)
+    nov = TypeNovelty(beta=0.05)
+    for _ in range(60_000):
+        nov.record(int(rng.integers(0, 11)))
+
+    # Unannealed, it is worth a serious fraction of winning -- the bug.
+    assert nov.per_episode_scale() > 0.25, (
+        "this test is calibrated against the run-5 failure; if the bonus is no "
+        "longer large when unannealed, re-derive the schedule")
+
+    # Annealed, it is worth exactly nothing.
+    nov.beta = 0.05 * explore_scale(1600, 1600)
+    assert nov.per_episode_scale() == 0.0, (
+        "exploration pressure must reach exactly zero, not a floor: unlike the "
+        "shaping term it is not potential-based, so any residue permanently "
+        "changes which policy is optimal")
+
+    # ...and it must be monotone on the way down, not merely zero at the end.
+    vals = [explore_scale(i, 1000) for i in (0, 250, 500, 750, 1000, 2000)]
+    assert vals == sorted(vals, reverse=True)
+    assert vals[-1] == 0.0 and vals[0] == 1.0
+    # The entropy floor keeps its original job -- catching a dying head -- so it
+    # anneals to a tripwire rather than to nothing.
+    assert 0.0 < ENTROPY_FLOOR_FINAL <= 0.22

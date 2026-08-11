@@ -99,20 +99,35 @@ class TypeNovelty:
     It is deliberately small, so it tilts a close call rather than becoming an
     objective of its own.
 
-    Counts **decay**, and that is the whole difference between this working and
-    not. Cumulative counts made the bonus a statement about the run's history
-    rather than the policy's present: by iteration 1000 of run 4 the totals were
-    in the 10^5-10^6 range, so `beta / sqrt(N)` was ~0.0001 against a terminal
-    reward of +-1 -- off, in every sense that matters. Worse, the sign was
-    wrong for the failure it exists to prevent: a verb the policy *abandons*
-    keeps its large historical count forever, so the moment it most needs the
-    bonus is exactly when it can no longer earn one.
+    Counts **decay**, so the bonus tracks how rare an action is *now* rather
+    than over the run's whole history. Cumulative counts had the wrong sign for
+    the failure this exists to prevent: a verb the policy abandons keeps its
+    large historical count forever, so the moment it most needs a bonus is
+    exactly when it can no longer earn one. With a decay the counts converge to
+    `share / (1 - decay)` and an abandoned verb becomes tempting again.
 
-    With a decay the counts converge to `share / (1 - decay)`, so the bonus
-    tracks how rare an action is *now*. At the default the effective window is
-    ~10,000 actions: a verb at 40% of the mix sits near 0.0008 and one that has
-    fallen to 0.1% climbs to ~0.016, a twenty-fold separation that reappears
-    within a window rather than never.
+    **`beta` must be annealed to zero by the caller, and this is not optional.**
+    Cumulative counts carry a guarantee that is easy to miss until it is gone:
+    `beta / sqrt(N)` vanishes as N grows, so the intrinsic reward disappears and
+    the optimal policy is asymptotically the true one. A decay destroys that --
+    the counts reach a steady state, so the bonus is *permanent* and therefore
+    changes what the agent is optimising, forever.
+
+    Run 5 measured the cost. Expected bonus per step is
+
+        sum_i s_i * beta/sqrt(s_i * T)  =  beta/sqrt(T) * sum_i sqrt(s_i)
+
+    for shares `s_i` and steady-state total `T = 1/(1-decay)` -- and that is
+    **maximised when the shares are uniform**. At the defaults it is 0.0017 a
+    step, or +0.58 over a 350-step episode against a terminal reward of +-1.
+    So the agent was paid more than half a win to play a uniformly random mix
+    of verbs, and it did: 675 iterations with no improvement against any
+    baseline, losing 37-11 to run 4's iteration-650 snapshot. Under cumulative
+    counts the same quantity was +0.03, which is why run 4 was unaffected.
+
+    Annealed, it keeps what it is for -- run 5's first hundred iterations moved
+    median P(RESEARCH) from 0.0007 to 0.0159 and techs per game from 6.8 to
+    14.8 -- and then gets out of the way.
     """
 
     def __init__(self, beta: float = 0.05, prior: float = 50.0,
@@ -120,6 +135,16 @@ class TypeNovelty:
         self.beta = beta
         self.decay = decay
         self.counts = np.full(C.N_ACTION_TYPES, prior, dtype=np.float64)
+
+    def per_episode_scale(self, steps: int = 350) -> float:
+        """Roughly what this bonus is worth over an episode, against +-1.
+
+        Exists to be *looked at*: the failure above was invisible in every log
+        line and obvious the moment the number was computed.
+        """
+        share = self.counts / self.counts.sum()
+        return float(self.beta / np.sqrt(self.counts.sum())
+                     * np.sqrt(share).sum() * steps)
 
     def bonus(self, atype: int) -> float:
         return self.beta / float(np.sqrt(self.counts[atype]))

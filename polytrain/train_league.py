@@ -59,6 +59,30 @@ def gate_opponent(seed: int = 11):
     return ScriptedBot.crazy(seed=seed)
 
 
+# Where the entropy floor lands once exploration has annealed. Not zero: its
+# original job was to catch a head that is *dying*, and that job never expires.
+# Run 4 trained fine with 0.22, so this stays a tripwire rather than becoming an
+# operating point the way 0.40 did.
+ENTROPY_FLOOR_FINAL = 0.20
+
+
+def explore_scale(it: int, anneal: int) -> float:
+    """Exploration pressure at iteration `it`, 1.0 falling linearly to 0.0.
+
+    Everything that pushes the policy *away* from its own best guess -- the
+    novelty bonus, the per-action floor, the extra entropy floor -- rides on
+    this, because each of them changes the objective rather than merely
+    speeding up the search. Constant pressure is a permanently different game:
+    run 5 kept all three flat and spent 675 iterations learning to farm the
+    intrinsic reward instead of winning.
+
+    Unlike `shaping_for` this anneals to *exactly* zero and has no floor. The
+    shaping term keeps one because it is potential-based and so provably cannot
+    change the optimal policy; none of these three has that property.
+    """
+    return max(0.0, 1.0 - it / max(1, anneal))
+
+
 def shaping_for(it: int, scale: float, anneal: int, floor: float) -> float:
     """Reward-shaping weight at iteration `it`, decaying to a *floor*, not zero.
 
@@ -170,6 +194,12 @@ def main() -> None:
                          "The entropy floor constrains spread, this constrains "
                          "support -- run 4 cleared the former with RESEARCH at "
                          "a median 0.0007.")
+    ap.add_argument("--explore-anneal", type=int, default=0,
+                    help="iterations over which novelty / action floor / the "
+                         "extra entropy floor fall to zero. 0 = 40%% of the run. "
+                         "These change the objective, so they must not be "
+                         "permanent -- run 5 held them flat and farmed the "
+                         "intrinsic reward for 675 iterations.")
     ap.add_argument("--novelty", type=float, default=0.05,
                     help="count-based exploration bonus on action TYPES "
                          "(beta/sqrt(N)). 0 disables.")
@@ -357,9 +387,24 @@ def main() -> None:
     novelty = TypeNovelty(beta=args.novelty) if args.novelty > 0 else None
     stage_key = None
     opp_cache: dict[str, tuple[str, object]] = {}
+    base_novelty = args.novelty
+    base_action_floor = args.action_floor
+    base_entropy_floor = args.entropy_floor
+    explore_anneal = args.explore_anneal or max(1, int(args.iters * 0.4))
     for it in range(start_iter, args.iters + 1):
         shaping = shaping_for(it, args.shaping, args.shaping_anneal,
                               args.shaping_floor)
+        # Exploration pressure is a scaffold, and a scaffold has to come down.
+        # Run 5 held all three of these constant for 675 iterations and never
+        # improved against any baseline: a permanent intrinsic bonus is not
+        # exploration, it is a different objective. See `TypeNovelty`.
+        explore = explore_scale(it, explore_anneal)
+        if novelty is not None:
+            novelty.beta = base_novelty * explore
+        learner.cfg.action_floor = base_action_floor * explore
+        learner.cfg.entropy_floor = (ENTROPY_FLOOR_FINAL
+                                     + (base_entropy_floor - ENTROPY_FLOOR_FINAL)
+                                     * explore)
         member = league.sample(rng)
 
         size, specs = args.size, None
