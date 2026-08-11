@@ -15,6 +15,7 @@ Standard clipped-surrogate PPO with a few things this problem needs:
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 import numpy as np
@@ -40,8 +41,18 @@ class PPOConfig:
     # Below the floor a head gets an extra, sharply rising penalty; above it,
     # nothing. So this costs nothing on a healthy run and only bites on a head
     # that is dying.
-    entropy_floor: float = 0.22
+    # Raised 0.22 -> 0.40 after run 4. The old value was picked as a "this head
+    # is dying" tripwire and became the operating point instead: the type head
+    # fell from 0.566 to 0.242 within 100 iterations and then sat between 0.23
+    # and 0.29 for the next thousand, never recovering. A floor the policy will
+    # park on is a choice of operating point, so it should be chosen as one.
+    entropy_floor: float = 0.40
     entropy_floor_coef: float = 0.5
+    # Minimum probability every *legal* action type must keep. The entropy floor
+    # constrains the spread of the distribution; this constrains its support,
+    # which is a different property and the one that was actually failing.
+    action_floor: float = 0.02
+    action_floor_coef: float = 0.05
     aux_coef: float = 0.25
     max_grad_norm: float = 0.5
     normalise_adv: bool = True
@@ -71,7 +82,7 @@ class PPOLearner:
         n = adv.shape[0]
         idx_all = np.arange(n)
         logs = {"policy_loss": [], "value_loss": [], "entropy": [],
-                "clip_frac": [], "approx_kl": []}
+                "clip_frac": [], "approx_kl": [], "action_floor_pen": []}
 
         for _ in range(cfg.epochs):
             np.random.shuffle(idx_all)
@@ -135,6 +146,31 @@ class PPOLearner:
                     head_ent[name] = float(frac.detach())
                     floor_pen = floor_pen + torch.relu(cfg.entropy_floor - frac) ** 2
                 loss = loss + cfg.entropy_floor_coef * floor_pen
+
+                # Per-ACTION floor on the type head, which the aggregate floor
+                # above provably cannot supply. Measured at iteration 1000 of
+                # run 4: the type head sat at frac 0.27 -- comfortably clear of
+                # its 0.22 floor -- while RESEARCH held a *median* probability
+                # of 0.0007 and EXAMINE 0.007. The head was satisfying the
+                # floor by hedging between MOVE (0.55), ATTACK (0.55) and
+                # TRAIN (0.59) while two whole verbs went to zero, and a scalar
+                # measure of spread cannot tell those apart.
+                #
+                # Stated on log-probability rather than probability on purpose:
+                # `relu(eps - p)` saturates at eps and its gradient dies exactly
+                # where the action is most extinct, whereas `log eps - log p`
+                # keeps growing as p -> 0. At p = 0.0007 against eps = 0.02 it
+                # is 3.4, so a dead verb is pulled back hard and a merely
+                # unfashionable one is left alone.
+                if cfg.action_floor > 0.0:
+                    legal = sub["type_mask"].float()
+                    deficit = torch.relu(math.log(cfg.action_floor)
+                                         - out["logp_type"].float()) * legal
+                    # Mean over the legal options, so the penalty does not scale
+                    # with how many action types happen to be available.
+                    act_pen = (deficit.sum(-1) / legal.sum(-1).clamp(min=1.0)).mean()
+                    loss = loss + cfg.action_floor_coef * act_pen
+                    logs["action_floor_pen"].append(float(act_pen.detach()))
 
                 if aux_targets is not None:
                     score_t = aux_targets["score"][mb_t]

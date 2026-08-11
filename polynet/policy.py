@@ -240,16 +240,16 @@ class ARPolicy:
         feat, ctx = self.net.trunk(stored["spatial"], stored["global"],
                                    stored["valid"])
         atype = stored["atype"]
-        lp_type, ent_type = _score(self.net.type_logits(ctx),
-                                   stored["type_mask"], atype)
-        lp_src, ent_src = _score(self.net.source_logits(feat, atype),
-                                 stored["src_mask"], stored["src_idx"])
-        lp_tgt, ent_tgt = _score(self.net.target_logits(feat, atype,
-                                                        stored["src_idx"]),
-                                 stored["tgt_mask"], stored["tgt_idx"])
+        lp_type, ent_type, logp_type = _score(self.net.type_logits(ctx),
+                                              stored["type_mask"], atype)
+        lp_src, ent_src, _ = _score(self.net.source_logits(feat, atype),
+                                    stored["src_mask"], stored["src_idx"])
+        lp_tgt, ent_tgt, _ = _score(self.net.target_logits(feat, atype,
+                                                          stored["src_idx"]),
+                                    stored["tgt_mask"], stored["tgt_idx"])
         src_for_sub = torch.where(stored["applies_source"], stored["src_idx"],
                                   torch.full_like(stored["src_idx"], -1))
-        lp_sub, ent_sub = _score(
+        lp_sub, ent_sub, _ = _score(
             self.net.subtype_logits(feat, ctx, atype, src_for_sub),
             stored["sub_mask"], stored["sub_idx"])
 
@@ -269,6 +269,12 @@ class ARPolicy:
                 # 0.79 looked survivable while the *type* head was at 0.070 out
                 # of a possible 2.30, putting P(research) at five in a million.
                 "ent_type": ent_type,
+                # The whole masked distribution over action types, not just the
+                # chosen one's log-prob. A scalar entropy floor cannot tell
+                # "spread evenly" from "hedging between MOVE and ATTACK while
+                # RESEARCH dies", and those need opposite responses -- so the
+                # per-action floor in `ppo` needs to see each option.
+                "logp_type": logp_type,
                 "ent_source": ent_src * a_src,
                 "ent_target": ent_tgt * a_tgt,
                 "ent_subtype": ent_sub * a_sub,
@@ -290,4 +296,4 @@ def _score(logits, mask, index):
     safe = index.clamp(0, logits.shape[-1] - 1)
     chosen = logp.gather(-1, safe[:, None]).squeeze(-1)
     entropy = -(probs * logp).sum(-1)
-    return chosen, entropy
+    return chosen, entropy, logp

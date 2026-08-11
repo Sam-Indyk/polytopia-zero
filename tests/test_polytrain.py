@@ -428,11 +428,17 @@ def test_novelty_bonus_favours_rarely_taken_action_types():
         nov.record(common)
     assert nov.bonus(common) < nov.bonus(rare), \
         "a heavily-used type must be worth less than an unused one"
-    assert nov.bonus(rare) == pytest.approx(before), "untouched type unchanged"
-    # It fades: the bonus must not become an objective of its own.
+    # An untouched type's bonus RISES, and that is the point: counts decay, so
+    # the measure is how rare an action is *now*, not over the run's history.
+    # Cumulative counts froze an abandoned verb's count high forever, so the
+    # moment it most needed a bonus was exactly when it could not earn one --
+    # measured on run 4, RESEARCH at a median probability of 0.0007 drew a
+    # bonus of 0.0001. See test_novelty_bonus_recovers_for_an_abandoned_action.
+    assert nov.bonus(rare) > before, "an unused type must grow more tempting"
+    # It still fades with use, so it cannot become an objective of its own.
     for _ in range(100_000):
         nov.record(rare)
-    assert nov.bonus(rare) < 0.001
+    assert nov.bonus(rare) < 0.002
 
 
 def test_option_value_rewards_tech_for_what_it_unlocks():

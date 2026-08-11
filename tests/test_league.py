@@ -576,3 +576,86 @@ def test_difficulty_diplomacy_survives_by_default():
     assert ScriptedBot(seed=0).never_peace is False
     assert ScriptedBot.crazy(seed=0).never_peace is False, \
         "crazy already refuses peace through aggression, not through this flag"
+
+
+# --- exploration: the three mechanisms that failed on run 4 -------------------
+def test_novelty_bonus_recovers_for_an_abandoned_action():
+    """The failure the bonus exists to prevent, and used to be blind to.
+
+    With cumulative counts, a verb the policy stops using keeps its large
+    historical count forever -- so the moment it most needs a bonus is exactly
+    when it can no longer earn one. Measured on run 4: RESEARCH held a median
+    probability of 0.0007 while its novelty bonus sat near 0.0001.
+    """
+    from polytrain.rollout import TypeNovelty
+    from polyengine.core import constants as C
+
+    nov = TypeNovelty()
+    # A long spell in which RESEARCH is used heavily, then abandoned entirely.
+    for _ in range(20_000):
+        nov.record(C.A_RESEARCH)
+    used = nov.bonus(C.A_RESEARCH)
+    for _ in range(40_000):
+        nov.record(C.A_MOVE)
+    abandoned = nov.bonus(C.A_RESEARCH)
+
+    assert abandoned > used * 5, (
+        f"an abandoned verb must become novel again ({used:.5f} -> "
+        f"{abandoned:.5f}); with cumulative counts it never does")
+    assert abandoned > nov.bonus(C.A_MOVE) * 5, (
+        "the abandoned verb must out-bonus the dominant one")
+
+
+def test_the_action_floor_sees_what_the_entropy_floor_cannot():
+    """A scalar entropy floor constrains *spread*; it cannot constrain *support*.
+
+    This is the exact distribution measured at iteration 1000 of run 4: the type
+    head cleared its 0.22 entropy floor while RESEARCH sat at 0.0007. Both
+    properties are checked on the same vector, so the test fails if someone ever
+    "simplifies" the per-action floor back into the entropy one.
+    """
+    import math
+    import torch
+
+    # Three popular verbs hedging, one extinct -- 0.33/0.33/0.333/0.0007.
+    p = torch.tensor([[0.3331, 0.3331, 0.3331, 0.0007]])
+    logp = p.log()
+    legal = torch.ones_like(p)
+
+    frac = float(-(p * logp).sum(-1) / math.log(4))
+    assert frac > 0.22, (
+        f"entropy fraction {frac:.3f} clears the OLD floor, which is why the "
+        "collapse went unnoticed for a thousand iterations")
+
+    floor = 0.02
+    deficit = torch.relu(math.log(floor) - logp) * legal
+    per_action = (deficit.sum(-1) / legal.sum(-1)).item()
+    assert per_action > 0.5, (
+        f"the per-action floor must fire on this distribution, got {per_action:.3f}")
+    # And it must stay silent on a genuinely healthy one.
+    ok = torch.full((1, 4), 0.25).log()
+    quiet = (torch.relu(math.log(floor) - ok) * legal).sum(-1).item()
+    assert quiet == 0.0, "a healthy distribution must cost nothing"
+
+
+def test_only_size_and_seats_are_staged():
+    """Map type and tribe have no mechanical reason to be staged, and staging
+    them cost run 4 its first 780 iterations on land-only maps.
+
+    Size is staged because `PolicyEncoder.encode` pads a batch to `max(sizes)`;
+    seats because more players means longer games and fewer terminal rewards.
+    Neither applies to map type or tribe.
+    """
+    from polytrain import curriculum
+
+    for name in ("standard", "ffa"):
+        first = curriculum.PRESETS[name].stages[0]
+        assert set(first.map_types) == set(curriculum.ALL_MAP_TYPES), (
+            f"{name} stage 1 must deal every map type from iteration 1; "
+            f"got {first.map_types}")
+        assert set(first.tribes) == set(curriculum.ALL_TRIBES), (
+            f"{name} stage 1 must deal every tribe; got {first.tribes}")
+        # ...while the axes that *do* cost something are still staged.
+        last = curriculum.PRESETS[name].stages[-1]
+        assert len(last.sizes) > len(first.sizes)
+        assert len(last.players) > len(first.players)

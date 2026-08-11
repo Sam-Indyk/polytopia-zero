@@ -68,9 +68,14 @@ def test_the_curriculum_actually_widens():
     late = {cur.spec(399, i, seed=2).n_players for i in range(24)}
     assert max(late) > max(early), "seat count never grew"
     assert cur.size_for(399) > cur.size_for(0), "board size never grew"
+    # Tribe and map type deliberately do NOT widen: neither changes the tensor
+    # shape, so staging them buys nothing and cost run 4 its first 780
+    # iterations on land-only maps. They are full from iteration 1 and stay
+    # full -- see test_only_size_and_seats_are_staged.
     early_tribes = {t for i in range(24) for t in cur.spec(0, i, seed=2).tribes}
     late_tribes = {t for i in range(24) for t in cur.spec(399, i, seed=2).tribes}
-    assert len(late_tribes) > len(early_tribes), "tribe pool never grew"
+    assert len(early_tribes) > 2, "the tribe pool must be wide from the start"
+    assert late_tribes >= early_tribes, "the tribe pool must never shrink"
 
 
 def test_stage_boundaries_rescale_to_the_run_length():

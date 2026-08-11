@@ -84,8 +84,8 @@ class TypeNovelty:
     """A count-based exploration bonus over *action types*.
 
     The classic `beta / sqrt(N)` intrinsic reward, counted per action type and
-    persisted across iterations so it reflects the whole run rather than one
-    batch.
+    persisted across iterations so it reflects a trailing window of the run
+    rather than one batch.
 
     Action types are the right granularity because that is the axis that
     collapsed: measured on run 3, the type head put 0.000005 of its mass on
@@ -96,18 +96,38 @@ class TypeNovelty:
     arrives dozens of actions later, which is the case undirected exploration
     is worst at.
 
-    It is deliberately small and decays as counts grow, so it shapes the early
-    run and fades rather than becoming an objective of its own.
+    It is deliberately small, so it tilts a close call rather than becoming an
+    objective of its own.
+
+    Counts **decay**, and that is the whole difference between this working and
+    not. Cumulative counts made the bonus a statement about the run's history
+    rather than the policy's present: by iteration 1000 of run 4 the totals were
+    in the 10^5-10^6 range, so `beta / sqrt(N)` was ~0.0001 against a terminal
+    reward of +-1 -- off, in every sense that matters. Worse, the sign was
+    wrong for the failure it exists to prevent: a verb the policy *abandons*
+    keeps its large historical count forever, so the moment it most needs the
+    bonus is exactly when it can no longer earn one.
+
+    With a decay the counts converge to `share / (1 - decay)`, so the bonus
+    tracks how rare an action is *now*. At the default the effective window is
+    ~10,000 actions: a verb at 40% of the mix sits near 0.0008 and one that has
+    fallen to 0.1% climbs to ~0.016, a twenty-fold separation that reappears
+    within a window rather than never.
     """
 
-    def __init__(self, beta: float = 0.05, prior: float = 50.0):
+    def __init__(self, beta: float = 0.05, prior: float = 50.0,
+                 decay: float = 0.9999):
         self.beta = beta
+        self.decay = decay
         self.counts = np.full(C.N_ACTION_TYPES, prior, dtype=np.float64)
 
     def bonus(self, atype: int) -> float:
         return self.beta / float(np.sqrt(self.counts[atype]))
 
     def record(self, atype: int) -> None:
+        # Every count ages, not just the one being recorded -- otherwise the
+        # decay would be a no-op on precisely the abandoned verbs it is for.
+        self.counts *= self.decay
         self.counts[atype] += 1.0
 
     def report(self) -> str:

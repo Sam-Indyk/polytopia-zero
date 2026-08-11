@@ -158,11 +158,18 @@ def main() -> None:
     ap.add_argument("--minibatch", type=int, default=1024)
     ap.add_argument("--epochs", type=int, default=3)
     ap.add_argument("--entropy", type=float, default=0.01)
-    ap.add_argument("--entropy-floor", type=float, default=0.22,
+    ap.add_argument("--entropy-floor", type=float, default=0.40,
                     help="minimum entropy each head must keep, as a "
                          "fraction of a uniform choice over its legal "
                          "options. 0 disables. One global bonus cannot "
-                         "stop a single head collapsing.")
+                         "stop a single head collapsing. Raised from 0.22 "
+                         "after run 4 parked on it for a thousand iterations "
+                         "-- a floor the policy sits on is an operating point.")
+    ap.add_argument("--action-floor", type=float, default=0.02,
+                    help="minimum probability every legal action TYPE keeps. "
+                         "The entropy floor constrains spread, this constrains "
+                         "support -- run 4 cleared the former with RESEARCH at "
+                         "a median 0.0007.")
     ap.add_argument("--novelty", type=float, default=0.05,
                     help="count-based exploration bonus on action TYPES "
                          "(beta/sqrt(N)). 0 disables.")
@@ -272,6 +279,7 @@ def main() -> None:
                                            epochs=args.epochs,
                                            entropy_coef=args.entropy,
                                            entropy_floor=args.entropy_floor,
+                                           action_floor=args.action_floor,
                                            precision=args.precision))
     league = League(capacity=args.league_size)
     if args.league_scripted:

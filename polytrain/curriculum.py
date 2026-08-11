@@ -174,9 +174,26 @@ PRESETS: dict[str, Curriculum] = {
 
     # The default. Duels first, then crowds -- three seats is the smallest game
     # in which a treaty can pay for itself. Small boards stay in every stage.
+    # Only the axes with a *mechanical* reason are staged. Board size is one:
+    # `PolicyEncoder.encode` pads a batch to `max(sizes)`, so one 18x18 among 48
+    # games makes all 48 cost 18x18. Seat count is another, for a different
+    # reason -- more players means longer games means fewer terminal rewards per
+    # iteration, and episode starvation has killed two runs here.
+    #
+    # Map type and tribe have neither. Map type does not change the tensor shape
+    # at all, and the spatial planes are binary own/enemy so sixteen tribes
+    # encode exactly like two. They were staged by analogy with size, and run 4
+    # showed what that cost: stage one was `drylands, lakes` -- both land -- and
+    # it ran 780 iterations. The type head collapsed onto its floor at iteration
+    # 100 and warrior-rush set in, so when water finally arrived the policy had
+    # no exploration left to adapt with.
+    #
+    # The premise of a curriculum is that the easy task's optimum is a stepping
+    # stone to the hard one. Warrior-rush-on-drylands is not a stepping stone to
+    # naval play, it is a competing attractor -- and there was nothing to bridge
+    # anyway, since the agent beats Random 32/32 on every map type from early on.
     "standard": Curriculum(name="standard", stages=(
-        Stage(until=199, sizes=(11,), players=(2,), turn_cap_scale=0.35,
-              map_types=("drylands", "lakes"), tribes=("imperius", "bardur")),
+        Stage(until=199, sizes=(11,), players=(2,), turn_cap_scale=0.35),
         Stage(until=599, sizes=(11,), players=(2,), turn_cap_scale=0.5),
         Stage(until=1199, sizes=(11, 11, 14), players=(2, 2, 3), turn_cap_scale=0.7),
         Stage(until=1999, sizes=(11, 14, 14, 16), players=(2, 3, 3, 4), turn_cap_scale=0.85),
@@ -186,8 +203,7 @@ PRESETS: dict[str, Curriculum] = {
     # The wide end: up to sixteen tribes on a massive board. Even here a fifth
     # of iterations are 11x11 duels, purely to keep episodes finishing.
     "ffa": Curriculum(name="ffa", stages=(
-        Stage(until=199, sizes=(11,), players=(2,), turn_cap_scale=0.35,
-              map_types=("drylands", "lakes"), tribes=("imperius", "bardur")),
+        Stage(until=199, sizes=(11,), players=(2,), turn_cap_scale=0.35),
         Stage(until=599, sizes=(11,), players=(2, 2, 3), turn_cap_scale=0.5),
         Stage(until=1199, sizes=(11, 11, 14), players=(2, 3, 3, 4), turn_cap_scale=0.7),
         Stage(until=1999, sizes=(11, 14, 14, 16), players=(2, 3, 4, 4, 6), turn_cap_scale=0.85),
