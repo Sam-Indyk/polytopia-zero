@@ -579,15 +579,28 @@ would crash to tell you.
 
 ## What to do next
 
-The plateau is most likely **sparse terminal reward**: with 96-step rollouts and
-11×11 games running ~80 turns, only ~6–9 episodes finish per iteration, so 700
-iterations saw maybe 5,000 win/loss signals.
+**Read `docs/TRAINING_LOG.md` first.** Runs and checkpoints are gitignored, so
+that file is the only surviving record of runs 2–7 — what each measured, which
+explanations died, and the one finding that cost two whole runs to establish:
 
-**A run addressing this is in flight** (28 Jul, `checkpoints_big/`, gitignored):
-`128x10 = 3.44M params` (6× the old net), `--games 64 --rollout 192` on 11×11 —
-12,288 steps/iteration, 4× the old run, and ~21 episodes/iteration instead of
-6–9. Measured 25.5s/iteration (7.2s rollout + 18.3s update), 5.5 GB of 8.5 GB
-peak VRAM. Watch it with `Get-Content runs_big.log -Tail 20`.
+> Widening the training distribution all at once **erases** what the agent had
+> rather than adding to it. Run 4 was beating a Crazy bot 19.8/32 and climbing
+> on two map types; the boundary widened it to six and it fell to 10.2/32 and
+> never recovered. Runs 5 and 6 started wide and never learned at all.
+
+The high-water mark of the project is **run 4, 22/32 (69%) against Crazy at
+eval@550**, and that checkpoint no longer exists. Re-reaching it is the first
+milestone for any new run.
+
+Two earlier diagnoses in this file were tested and did **not** survive: sparse
+terminal reward and exploration collapse. Both were real and both were fixed,
+and neither was the binding constraint — see the "explanations that did not
+survive" section of the training log before re-deriving them.
+
+The sizing table below stops at 6.4M. It does **not** extrapolate: "rollout time
+is flat across net sizes" held only because the GPU forward was negligible
+beside CPU env stepping, which stops being true well before 100M. The training
+log has parameter counts and VRAM estimates up to 512×20 (99M).
 
 The sizing measurement that drove those numbers, and which should be redone
 before any future scale-up:
