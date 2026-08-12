@@ -41,13 +41,14 @@ _PLAYER_ARRAYS = ("stars", "tech", "tribe", "alive",
 _FOG_ARRAYS = (
     "fog_explored", "fog_visible", "fog_staleness",
     "mem_unit_type", "mem_unit_owner", "mem_city_owner", "mem_city_level",
+    "mem_owner", "mem_terrain", "mem_resource", "mem_improvement",
 )
 
 
 class GameState:
     __slots__ = (
         "rules", "size", "n_tiles", "n_players", "turn", "current_player",
-        "map_seed", "map_type", "rng",
+        "map_seed", "map_type", "turn_cap", "rng",
         *_TILE_ARRAYS, *_PLAYER_ARRAYS, *_FOG_ARRAYS,
     )
 
@@ -64,6 +65,14 @@ class GameState:
         # not a hashed array: it never changes and the terrain it produced is
         # already part of the state.
         self.map_type = "drylands"
+        # When a turn-capped game is decided on score. Per game, not global,
+        # because it has to grow with the board and the number of tribes -- a
+        # 30x30 FFA cannot be settled in the hundred turns an 11x11 duel needs.
+        # It is metadata for the same reason `map_type` is, but it is *also*
+        # part of what determines the game, so `replay.py` carries it in the
+        # header: rebuilding a 400-turn game with a 100-turn cap ends it early
+        # and the differential gate reports a divergence with no cause in sight.
+        self.turn_cap = int(C.TURN_CAP)
         self.rng = np.random.Generator(np.random.PCG64(map_seed))
         if _alloc:
             self._allocate()
@@ -108,7 +117,14 @@ class GameState:
         self.unit_moved = np.zeros(n, dtype=C.DT_FLAG)
         self.unit_attacked = np.zeros(n, dtype=C.DT_FLAG)
         self.unit_veteran = np.zeros(n, dtype=C.DT_FLAG)
-        self.unit_kills = np.zeros(n, dtype=np.int8)
+        # int16, not int8. A veteran needs three kills, so eight bits looks like
+        # plenty -- but kills accumulate for the life of the unit and nothing
+        # resets them. In a long game a Knight with `persist` (it attacks again
+        # after every kill) runs past 127 and wraps negative, at which point
+        # `can_promote` refuses forever because the count is below three. Found
+        # by removing the turn cap; unreachable while games end in a few hundred
+        # turns, which is why it survived.
+        self.unit_kills = np.zeros(n, dtype=np.int16)
         # Tile of the city supporting this unit (-1 = unsupported/independent).
         # A city supports at most `level + 1` units, so this is what makes unit
         # count a scarce resource rather than a function of spare stars.
@@ -169,6 +185,17 @@ class GameState:
         self.mem_unit_owner = np.full((p, n), C.NEUTRAL, dtype=C.DT_OWNER)
         self.mem_city_owner = np.full((p, n), C.NEUTRAL, dtype=C.DT_OWNER)
         self.mem_city_level = np.zeros((p, n), dtype=np.int8)
+        # Remembered board. Units and cities have had memory since the start;
+        # territory, terrain, resources and buildings did not, so the encoder
+        # read ground truth for all four and every player saw the whole map --
+        # every mountain and ocean, every ruin -- from turn 0 without exploring
+        # a tile. See obs.encode_spatial. Written by `fog_kernel` wherever a
+        # player can currently see, and never read for an unexplored tile, so
+        # the initial values below are placeholders rather than claims.
+        self.mem_owner = np.full((p, n), C.NEUTRAL, dtype=C.DT_OWNER)
+        self.mem_terrain = np.full((p, n), C.T_FIELD, dtype=C.DT_TERRAIN)
+        self.mem_resource = np.zeros((p, n), dtype=C.DT_RESOURCE)
+        self.mem_improvement = np.full((p, n), C.IMP_NONE, dtype=np.int8)
 
     # --- geometry -----------------------------------------------------------
     def idx(self, x: int, y: int) -> int:
@@ -227,6 +254,7 @@ class GameState:
         s.turn = self.turn
         s.current_player = self.current_player
         s.map_type = self.map_type
+        s.turn_cap = self.turn_cap
         for name in (*_TILE_ARRAYS, *_PLAYER_ARRAYS, *_FOG_ARRAYS):
             setattr(s, name, getattr(self, name).copy())
         # Clone the RNG bitstream position so continuations stay reproducible.
@@ -251,6 +279,7 @@ class GameState:
             "current_player": self.current_player,
             "map_seed": self.map_seed,
             "map_type": self.map_type,
+            "turn_cap": self.turn_cap,
             "rng_state": _jsonify(self.rng.bit_generator.state),
         }
         for name in (*_TILE_ARRAYS, *_PLAYER_ARRAYS, *_FOG_ARRAYS):
@@ -267,6 +296,7 @@ class GameState:
         # trip; deriving the dtype makes that failure mode impossible.
         s = cls(rules, d["size"], d["n_players"], d["map_seed"], _alloc=True)
         s.map_type = d.get("map_type", "drylands")
+        s.turn_cap = int(d.get("turn_cap", C.TURN_CAP))
         s.turn = d["turn"]
         s.current_player = d["current_player"]
         for name in (*_TILE_ARRAYS, *_PLAYER_ARRAYS, *_FOG_ARRAYS):

@@ -51,6 +51,44 @@ def actions_from_masks(state, player, rules) -> set[tuple]:
     return out
 
 
+# --- the build pre-filter must never hide a legal build -----------------------
+
+@pytest.mark.parametrize("seed", [0, 1, 2])
+def test_build_candidates_never_drops_a_legal_pair(seed):
+    """`build_candidates` is an optimisation, so it has exactly one obligation:
+    everything it drops must be something `can_build` would refuse anyway.
+
+    Checked the only way that means anything — against the brute-force cross
+    product it replaced, at every decision point of a real game. It cut 9.5M
+    `can_build` calls per 3,200 decisions down to a few thousand; if it ever
+    narrows too far it silently removes moves from the agent's action space,
+    which is the hidden capability ceiling invariant 2 is about, and no crash
+    would ever tell you.
+    """
+    from polyengine.core.economy import build_candidates, can_build
+
+    game = Game.new(size=11, seed=seed)
+    bots = [RandomAgent(seed=seed * 7 + p) for p in range(game.state.n_players)]
+    checked = dropped = 0
+    for _ in range(120):
+        if game.is_terminal():
+            break
+        s, p = game.state, game.current_player
+        tiles, imps = build_candidates(s, p, R)
+        kept = {(int(t), int(i)) for t in tiles for i in imps}
+        for tile in range(s.n_tiles):
+            for imp in range(R.n_improvements):
+                if (tile, imp) in kept:
+                    continue
+                dropped += 1
+                assert not can_build(s, tile, imp, p, R), (
+                    f"pre-filter dropped a LEGAL build: {R.imp_names[imp]} "
+                    f"at tile {tile} for player {p}")
+        checked += 1
+        game.step(bots[p].act(game))
+    assert checked > 20 and dropped > 10_000, "sweep was too small to mean much"
+
+
 @pytest.mark.parametrize("seed", [0, 1, 2, 3])
 def test_masks_match_enumerate_actions_through_a_game(seed):
     game = Game.new(size=9, seed=seed)

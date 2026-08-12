@@ -185,7 +185,43 @@ Easy to forget, because only the first is obvious:
    tiles." Taking the high ground is worth a turn, and `rules.terrain_sight`
    feeds the fog kernel alongside `unit_sight` (a unit takes the better of the
    two, so a Scout on a mountain still sees 5x5, not 7x7).
-4. **Hidden resources.** "Crop is hidden until Organization or Farming has been
+4. **The whole board is remembered, not observed** (audited 3 Aug — four
+   separate leaks, all in the oldest code). Cities and units have rendered from
+   `mem_*` since the beginning. **Territory, terrain, resources and buildings
+   did not** — all four read ground truth for every tile, so on turn 0 a player
+   knew the entire map without moving:
+
+   | plane block | what leaked, 18×18 archipelago, 315 unexplored tiles |
+   |---|---|
+   | terrain | **all 315** — every ocean, every mountain, the shape of the map |
+   | resource | 101 tiles |
+   | improvement | 13 tiles, **9 of them ruins** |
+   | territory | the enemy capital's 9-tile region, lit as "enemy" in otherwise uniform "neutral" fog |
+
+   Terrain was the worst of them, and it quietly falsified this file's own
+   claim that the policy infers the map type "water tile by tile, **through
+   fog**" — it was seeing all the water at once, and the full terrain grid *is*
+   the map type. Measured after the fix: on waterworld, 6 of 105 water tiles
+   are visible at turn 0 instead of 105.
+
+   `mem_owner` / `mem_terrain` / `mem_resource` / `mem_improvement` close it,
+   written by `fog_kernel` beside the other snapshots. Terrain looks static but
+   is not — Clear, Grow and Burn Forest all rewrite it — so gating on
+   `explored` alone would still have announced an enemy clearing forest behind
+   the fog. An unexplored tile now sets **no** plane in any of the four blocks,
+   which reads as "unknown" and is exactly correlated with the explored plane,
+   so it reveals nothing; falling through to "neutral" or "field" would be a
+   lie the network would learn from.
+
+   **Three tests were passing because of these leaks** and now assert the real
+   property: `test_perspective_is_relative_to_the_acting_player` compared the
+   two players' territory planes across the whole board (only possible if both
+   see everything) and is now scoped to commonly explored ground; the two
+   one-hot tests asserted one-hot over every tile and now require one-hot on
+   explored ground and **all-zero elsewhere**. When a leak is closed, look for
+   the test that was relying on it.
+
+5. **Hidden resources.** "Crop is hidden until Organization or Farming has been
    researched"; Climbing "reveals metal". This is an **invariant 1** rule, not
    decoration — the encoder was showing crop and metal the acting player could
    not see, so the policy could learn to expand toward resources that are not on
@@ -504,17 +540,67 @@ were deleted rather than left in the repo to tempt someone. Training starts from
 scratch, and the previous numbers (55% vs ScriptedBot at 11x11) are not
 comparable to anything measured against the current rules.
 
+## Rollout speed: where it went, and where it still goes
+
+`scripts/bench_throughput.py` is the M1 gate. PLAN.md wants **≥5,000 micro-steps
+per second per core**; measured 3 Aug it is **3,659**, up from 1,340.
+
+The 2.7x came from one place. `enumerate_actions` and `masks.legal_sources`
+each brute-forced the whole tile x improvement cross product — 121 x 27, every
+decision — which profiled at **9.5M `can_build` calls per 3,200 decisions**, 44%
+of rollout time. `economy.build_candidates` now narrows that first and both
+callers share it. It is a **conservative pre-filter only**: everything it drops
+is something `can_build` refuses anyway, and `can_build` is still the only
+authority on a pair, so it cannot change what is legal.
+
+What it drops, and why each is safe:
+
+| dropped | why |
+|---|---|
+| improvements costing more than your stars | checked on *both* branches of `can_build` |
+| improvements whose tech you lack | likewise |
+| map features (ruin, lighthouse) | mapgen places them; not on the Embassy branch |
+| monuments whose task is unearned or already built | same |
+| tiles that already carry a building | refused on both branches |
+| city tiles (unless the Embassy survived) | everything but the Embassy is refused there |
+| neutral ground (unless roads/bridges survived) | nothing else may go there |
+| rival capitals (unless the Embassy survived) | nothing else may go there |
+
+`can_build` calls fell 9.5M -> 568k. The profile is now **flat** — no single
+hotspot — so the next gain needs structure, not another filter: vectorising the
+enumeration or moving it into a kernel.
+
+The one obligation this creates is pinned by
+`tests/test_masks.py::test_build_candidates_never_drops_a_legal_pair`, which
+compares the filter against the full cross product at every decision of a real
+game. If it ever narrows too far it silently removes moves from the agent's
+action space — the hidden capability ceiling invariant 2 is about, and nothing
+would crash to tell you.
+
 ## What to do next
 
-The plateau is most likely **sparse terminal reward**: with 96-step rollouts and
-11×11 games running ~80 turns, only ~6–9 episodes finish per iteration, so 700
-iterations saw maybe 5,000 win/loss signals.
+**Read `docs/TRAINING_LOG.md` first.** Runs and checkpoints are gitignored, so
+that file is the only surviving record of runs 2–7 — what each measured, which
+explanations died, and the one finding that cost two whole runs to establish:
 
-**A run addressing this is in flight** (28 Jul, `checkpoints_big/`, gitignored):
-`128x10 = 3.44M params` (6× the old net), `--games 64 --rollout 192` on 11×11 —
-12,288 steps/iteration, 4× the old run, and ~21 episodes/iteration instead of
-6–9. Measured 25.5s/iteration (7.2s rollout + 18.3s update), 5.5 GB of 8.5 GB
-peak VRAM. Watch it with `Get-Content runs_big.log -Tail 20`.
+> Widening the training distribution all at once **erases** what the agent had
+> rather than adding to it. Run 4 was beating a Crazy bot 19.8/32 and climbing
+> on two map types; the boundary widened it to six and it fell to 10.2/32 and
+> never recovered. Runs 5 and 6 started wide and never learned at all.
+
+The high-water mark of the project is **run 4, 22/32 (69%) against Crazy at
+eval@550**, and that checkpoint no longer exists. Re-reaching it is the first
+milestone for any new run.
+
+Two earlier diagnoses in this file were tested and did **not** survive: sparse
+terminal reward and exploration collapse. Both were real and both were fixed,
+and neither was the binding constraint — see the "explanations that did not
+survive" section of the training log before re-deriving them.
+
+The sizing table below stops at 6.4M. It does **not** extrapolate: "rollout time
+is flat across net sizes" held only because the GPU forward was negligible
+beside CPU env stepping, which stops being true well before 100M. The training
+log has parameter counts and VRAM estimates up to 512×20 (99M).
 
 The sizing measurement that drove those numbers, and which should be redone
 before any future scale-up:
@@ -542,6 +628,112 @@ for large ones (660 vs 2,660). Training currently uses **one core of sixteen**
 single-process. The architecture that scales is workers doing env/encode/mask
 over shared memory with one process batching GPU inference. See the table in
 `polytrain/parallel.py` and the hardware section of `PLAN.md`.
+
+## The training distribution: four axes, widened on a curriculum
+
+Training used to vary exactly one thing about the world — the map type — and
+hold the rest at an 11x11 duel between Imperius and Bardur. An agent trained
+that way has never seen a large board, has met **two of the twelve tribes**, and
+has never played a game in which diplomacy could pay for itself, because a
+treaty with your only opponent is a slower way to draw.
+
+`polytrain/curriculum.py` owns all four axes — size, map type, seat count,
+tribes — and how they widen. Presets `legacy` / `duel` / `standard` / `ffa`, or
+an inline spec (`11:2,14:2/3,16:2/3/4`); `--curriculum` on `train_league.py`
+selects one and overrides `--size`. **Omitting it keeps the old fixed behaviour**,
+so existing commands are unchanged.
+
+**Size is per iteration; everything else is per game.** Not a style choice:
+`PolicyEncoder.encode` pads a batch to `max(sizes)`, so one 18x18 among 64 games
+makes all 64 cost 18x18. Rotating size per game would put the largest board in
+nearly every batch. Seat count and tribe do not change tensor shape.
+
+Stage boundaries are **rescaled to the run length** (`with_horizon`), or a
+200-iteration experiment would never leave stage one and would be a duel-only
+run wearing the name `ffa`.
+
+### Multiplayer was nearly free, except for one thing
+
+The engine seats 16 (9 on tiny) and refuses a map it cannot fill. The spatial
+planes are binary own/enemy, so 16 players encode exactly like 2. `heuristic.py`
+already scaled its Domination tilt by `n_opponents`. Self-play rollout already
+stored every seat.
+
+What was missing was in the **global vector**: relations were two aggregates
+("share of opponents at war"), and `A_PEACE_OFFER` takes a **player id** as its
+sub-type. The policy was being asked to choose a treaty partner out of a vector
+that could not name one. There is now one row per seat, indexed by absolute
+player id — `seat_exists, is_me, alive, at_peace, at_war, offered_me, i_offered,
+seen_cities, seen_units` — so row *k* describes player *k* and the sub-type
+head has something to point at. Every feature is on a real screen: the tribe
+list, the diplomacy panel, and your own fog memory. `global_dim` 62 -> **206**,
+and `global_layout()` now names the blocks the way `plane_layout()` always did.
+
+Two fixes fell out of the same work: `learner_seats = [i % 2 ...]` pinned the
+learner to seats 0 and 1, so on a six-player board four tribes were never
+learned from; and `evaluate.play_pair` played two games per map, so seat 2+ was
+never played at all. Both now rotate over the seats the game actually has.
+
+### The turn cap is per game now
+
+Real Domination has **no time limit**; ours is a training device, so its shape is
+ours to choose. It scales with the board's *linear* size (what a bigger map
+costs is travel — crossing a 30x30 is ~3x an 11x11, not 9x) plus a share per
+extra tribe. `C.turn_cap_for(size, players)`: 11x11 duel 100, 20x20 8-player
+422, clamped to [30, 600]. `state.turn_cap` carries it and **the replay header
+carries it too** — it is now part of what determines a game, exactly like
+`map_type`, whose absence from that header broke the differential gate for
+months. `tests/test_curriculum.py` round-trips a non-default cap through
+`check_determinism` for that reason.
+
+### Who plays whom, and why Elo needed fixing
+
+A league iteration used to fill **every** non-learner seat with copies of one
+frozen checkpoint, so a six-player game was the learner against five identical
+opponents. Now each seat draws its own member (`League.sample_opponents`), and
+`make_seat_opponent_fn` groups them so each distinct opponent still runs one
+batched forward pass. An opponent that needs to know which game an action is for
+opts in with `wants_indices` — arity sniffing does not work here, since these
+are all closures with bound defaults. Self-play iterations are unchanged: every
+seat is the live net.
+
+**Elo is a two-player rating system, and nobody had noticed.** It asks "what
+fraction of a head-to-head did you win?", and scoring a free-for-all as
+1-if-you-won hands an *equal-strength* player 1/N rather than the 1/2 Elo
+expects. Measured on the real `record_results`, at identical strength:
+
+| seats | winner-take-all | average pairwise |
+|---|---|---|
+| 2 | +0.5 ± 29.9 | **+0.5 ± 29.9** |
+| 3 | −62.1 ± 39.8 | +2.0 ± 32.5 |
+| 6 | −129.7 ± 23.0 | +9.2 ± 14.8 |
+| 16 | −236.2 ± 28.8 | −0.3 ± 12.8 |
+
+The learner deflated and the pool inflated purely from seat count — and PFSP
+samples opponents *by rating*, so this corrupted which opponents it faced.
+`rollout.pairwise_score` averages the result against each opponent
+individually, which is unbiased at any N and at N = 2 is **identically** the old
+1 / 0.5 / 0. That equality is the point: duels and every rating already recorded
+are untouched. This was a latent bug, not a new one — N was always 2 before.
+
+**The terminal reward is rank-based** for the same reason: `2 * pairwise - 1`
+spans [−1, +1] and at N = 2 is exactly the old +1 / 0 / −1, but in a sixteen-
+tribe game the runner-up no longer scores the same −1 as whoever was eliminated
+on turn three. `standing()` ranks survival first and then `Game.score`, so it
+agrees with `Game.winner()` by construction rather than by coincidence.
+
+### Eval reports where it is weak, not just how weak
+
+`MatchResult.buckets` breaks the win rate down by size, seat count and map type,
+and `train_league` logs it. A single average over a curriculum is the wrong
+summary: "62%" can be 90% on the small duels the agent has seen a thousand times
+and 30% on the crowded boards it barely knows, and the average hides the number
+you needed.
+
+**Expect FFA to be slow.** A win among sixteen tribes is rarer and its credit
+more diffuse than in a duel, on top of the sparse-terminal-reward problem
+already diagnosed as the plateau cause. That is why the wide end is a late
+curriculum stage and not the default.
 
 ## Training across map types
 

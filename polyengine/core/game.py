@@ -50,12 +50,21 @@ class Game:
     @classmethod
     def new(cls, size: int | None = 11, tribes: list[str] | None = None,
             seed: int = 0, ruleset: str = "current",
-            map_type: str = "drylands") -> "Game":
+            map_type: str = "drylands",
+            turn_cap: int | None = None) -> "Game":
         """A fresh game. `size=None` picks what Domination would for this many
-        opponents; `map_type` selects a wetness band (see mapgen.MAP_TYPES)."""
+        opponents; `map_type` selects a wetness band (see mapgen.MAP_TYPES).
+
+        `turn_cap` defaults to `C.turn_cap_for(size, players)` — bigger boards
+        and more tribes get longer games, because the cap is a training device
+        rather than a rule and a 30x30 free-for-all cannot be settled in the
+        hundred turns an 11x11 duel needs. Pass it explicitly to pin one.
+        """
         rules = load_ruleset(ruleset)
         state = new_game(rules, size=size, tribes=tribes, seed=seed,
                          map_type=map_type)
+        state.turn_cap = (int(turn_cap) if turn_cap is not None
+                          else C.turn_cap_for(state.size, state.n_players))
         return cls(state, rules)
 
     def clone(self) -> "Game":
@@ -83,14 +92,14 @@ class Game:
                      (self.state.city_level > 0)).any())
 
     def is_terminal(self) -> bool:
-        return self._alive_count() <= 1 or self.state.turn >= C.TURN_CAP
+        return self._alive_count() <= 1 or self.state.turn >= self.state.turn_cap
 
     def winner(self) -> int:
         """Winning player id, or -1 if not yet decided / drawn."""
         alive = [p for p in range(self.state.n_players) if self.owns_city(p)]
         if len(alive) == 1:
             return alive[0]
-        if self.state.turn >= C.TURN_CAP and alive:
+        if self.state.turn >= self.state.turn_cap and alive:
             return max(alive, key=self.score)
         return -1
 

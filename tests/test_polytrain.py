@@ -7,6 +7,8 @@ where the right answer can be computed by hand.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -192,3 +194,277 @@ class TestCrashSafeCheckpoints:
     def test_load_resumable_returns_none_when_nothing_readable(self, tmp_path):
         from polytrain.checkpoint import load_resumable
         assert load_resumable(tmp_path / "absent.pt") is None
+
+
+# --- GAE across rollout boundaries --------------------------------------------
+#
+# A rollout is a fixed number of micro-steps, not a whole game, so most
+# trajectories are cut mid-episode. What happens at that cut decides whether a
+# terminal reward can influence anything before the last segment.
+
+def test_gae_bootstraps_the_boundary_from_the_next_state():
+    """The bug that broke the first real run.
+
+    The boundary used to bootstrap from `values[i]` — the value of the state the
+    transition *left*, not the one it arrived at — making
+    `delta = r + (gamma - 1) * V(s)`, essentially zero, and self-referential. No
+    information could cross a segment boundary, so on large boards (episodes of
+    ~1,235 micro-steps against a 160-step rollout) seven eighths of every
+    trajectory was cut off from the only unbiased signal in the run.
+    """
+    import numpy as np
+
+    from polytrain.rollout import Rollout, _gae
+
+    class FakePolicy:
+        """Bootstraps every open chain at a large positive value."""
+        def state_value(self, pairs):
+            return np.full(len(pairs), 10.0, dtype=np.float32)
+
+    import torch
+
+    def build():
+        roll = Rollout()
+        for _ in range(3):
+            roll.logp.append(torch.zeros(1))
+            roll.traj.append((0, 0))
+            roll.value.append(torch.zeros(1))     # as `collect` stores it
+            roll.reward.append(0.0)
+            roll.terminal.append(False)
+        return roll
+
+    games = [type("G", (), {"state": object()})()]
+    roll = build()
+    adv_boot, ret_boot = _gae(roll, FakePolicy(), games, gamma=0.99, lam=0.95)
+    # Without a policy there is nothing to bootstrap from and the old
+    # self-referential behaviour is the fallback.
+    adv_none, _ = _gae(build(), None, None, gamma=0.99, lam=0.95)
+
+    assert adv_boot[-1] > 9.0, "boundary did not bootstrap from the next state"
+    assert abs(adv_none[-1]) < 1e-6, "fallback should be the degenerate case"
+    # And the bootstrapped value must propagate *backwards* through the chain,
+    # which is the whole point.
+    assert adv_boot[0] > 8.0, "value did not travel back across the segment"
+
+
+def test_gae_still_zeroes_the_bootstrap_at_a_real_terminal():
+    """A finished game has no future to bootstrap from; only the cut does."""
+    import numpy as np
+
+    from polytrain.rollout import Rollout, _gae
+
+    class FakePolicy:
+        def state_value(self, pairs):
+            return np.full(len(pairs), 10.0, dtype=np.float32)
+
+    import torch
+
+    roll = Rollout()
+    for r, term in ((0.0, False), (1.0, True)):
+        roll.logp.append(torch.zeros(1))
+        roll.traj.append((0, 0))
+        roll.value.append(torch.zeros(1))
+        roll.reward.append(r)
+        roll.terminal.append(term)
+    games = [type("G", (), {"state": object()})()]
+    adv, ret = _gae(roll, FakePolicy(), games, gamma=0.99, lam=0.95)
+    # The terminal transition sees its own reward and nothing beyond it.
+    assert abs(adv[-1] - 1.0) < 1e-9, "terminal bootstrapped from a future"
+
+
+def test_state_value_matches_the_value_act_reports():
+    """`state_value` skips the action masks; it must not skip the value."""
+    import torch
+
+    from polyengine.core.game import Game
+    from polyengine.core.rules import load_ruleset
+    from polytrain.train import build_policy
+
+    rules = load_ruleset()
+    policy, _ = build_policy(rules, torch.device("cpu"), small=True)
+    g = Game.new(size=9, seed=3)
+    pairs = [(g.state, 0)]
+    _, info = policy.act(pairs)
+    from_act = float(info["value"].reshape(-1)[0])
+    from_value = float(policy.state_value(pairs)[0])
+    assert abs(from_act - from_value) < 1e-4, (from_act, from_value)
+
+
+def test_shaping_decays_to_a_floor_not_to_zero():
+    """Terminal rewards get rare as boards grow; the dense signal has to stay.
+
+    Measured on the first real run: 23 episodes per iteration on 9x9, 4.4 on
+    14x14, and 1.7 through the collapse. With shaping at exactly zero from
+    iteration 100 the value function had almost nothing to learn from."""
+    from polytrain.train_league import shaping_for
+
+    s, anneal, floor = 0.01, 100, 0.25
+    assert shaping_for(0, s, anneal, floor) == pytest.approx(s)
+    assert shaping_for(50, s, anneal, floor) == pytest.approx(s * 0.625)
+    late = shaping_for(100, s, anneal, floor)
+    assert late == pytest.approx(s * floor)
+    assert shaping_for(5000, s, anneal, floor) == pytest.approx(late), \
+        "must hold the floor, not keep decaying"
+    assert late > 0.0, "annealing to zero is the bug this exists to prevent"
+    # floor=0 reproduces the old schedule exactly, so the flag is a superset.
+    assert shaping_for(100, s, anneal, 0.0) == pytest.approx(0.0)
+
+
+def test_the_promotion_gate_is_fixed_for_the_life_of_a_run():
+    """A gate that follows the curriculum cannot name the best checkpoint.
+
+    On the first run it froze best.pt at iteration ~275 while true strength
+    peaked near 1,340 and then collapsed."""
+    from polytrain import train_league as T
+
+    assert isinstance(T.GATE_SIZE, int)
+    assert len(T.GATE_MAP_TYPES) == 6, "the gate should span every map type"
+    src = (Path(T.__file__).read_text(encoding="utf-8"))
+    assert "sizes=(GATE_SIZE,)" in src and "players=(2,)" in src, \
+        "the gate eval must pin size and seat count, not read the stage"
+
+
+def test_learner_seat_follows_a_replaced_game_with_fewer_players():
+    """Games persist across `collect` calls so long episodes can finish, and a
+    curriculum mixes seat counts — so a persisted 4-player game can be replaced
+    mid-call by a 2-player one from the *new* iteration's spec.
+
+    `learner_seats` is computed once, from the games the call started with.
+    Left stale it indexed a seat the replacement does not have: `Game.score(2)`
+    on a 2-player board raised IndexError and took the run down 29 times.
+    Quieter and worse, before crashing it made `is_learner` match nothing, so
+    every transition collected in that game was silently discarded.
+    """
+    import torch
+
+    from polyengine.core.rules import load_ruleset
+    from polytrain.curriculum import GameSpec
+    from polytrain.rollout import collect
+    from polytrain.train import build_policy
+
+    rules = load_ruleset()
+    policy, _ = build_policy(rules, torch.device("cpu"), small=True)
+    duel = GameSpec(size=11, map_type="drylands", tribes=("imperius", "bardur"),
+                    turn_cap_scale=0.05)
+    crowd = GameSpec(size=11, map_type="drylands", turn_cap_scale=0.05,
+                     tribes=("imperius", "bardur", "kickoo", "vengir"))
+
+    def opponent(games):
+        return [g.legal_actions()[0] for g in games]
+
+    # Iteration 1: game index 2 has four seats, so its learner seat is 2.
+    _, _, games = collect(policy, n_games=3, rollout_steps=8, size=11, seed=5,
+                          opponent=opponent, specs=[duel, duel, crowd],
+                          max_turns=None)
+    assert games[2].state.n_players == 4
+
+    # Iteration 2: the same games carry over, but the stage now deals duels, so
+    # when game 2 finishes it is replaced by a 2-player board — and seat 2 is
+    # gone. A tiny cap guarantees the replacement happens inside this call.
+    roll, stats, games = collect(policy, n_games=3, rollout_steps=600, size=11,
+                                 seed=6, opponent=opponent, games=games,
+                                 specs=[duel, duel, duel], max_turns=None)
+    assert stats["episodes"] > 0, "nothing was replaced; the test proves nothing"
+    assert games[2].state.n_players == 2
+    assert len(roll) > 0
+
+
+# --- exploration: the run-3 collapse ------------------------------------------
+#
+# Measured at iteration 1987: the action-TYPE head sat at 0.070 entropy out of a
+# possible 2.30, putting P(pick RESEARCH) at 0.000005 while research was legal
+# at a third of all decisions. The agent could not have found the tech tree in a
+# thousand lifetimes. Summed entropy was 0.79 and looked survivable, which is
+# why one global number is not enough.
+
+def test_evaluate_reports_entropy_per_head_not_just_the_sum():
+    """A single entropy number cannot tell 'exploring movement richly' from
+    'the type head has collapsed', and those need opposite responses."""
+    import torch
+
+    from polyengine.core.game import Game
+    from polyengine.core.rules import load_ruleset
+    from polytrain.rollout import collect
+    from polytrain.train import build_policy
+
+    rules = load_ruleset()
+    policy, _ = build_policy(rules, torch.device("cpu"), small=True)
+    roll, _, games = collect(policy, n_games=2, rollout_steps=12, size=11, seed=1)
+    out = policy.evaluate(roll.stack(torch.device("cpu")))
+    for key in ("ent_type", "ent_source", "ent_target", "ent_subtype"):
+        assert key in out, f"{key} missing"
+        assert out[key].shape == out["logp"].shape
+    total = (out["ent_type"] + out["ent_source"]
+             + out["ent_target"] + out["ent_subtype"])
+    assert torch.allclose(total, out["entropy"], atol=1e-4), \
+        "per-head entropies must sum to the reported total"
+
+
+def test_entropy_floor_penalises_only_a_collapsed_head():
+    """Below the floor a head is penalised; above it, nothing. So the term
+    costs a healthy run zero and only bites on a head that is dying."""
+    from polytrain.ppo import PPOConfig
+
+    cfg = PPOConfig()
+    assert 0.0 < cfg.entropy_floor < 1.0, "floor is a fraction of uniform"
+    assert cfg.entropy_floor_coef > 0
+
+    import torch
+    relu = torch.nn.functional.relu
+    healthy = float(relu(torch.tensor(cfg.entropy_floor - 0.9)) ** 2)
+    collapsed = float(relu(torch.tensor(cfg.entropy_floor - 0.07)) ** 2)
+    assert healthy == 0.0, "a healthy head must pay nothing"
+    assert collapsed > 0.0, "a collapsed head must pay"
+
+
+def test_novelty_bonus_favours_rarely_taken_action_types():
+    from polyengine.core import constants as C
+    from polytrain.rollout import TypeNovelty
+
+    nov = TypeNovelty(beta=0.05)
+    common, rare = C.A_MOVE, C.A_RESEARCH
+    before = nov.bonus(rare)
+    for _ in range(5000):
+        nov.record(common)
+    assert nov.bonus(common) < nov.bonus(rare), \
+        "a heavily-used type must be worth less than an unused one"
+    # An untouched type's bonus RISES, and that is the point: counts decay, so
+    # the measure is how rare an action is *now*, not over the run's history.
+    # Cumulative counts froze an abandoned verb's count high forever, so the
+    # moment it most needed a bonus was exactly when it could not earn one --
+    # measured on run 4, RESEARCH at a median probability of 0.0007 drew a
+    # bonus of 0.0001. See test_novelty_bonus_recovers_for_an_abandoned_action.
+    assert nov.bonus(rare) > before, "an unused type must grow more tempting"
+    # It still fades with use, so it cannot become an objective of its own.
+    for _ in range(100_000):
+        nov.record(rare)
+    assert nov.bonus(rare) < 0.002
+
+
+def test_option_value_rewards_tech_for_what_it_unlocks():
+    """Technology already scores 100 a tier, and paying for that is paying for
+    points. This pays for the Rider, which is why you actually buy Riding."""
+    from polyengine.agents.heuristic import option_value
+    from polyengine.core.game import Game
+
+    g = Game.new(size=11, seed=4)
+    start = option_value(g, 0)
+    g.state.grant_tech(0, g.rules.tech_id["riding"])
+    with_rider = option_value(g, 0)
+    assert with_rider > start, "unlocking a unit must raise the potential"
+
+    # A tech that unlocks no unit should not be paid as if it did.
+    g2 = Game.new(size=11, seed=4)
+    before = option_value(g2, 0)
+    g2.state.grant_tech(0, g2.rules.tech_id["mining"])
+    assert option_value(g2, 0) == before
+
+    # And it pays for the option, not for owning an army -- so it cannot be
+    # farmed by hoarding units.
+    g3 = Game.new(size=11, seed=4)
+    base = option_value(g3, 0)
+    for t in range(g3.state.n_tiles):
+        if g3.state.unit_type[t] < 0 and g3.state.owner[t] == 0:
+            g3.state.unit_type[t] = 0
+            g3.state.unit_owner[t] = 0
+    assert option_value(g3, 0) == base

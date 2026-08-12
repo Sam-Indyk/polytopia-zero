@@ -30,6 +30,7 @@ import numpy as np
 from polyengine.core import constants as C
 from polyengine.core.actions import can_capture, research_cost
 from polyengine.core.economy import (
+    build_candidates,
     can_build,
     can_train_at,
     pending_reward_cities,
@@ -65,7 +66,7 @@ SUBTYPE_DEPENDS_ON_SOURCE = frozenset({C.A_BUILD, C.A_CHOOSE_REWARD,
                                        C.A_TILE_ABILITY})
 
 
-MAX_PLAYERS = 16          # "other maps support up to 16" (Map Generation)
+MAX_PLAYERS = C.MAX_PLAYERS   # "other maps support up to 16" (Map Generation)
 
 
 def subtype_dim(rules: Ruleset) -> int:
@@ -98,14 +99,12 @@ def legal_sources(state, player: int, rules: Ruleset, atype: int) -> np.ndarray:
         # Not just our own territory: roads and bridges go on neutral land, and
         # the Embassy goes on a *rival capital*. Narrowing to `owner == player`
         # silently drops both, which breaks invariant 2 (masks and
-        # enumerate_actions must describe the same set).
-        candidates = np.flatnonzero((state.owner == player)
-                                    | (state.owner == C.NEUTRAL)
-                                    | (state.city_capital > 0))
-        for t in candidates:
+        # enumerate_actions must describe the same set). `build_candidates` is
+        # the same narrowing `enumerate_actions` uses, for that exact reason.
+        tiles, imps = build_candidates(state, player, rules)
+        for t in tiles:
             t = int(t)
-            if any(can_build(state, t, imp, player, rules)
-                   for imp in range(rules.n_improvements)):
+            if any(can_build(state, t, imp, player, rules) for imp in imps):
                 mask[t] = True
         return mask
     if atype == C.A_TILE_ABILITY:
@@ -203,7 +202,9 @@ def legal_subtypes(state, player: int, rules: Ruleset, atype: int,
         mask[:rules.n_techs] = ~known & have_req & (costs <= stars)
     elif atype == C.A_BUILD:
         if src >= 0:
-            for imp in range(rules.n_improvements):
+            # Same pre-filter, so this head cannot offer a sub-type the source
+            # head already ruled out.
+            for imp in build_candidates(state, player, rules)[1]:
                 if can_build(state, src, imp, player, rules):
                     mask[imp] = True
     elif atype == C.A_CHOOSE_REWARD:

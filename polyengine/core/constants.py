@@ -59,6 +59,14 @@ HIDDEN_RESOURCE_TECHS = {
 # --- Ownership sentinels ---
 NEUTRAL = -1  # unowned territory / neutral (village) city
 
+# "Tiny maps support a maximum of nine players, while other maps support up to
+# 16" (Map Generation). One definition, because this number is load-bearing in
+# three unrelated places -- how many seats mapgen will deal, how wide the
+# action head's sub-type axis is, and how many per-opponent slots the
+# observation carries -- and three copies is how they drift apart.
+MAX_PLAYERS = 16
+MAX_PLAYERS_TINY = 9
+
 # --- Improvement ids (see data/improvements.toml) ---
 IMP_NONE = -1
 IMP_HARVEST_FRUIT = 0
@@ -262,7 +270,19 @@ DT_UNIT_TYPE = np.int8
 DT_HP = np.int16
 DT_FLAG = np.uint8
 DT_STALE = np.int16
-DT_STARS = np.int16
+# int32, not int16. Stars are the one player counter with no ceiling in the
+# rules: nothing forces you to spend them, and a bot that hoards accumulates
+# income every turn forever. Measured on a no-turn-cap ScriptedBot duel, they
+# hit int16's 32,767 at **turn 1595** and wrapped to -32,751 -- after which
+# every `cost > stars` check refuses and the player can no longer build, train
+# or research anything. The game does not crash; it silently freezes into a
+# stalemate that looks like a strategic dead end.
+#
+# Unreachable under the turn caps training uses (100-600 turns peaks in the
+# low thousands), which is why it survived this long. It is reachable the
+# moment anyone asks "what happens with no cap?", which is exactly the question
+# that found it.
+DT_STARS = np.int32
 DT_TECH = np.uint32
 DT_SCORE = np.int32
 
@@ -279,4 +299,86 @@ SIGHT_RADIUS_MOUNTAIN = 2
 SIGHT_RADIUS_CITY = 1
 
 # Domination turn cap; ties broken by score().
-TURN_CAP = 100
+# --- what training rewards -----------------------------------------------------
+# The goal is Domination: destroy every opponent. It is NOT "lead on score when
+# the clock runs out", and conflating the two produced an agent that trained
+# only Warriors, made peace, and farmed monuments to 2,800 points -- a perfectly
+# rational response to a reward where a score win paid the same as a conquest.
+#
+# So a game that reaches the cap is scored as **nobody won**, worth a small
+# fraction of a real victory. That fraction is not zero: it breaks ties and
+# leaves a gradient when winning is out of reach, which matters while the agent
+# is bad. But it is small enough that no amount of score-farming approaches
+# eliminating the opponent.
+# A cap-terminated game is a **failure for everyone in it**, not a neutral
+# outcome, and it has to be priced below the expected value of fighting.
+#
+# The arithmetic that forced this: in self-play both seats are the same net, so
+# a fight is a coin flip -- winner +speed, loser -1, expected value (speed-1)/2,
+# which is *negative* for any win slower than par. Against a stall worth 0 the
+# agent was being paid to avoid combat, and it learned exactly that: it made
+# peace on contact in nearly every self-play game. Lowering the stall reward
+# toward zero could never fix it, because zero is still better than a losing
+# coin flip. The stall has to be worse than fighting, not merely small.
+#
+# STALL_PENALTY is flat and applies to every seat; STALL_RANK_TILT is a small
+# extra spread by relative standing, so a hopeless position is still worse than
+# a strong one and there is a gradient when a win is out of reach.
+STALL_PENALTY = 0.50
+STALL_RANK_TILT = 0.10
+
+# Score points per unit of shaped reward. The shaping potential is a score
+# lead, which lives in the thousands, while a win is +-1 -- so unscaled it
+# drowned the outcome completely (measured at 96% of all reward magnitude).
+SHAPING_SCALE = 400.0
+
+# Polytopia rates a Domination win partly on speed ("100% at 10 turns per
+# enemy", wiki Game Modes), and so do we -- otherwise a win on turn 300 pays
+# exactly what a win on turn 20 does and there is no reason to ever finish.
+#
+# Par is 20 turns per enemy rather than the wiki's 10, calibrated against what
+# this engine actually produces: 36 no-turn-cap ScriptedBot(crazy) duels ended
+# at a **median of 37 turns, range 21-125**. Par of 10 would put essentially
+# every achievable win on the floor, which is a flat incentive wearing the
+# shape of a gradient.
+SPEED_PAR_TURNS_PER_ENEMY = 20
+# 0.60, not 0.45. The floor is the *worst* a victory can pay, and a loss always
+# costs the full -1, so too low a floor makes attempting to win negative-value
+# in symmetric play: at 0.45 a coin-flip fight was worth -0.275 against a stall
+# worth 0. Speed should shade a victory, not make winning slowly a mistake.
+SPEED_FLOOR = 0.60
+
+TURN_CAP = 200
+# ...at the reference game the cap was tuned on: an 11x11 duel. Real Domination
+# has *no* time limit -- "play until there is only one tribe left" -- so the cap
+# is a training necessity, not a rule, and the shape of it is ours to choose.
+#
+# Doubled from 100. Two measurements drove it. First, 36 no-turn-cap
+# ScriptedBot(crazy) duels on 11x11 ended at a median of 37 turns but a
+# **maximum of 125**, so a cap of 100 was truncating genuinely winnable games
+# and scoring them as stalls. Second, and more importantly, a cap only distorts
+# the objective if reaching it pays -- and it no longer does (STALL_REWARD is a
+# tenth of a win). With stalling worthless the cap costs throughput and nothing
+# else, so it can afford to be generous.
+#
+# It is still finite on purpose: 32 of 38 no-cap ScriptedBot(normal) duels never
+# ended at all, every one of them under a peace treaty, which forbids the
+# hostile acts a Domination win requires. Removing the cap entirely would hang
+# on those.
+#
+# It scales with the board's *linear* size rather than its area, because what a
+# bigger map really costs is travel: crossing a 30x30 takes about three times as
+# long as crossing an 11x11, not nine. Each extra tribe then adds a share on top,
+# since Domination needs every one of them removed.
+TURN_CAP_REFERENCE_SIZE = 11
+TURN_CAP_PER_EXTRA_PLAYER = 0.22
+TURN_CAP_MIN = 30
+TURN_CAP_MAX = 600
+
+
+def turn_cap_for(size: int, n_players: int) -> int:
+    """The turn cap a game of this shape gets. See TURN_CAP above."""
+    scale = float(size) / TURN_CAP_REFERENCE_SIZE
+    crowd = 1.0 + TURN_CAP_PER_EXTRA_PLAYER * max(0, int(n_players) - 2)
+    return int(min(TURN_CAP_MAX,
+                   max(TURN_CAP_MIN, round(TURN_CAP * scale * crowd))))

@@ -191,12 +191,55 @@ class TestRetaliation:
         resolve_attack(s, a, MID + 1, R)
         assert int(s.unit_hp[a]) == before
 
-    def test_ranged_attacks_never_draw_retaliation(self):
+    def test_a_defender_out_of_its_own_range_cannot_hit_back(self):
+        """"No retaliation occurs if the unit being attacked ... cannot reach
+        ... the attacker (the attacker is outside the unit's range)."
+
+        This is the case that made the old rule look right: a melee Defender
+        shot from two tiles genuinely cannot answer. It was written down as
+        "ranged attacks never draw retaliation", which is the usual consequence
+        mistaken for the rule -- see the two tests below for where they part.
+        """
         _, s = blank()
         a = put(s, MID, C.U_ARCHER)
         put(s, MID + 2, C.U_DEFENDER, player=1, hp=99)
         before = int(s.unit_hp[a])
         resolve_attack(s, a, MID + 2, R)
+        assert int(s.unit_hp[a]) == before
+
+    def test_a_ranged_defender_does_hit_back_at_a_ranged_attacker(self):
+        """An Archer shot by an Archer at two tiles is inside its own range, so
+        it answers. Gating on the attacker's range made ranged-versus-ranged
+        risk-free for whoever shot first."""
+        _, s = blank()
+        a = put(s, MID, C.U_ARCHER)
+        put(s, MID + 2, C.U_ARCHER, player=1, hp=99)
+        before = int(s.unit_hp[a])
+        resolve_attack(s, a, MID + 2, R)
+        assert int(s.unit_hp[a]) < before, (
+            "a defender that can reach the attacker retaliates, whatever the "
+            "attacker's own range is")
+
+    def test_an_adjacent_melee_defender_hits_back_at_an_archer(self):
+        """The other half: range 2 does not mean "safe", it means "may stand
+        off". An Archer that shoots from an adjacent tile is well inside a
+        Warrior's range and takes the reply -- which is the whole reason to
+        keep a bowman out of melee."""
+        _, s = blank()
+        a = put(s, MID, C.U_ARCHER)
+        put(s, MID + 1, C.U_DEFENDER, player=1, hp=99)
+        before = int(s.unit_hp[a])
+        resolve_attack(s, a, MID + 1, R)
+        assert int(s.unit_hp[a]) < before
+
+    def test_a_catapult_still_takes_nothing_back_from_anything(self):
+        """Defence 0 deals 0 retaliation damage, and range 3 outruns every
+        defender's reach -- so the siege unit's safety survives the fix."""
+        _, s = blank()
+        a = put(s, MID, C.U_CATAPULT)
+        put(s, MID + 3, C.U_ARCHER, player=1, hp=99)
+        before = int(s.unit_hp[a])
+        resolve_attack(s, a, MID + 3, R)
         assert int(s.unit_hp[a]) == before
 
     def test_a_retaliation_kill_counts_toward_the_defenders_promotion(self):

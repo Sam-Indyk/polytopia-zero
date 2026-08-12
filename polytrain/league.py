@@ -157,6 +157,22 @@ class League:
         w = pfsp_weights(np.array([m.win_rate for m in pool]), mode=kind)
         return pool[int(rng.choice(len(pool), p=w))]
 
+    def sample_opponents(self, rng: np.random.Generator, k: int) -> list:
+        """`k` opponents for the other seats of one game.
+
+        Drawn independently, so a crowded board is a field of *different*
+        checkpoints rather than N-1 copies of one. Facing five identical
+        snapshots teaches the learner to beat one opponent five times at once;
+        facing five different ones is the position it will actually be in, and
+        it gives PFSP a separate result per member instead of one number smeared
+        across all of them.
+
+        A None in the list means "the live net" — self-play in that seat, which
+        keeps a crowded game from being the learner alone against the whole
+        pool when the pool is still small.
+        """
+        return [self.sample(rng) for _ in range(max(0, k))]
+
     # --- results and Elo ------------------------------------------------------
     def record_results(self, member: Member | None, results: list[float]) -> None:
         """Record learner outcomes (1 win / 0.5 draw / 0 loss) against `member`."""

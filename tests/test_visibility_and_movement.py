@@ -109,13 +109,25 @@ class TestHiddenResources:
             assert shown == 1.0, R.resource_names[rid]
 
     def test_the_resource_one_hot_stays_a_one_hot(self):
+        """Concealing crop must leave the column a one-hot, not an all-zero
+        hole that would itself mark the tile as interesting.
+
+        Scoped to explored ground: an unexplored tile is legitimately all-zero
+        now, because the resource planes are rendered from fog memory rather
+        than from ground truth."""
         _, s = blank(all_tech=False)
         self.setup_tile(s, MID + 1, C.R_CROP)
         sp = O.encode_spatial(s, 0, R)
         lo, n = O.plane_layout(R)["resource"]
+        explored = 0
         for tile in range(s.n_tiles):
             column = sp[lo:lo + n, tile // N, tile % N]
-            assert column.sum() == pytest.approx(1.0), tile
+            if s.fog_explored[0][tile]:
+                explored += 1
+                assert column.sum() == pytest.approx(1.0), tile
+            else:
+                assert column.sum() == 0.0, tile
+        assert explored, "nothing was explored; the test proves nothing"
 
     def test_the_engine_still_knows_the_resource_is_there(self):
         """Hiding is a *rendering* rule. The ground truth is untouched, and

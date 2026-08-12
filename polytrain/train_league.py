@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import time
+from collections import defaultdict
 from pathlib import Path
 
 import numpy as np
@@ -26,13 +27,74 @@ from polyengine.agents.scripted import ScriptedBot
 from polyengine.core.rules import load_ruleset
 from polynet import ARPolicy
 from polytrain.checkpoint import load_resumable, save_atomic
+from polytrain import curriculum
 from polytrain.evaluate import play_match
 from polytrain.league import League, MainExploiter
 from polytrain.pool import FrozenOpponent
 from polytrain import profiles
 from polytrain.ppo import PPOConfig, PPOLearner
-from polytrain.rollout import collect
+from polytrain.rollout import TypeNovelty, collect
 from polytrain.train import NetAgent, build_policy
+
+
+# The promotion yardstick. Fixed for the life of a run — a gate that moves with
+# the curriculum cannot say which checkpoint is best, only which is best right
+# now. 11x11 duels across every map type: big enough that naval play matters
+# (continents and waterworld are where the first run was weakest, at 22%), small
+# enough that the eval is cheap.
+#
+# The opponent is ScriptedBot at **crazy**, not Greedy-OSLA. OSLA saturated: it
+# sat at 93-100% for hundreds of iterations and could no longer tell an
+# improvement from a regression, which is the one job a gate has. Crazy is also
+# the actual M5 target ("beat the game's built-in Crazy bots"), so the gate now
+# measures progress toward the goal rather than toward a stepping stone.
+GATE_SIZE = 11
+GATE_MAP_TYPES = ("drylands", "lakes", "continents",
+                  "archipelago", "pangea", "waterworld")
+GATE_NAME = "crazy@11x11-fixed"
+
+
+def gate_opponent(seed: int = 11):
+    """The fixed gate opponent. `apply_handicap` is called by `play_pair`."""
+    return ScriptedBot.crazy(seed=seed)
+
+
+# Where the entropy floor lands once exploration has annealed. Not zero: its
+# original job was to catch a head that is *dying*, and that job never expires.
+# Run 4 trained fine with 0.22, so this stays a tripwire rather than becoming an
+# operating point the way 0.40 did.
+ENTROPY_FLOOR_FINAL = 0.20
+
+
+def explore_scale(it: int, anneal: int) -> float:
+    """Exploration pressure at iteration `it`, 1.0 falling linearly to 0.0.
+
+    Everything that pushes the policy *away* from its own best guess -- the
+    novelty bonus, the per-action floor, the extra entropy floor -- rides on
+    this, because each of them changes the objective rather than merely
+    speeding up the search. Constant pressure is a permanently different game:
+    run 5 kept all three flat and spent 675 iterations learning to farm the
+    intrinsic reward instead of winning.
+
+    Unlike `shaping_for` this anneals to *exactly* zero and has no floor. The
+    shaping term keeps one because it is potential-based and so provably cannot
+    change the optimal policy; none of these three has that property.
+    """
+    return max(0.0, 1.0 - it / max(1, anneal))
+
+
+def shaping_for(it: int, scale: float, anneal: int, floor: float) -> float:
+    """Reward-shaping weight at iteration `it`, decaying to a *floor*, not zero.
+
+    The shaping term is potential-based, so it cannot change which policy is
+    optimal — only how quickly the value function finds it. Annealing it to
+    exactly zero was fine while episodes were short and terminal rewards
+    plentiful (23 per iteration on 9x9). On the boards the curriculum reaches
+    they arrive about four times per iteration across 48 games, and a value
+    function updated 160 steps at a time with almost no terminal anchor drifts.
+    """
+    decay = max(0.0, 1.0 - it / max(1, anneal))
+    return scale * (floor + (1.0 - floor) * decay)
 
 
 def make_opponent_fn(member, policy_template, rules, device):
@@ -50,6 +112,66 @@ def make_opponent_fn(member, policy_template, rules, device):
     return fn
 
 
+def make_seat_opponent_fn(assign, primary, policy_template, rules, device,
+                          built=None):
+    """An opponent that fills different seats with *different* league members.
+
+    `assign` maps game index -> {seat: member}. Members are grouped per call so
+    each distinct opponent still runs one batched forward pass, which is what
+    keeps a sixteen-tribe game from costing sixteen times a duel.
+
+    This replaces filling every non-learner seat with copies of one checkpoint.
+    Five identical opponents teach the learner to beat one thing five times at
+    once; five different ones are the position it will actually be in, and each
+    gets its own Elo result rather than sharing a number.
+
+    **`built` must be owned by the caller and reused across iterations.** Each
+    entry is a `FrozenOpponent`, and that constructor does
+    `deepcopy(net).to(device)` — a fresh net on the GPU. When this cache was
+    local, a league iteration allocated one per *distinct member drawn*, so a
+    full 20-snapshot pool meant ~20 new GPU nets every iteration instead of the
+    single one the old single-opponent code built. Measured on the first real
+    run: VRAM climbed from 4.4 GB at iteration 120 to 7.9 GB of 8.1 GB by
+    iteration 2160, heading for an out-of-memory crash.
+    """
+    if built is None:
+        built = {}
+
+    def agent_for(member):
+        if member.name not in built:
+            if member.kind == "scripted":
+                built[member.name] = ("scripted", member.factory(0))
+            else:
+                frozen = FrozenOpponent(policy_template.net, member.state, device)
+                built[member.name] = ("net", ARPolicy(frozen.net, rules,
+                                                      device=device))
+        return built[member.name]
+
+    def fn(games, gis):
+        out: list = [None] * len(games)
+        groups: dict[str, list[int]] = defaultdict(list)
+        members: dict[str, object] = {}
+        for k, (g, gi) in enumerate(zip(games, gis)):
+            m = assign.get(gi, {}).get(g.current_player, primary)
+            groups[m.name].append(k)
+            members[m.name] = m
+        for name, ks in groups.items():
+            kind, obj = agent_for(members[name])
+            if kind == "scripted":
+                for k in ks:
+                    out[k] = obj.act(games[k])
+            else:
+                with torch.no_grad():
+                    acts, _ = obj.act([(games[k].state, games[k].current_player)
+                                       for k in ks])
+                for k, a in zip(ks, acts):
+                    out[k] = a
+        return out
+
+    fn.wants_indices = True
+    return fn
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--size", type=int, default=9)
@@ -60,16 +182,61 @@ def main() -> None:
     ap.add_argument("--minibatch", type=int, default=1024)
     ap.add_argument("--epochs", type=int, default=3)
     ap.add_argument("--entropy", type=float, default=0.01)
+    ap.add_argument("--entropy-floor", type=float, default=0.40,
+                    help="minimum entropy each head must keep, as a "
+                         "fraction of a uniform choice over its legal "
+                         "options. 0 disables. One global bonus cannot "
+                         "stop a single head collapsing. Raised from 0.22 "
+                         "after run 4 parked on it for a thousand iterations "
+                         "-- a floor the policy sits on is an operating point.")
+    ap.add_argument("--action-floor", type=float, default=0.02,
+                    help="minimum probability every legal action TYPE keeps. "
+                         "The entropy floor constrains spread, this constrains "
+                         "support -- run 4 cleared the former with RESEARCH at "
+                         "a median 0.0007.")
+    ap.add_argument("--explore-anneal", type=int, default=0,
+                    help="iterations over which novelty / action floor / the "
+                         "extra entropy floor fall to zero. 0 = 40%% of the run. "
+                         "These change the objective, so they must not be "
+                         "permanent -- run 5 held them flat and farmed the "
+                         "intrinsic reward for 675 iterations.")
+    ap.add_argument("--novelty", type=float, default=0.05,
+                    help="count-based exploration bonus on action TYPES "
+                         "(beta/sqrt(N)). 0 disables.")
     ap.add_argument("--shaping", type=float, default=0.01)
     ap.add_argument("--shaping-anneal", type=int, default=100)
-    ap.add_argument("--snapshot-every", type=int, default=10)
+    ap.add_argument("--shaping-floor", type=float, default=0.25,
+                    help="fraction of --shaping that survives the anneal. "
+                         "Annealing to exactly zero leaves the terminal reward "
+                         "as the only signal, and on large boards that arrives "
+                         "about four times per iteration across 48 games "
+                         "(measured: 23/iteration on 9x9, 4.4 on 14x14). The "
+                         "shaping is potential-based, so a standing floor does "
+                         "not change which policy is optimal.")
+    ap.add_argument("--snapshot-every", type=int, default=25,
+                    help="minimum iterations between league snapshots. "
+                         "Snapshots are only minted at eval points, "
+                         "right after Elo is anchored on real games, so "
+                         "the effective interval rounds up to a multiple "
+                         "of --eval-every.")
     ap.add_argument("--league-size", type=int, default=20)
     ap.add_argument("--league-scripted", action="store_true",
                     help="include scripted baselines in the league (PLAN: 5%%)")
     ap.add_argument("--eval-every", type=int, default=20)
     ap.add_argument("--eval-pairs", type=int, default=12,
                     help="mirrored seed pairs per eval (2 games each)")
-    ap.add_argument("--max-turns", type=int, default=100)
+    ap.add_argument("--max-turns", type=int, default=0,
+                    help="episode truncation. 0 (default) defers to each game's "
+                         "own turn cap, which scales with board size and seat "
+                         "count; a fixed value pins every game to it, which on "
+                         "a curriculum cuts the large boards off before they "
+                         "can be decided.")
+    ap.add_argument("--curriculum", default=None,
+                    help="widen the training distribution over iterations: a "
+                         "preset (legacy|duel|standard|ffa) or an inline spec "
+                         "like '11:2,14:2/3,16:2/3/4'. Drives board size, seat "
+                         "count and tribes, overriding --size and --map-types. "
+                         "Omit for the old fixed-size, fixed-tribe behaviour.")
     ap.add_argument("--map-types", default="drylands,lakes,continents,archipelago",
                     help="comma-separated rotation. Games cycle through these, so "
                          "the policy has to plan for water as well as land: "
@@ -119,6 +286,16 @@ def main() -> None:
     np.random.seed(args.seed)
     rules = load_ruleset()
     map_types = tuple(m.strip() for m in args.map_types.split(",") if m.strip())
+    # The curriculum, if any, owns size / seats / tribes from here on. Its stage
+    # boundaries are rescaled to this run's length, or a 200-iteration
+    # experiment would never leave stage one and would be a duel-only run
+    # wearing the name "ffa".
+    cur = None
+    if args.curriculum:
+        cur = curriculum.with_horizon(curriculum.parse(args.curriculum), args.iters)
+        print(f"curriculum {args.curriculum}: "
+              + " | ".join(cur.describe(i) for i in
+                           sorted({0, args.iters // 2, args.iters})))
     device = torch.device(args.device)
     policy, cfg = build_policy(rules, device, args.small,
                                getattr(args, 'channels', None), getattr(args, 'blocks', None))
@@ -131,10 +308,12 @@ def main() -> None:
     learner = PPOLearner(policy, PPOConfig(lr=args.lr, minibatch=args.minibatch,
                                            epochs=args.epochs,
                                            entropy_coef=args.entropy,
+                                           entropy_floor=args.entropy_floor,
+                                           action_floor=args.action_floor,
                                            precision=args.precision))
     league = League(capacity=args.league_size)
     if args.league_scripted:
-        league.add_scripted("scripted", lambda s: ScriptedBot(seed=s))
+        league.add_scripted("scripted", lambda s: ScriptedBot(seed=s, never_peace=True))
         print("league includes ScriptedBot -> OSLA is the held-out gate")
     exploiter = MainExploiter()
     rng = np.random.default_rng(args.seed)
@@ -175,11 +354,20 @@ def main() -> None:
             print(f"  league restored: {len(league.snapshots)} snapshots, "
                   f"elo {league.main_elo:+.0f}")
 
-    # Never let a resumed run overwrite a better best.pt with a worse one.
+    # Never let a resumed run overwrite a better best.pt with a worse one --
+    # unless the gate itself changed, in which case the old number is not a
+    # measurement of the same thing and keeping it would silently freeze
+    # promotion for the rest of the run.
+    gate_name = GATE_NAME
     prev_best = load_resumable(out_dir / "best.pt", map_location="cpu")
     if prev_best is not None:
-        prior = prev_best.get("gate", prev_best.get("wr_scripted"))
-        best = max(best, prior if prior is not None else -1.0)
+        if prev_best.get("gate_name") != gate_name:
+            print(f"  best.pt was gated on {prev_best.get('gate_name')!r}, now "
+                  f"{gate_name!r}; the old score is not comparable, resetting")
+            best = -1.0
+        else:
+            prior = prev_best.get("gate", prev_best.get("wr_scripted"))
+            best = max(best, prior if prior is not None else -1.0)
 
     games_self = None
     games_vs = None
@@ -194,26 +382,92 @@ def main() -> None:
 
     t0 = time.perf_counter()
 
+    stage_size = None
+    last_snapshot = -10**9   # snapshots are minted at eval points only
+    novelty = TypeNovelty(beta=args.novelty) if args.novelty > 0 else None
+    stage_key = None
+    opp_cache: dict[str, tuple[str, object]] = {}
+    base_novelty = args.novelty
+    base_action_floor = args.action_floor
+    base_entropy_floor = args.entropy_floor
+    explore_anneal = args.explore_anneal or max(1, int(args.iters * 0.4))
     for it in range(start_iter, args.iters + 1):
-        shaping = args.shaping * max(0.0, 1 - it / max(1, args.shaping_anneal))
+        shaping = shaping_for(it, args.shaping, args.shaping_anneal,
+                              args.shaping_floor)
+        # Exploration pressure is a scaffold, and a scaffold has to come down.
+        # Run 5 held all three of these constant for 675 iterations and never
+        # improved against any baseline: a permanent intrinsic bonus is not
+        # exploration, it is a different objective. See `TypeNovelty`.
+        explore = explore_scale(it, explore_anneal)
+        if novelty is not None:
+            novelty.beta = base_novelty * explore
+        learner.cfg.action_floor = base_action_floor * explore
+        learner.cfg.entropy_floor = (ENTROPY_FLOOR_FINAL
+                                     + (base_entropy_floor - ENTROPY_FLOOR_FINAL)
+                                     * explore)
         member = league.sample(rng)
+
+        size, specs = args.size, None
+        if cur is not None:
+            size = cur.size_for(it)
+            stage_key = cur.describe(it)
+            specs = [cur.spec(it, i, args.seed) for i in range(args.games)]
+            # Games persist across iterations to avoid re-generating maps, but a
+            # carried-over 11x11 board would quietly ignore a stage that just
+            # moved to 16x16. Size changes force a rebuild; the other axes vary
+            # per game and are picked up as episodes end.
+            if size != stage_size:
+                games_self = games_vs = None
+                stage_size = size
 
         if member is None:
             roll, stats, games_self = collect(
-                policy, args.games, args.rollout, size=args.size,
+                policy, args.games, args.rollout, size=size,
                 seed=args.seed + it * 1000, shaping=shaping,
-                max_turns=args.max_turns, games=games_self,
-                map_types=map_types)
+                max_turns=(args.max_turns or None), games=games_self,
+                map_types=map_types, specs=specs, novelty=novelty)
             label = "self"
         else:
-            opp_fn = make_opponent_fn(member, policy, rules, device)
+            # Who sits where. Every seat gets its own draw from the league,
+            # falling back to the primary member when the draw says "self" — a
+            # league iteration should not quietly become self-play in half its
+            # seats.
+            #
+            # Drawn for *every* seat rather than for "the other N-1", because
+            # games persist across iterations to let long episodes finish, so
+            # the game at index gi may have a different seat count from this
+            # iteration's spec. `collect` picks the learner's seat from the real
+            # game and `_finish` ignores seats the game does not have, so an
+            # entry per seat is always enough and never wrong.
+            max_seats = max([s.n_players for s in specs] if specs else [2])
+            assign, seat_members = {}, []
+            for gi in range(args.games):
+                drawn = league.sample_opponents(rng, max_seats)
+                picks = {q: (m or member) for q, m in enumerate(drawn)}
+                assign[gi] = picks
+                seat_members.append({q: m.name for q, m in picks.items()})
+            # Cached across iterations, and pruned to the members still in the
+            # pool so an evicted snapshot's net does not sit on the GPU forever.
+            live_names = {m.name for m in league.members}
+            for gone in [k for k in opp_cache if k not in live_names]:
+                opp_cache.pop(gone, None)
+            opp_fn = make_seat_opponent_fn(assign, member, policy, rules, device,
+                                           built=opp_cache)
             roll, stats, games_vs = collect(
-                policy, args.games, args.rollout, size=args.size,
+                policy, args.games, args.rollout, size=size,
                 seed=args.seed + it * 1000, shaping=shaping,
-                max_turns=args.max_turns, games=games_vs, opponent=opp_fn,
-                map_types=map_types)
+                max_turns=(args.max_turns or None), games=games_vs, opponent=opp_fn,
+                map_types=map_types, specs=specs, seat_members=seat_members, novelty=novelty)
             label = member.name
-            league.record_results(member, stats.get("learner_result", []))
+            # Elo per opponent identity. `learner_result` is now the learner's
+            # *average pairwise* result, which is unbiased at any seat count;
+            # `member_results` splits it by who was actually beaten.
+            by_member = stats.get("member_results", {})
+            by_name = {m.name: m for gi in assign for m in assign[gi].values()}
+            for name, results in by_member.items():
+                league.record_results(by_name.get(name), results)
+            if not by_member:
+                league.record_results(member, stats.get("learner_result", []))
             if member.kind == "snapshot":
                 exploiter.record([1.0 - r for r in stats.get("learner_result", [])])
 
@@ -223,13 +477,23 @@ def main() -> None:
 
         res = stats.get("learner_result", [])
         wr = f"{np.mean(res):5.1%}" if res else "  --  "
+        # `win` and `peace` are the two numbers that would have caught the last
+        # two failures on sight. Episode starvation (0.5 episodes/iteration at
+        # stage 4, 63% of iterations finishing nothing) was invisible because
+        # only the total was logged; and a peace treaty makes a game unwinnable
+        # by construction, so a rising peace rate is the agent discovering that
+        # it can opt out of Domination entirely.
+        eps = stats["episodes"]
+        conq, stall = stats.get("conquests", 0), stats.get("stalls", 0)
+        won = f"{conq}/{conq + stall}" if (conq + stall) else "  -  "
+        peace = stats.get("peace_games", 0)
         print(f"it {it:4d} | {label:>12} | wr {wr} | steps {len(roll):5d} | "
-              f"eps {stats['episodes']:3d} | pl {logs['policy_loss']:+.4f} | "
-              f"ent {logs['entropy']:.3f} | elo {league.main_elo:+6.0f} | "
+              f"eps {eps:3d} | win {won:>7} | peace {peace:2d} | "
+              f"pl {logs['policy_loss']:+.4f} | "
+              f"ent {logs['entropy']:.3f}"
+              f"(t{logs.get('ent_type', 0):.2f}/s{logs.get('ent_source', 0):.2f}"
+              f"/b{logs.get('ent_subtype', 0):.2f}) | elo {league.main_elo:+6.0f} | "
               f"{time.perf_counter()-t0:.0f}s")
-
-        if args.snapshot_every and it % args.snapshot_every == 0:
-            league.add_snapshot(policy.net, it)
 
         # Cheap, frequent save so a bugcheck costs minutes rather than the night.
         # Evaluation is the expensive part, so this deliberately skips it and
@@ -243,30 +507,109 @@ def main() -> None:
 
         if it % args.eval_every == 0 or it == args.iters:
             agent = NetAgent(policy)
-            # Eval rotates the same map types training saw, so a policy that
-            # only learned dry maps cannot hide behind a dry-only eval.
+            # Eval rotates the same worlds training saw, so a policy that only
+            # learned small dry duels cannot hide behind a small dry duel eval.
+            stage = cur.stage_for(it) if cur is not None else None
+            ev = dict(map_types=(stage.map_types if stage else map_types),
+                      sizes=(stage.sizes if stage else None),
+                      players=(stage.players if stage else (2,)),
+                      tribes=(stage.tribes if stage else None))
             vs_rand = play_match(agent, RandomAgent(seed=7), args.eval_pairs,
-                                 args.size, seed=4242, max_steps=400,
-                                 map_types=map_types)
+                                 args.size, seed=4242, max_steps=400, **ev)
             vs_osla = play_match(agent, GreedyOSLA(seed=7), args.eval_pairs,
-                                 args.size, seed=5353, max_steps=400,
-                                 map_types=map_types)
-            vs_scr = play_match(agent, ScriptedBot(seed=7), args.eval_pairs,
-                                args.size, seed=6464, max_steps=400,
-                                map_types=map_types)
-            print(f"  eval@{it}: Random {vs_rand.win_rate:5.1%}+-{vs_rand.stderr:.1%} | "
-                  f"OSLA {vs_osla.win_rate:5.1%}+-{vs_osla.stderr:.1%} (held out) | "
-                  f"Scripted {vs_scr.win_rate:5.1%}+-{vs_scr.stderr:.1%} | "
+                                 args.size, seed=5353, max_steps=400, **ev)
+            vs_scr = play_match(agent, ScriptedBot(seed=7, never_peace=True),
+                                args.eval_pairs,
+                                args.size, seed=6464, max_steps=400, **ev)
+            print(f"  eval@{it}: Random {vs_rand.record:>9} | "
+                  f"OSLA {vs_osla.record:>9} (held out) | "
+                  f"Scripted {vs_scr.record:>9} | "
                   f"elo {league.main_elo:+.0f}")
-            # Select on a gate we do NOT train against. With --league-scripted,
-            # ScriptedBot is a training opponent, so promoting on it selects for
-            # having just sparred with it rather than for general strength.
-            gate = vs_osla.win_rate if args.league_scripted else vs_scr.win_rate
+            # Where it is weak, not just how weak. One average over a curriculum
+            # hides 90% on the small duels and 30% on the crowded boards.
+            detail = vs_osla.format_breakdown()
+            if detail:
+                print(f"    OSLA by bucket: {detail}")
+            # Technology is 100 score points per tier, the densest thing on the
+            # board, and the net was measured taking 3.1 techs where a *random*
+            # player took 6.4 — which is how it lost games it was winning on
+            # material. A win rate cannot show that; this can.
+            mine, theirs = vs_scr.techs
+            flag = "  <- OUT-TECHED" if mine < theirs else ""
+            print(f"    techs researched (vs scripted): "
+                  f"net {mine:.1f} | opponent {theirs:.1f}{flag}")
+            # --- the promotion gate --------------------------------------
+            # Measured on a FIXED reference: a held-out opponent on a fixed
+            # distribution that never moves with the curriculum.
+            #
+            # The eval above deliberately follows the curriculum, which makes it
+            # the wrong thing to promote on. On the first real run the net hit
+            # 100% vs OSLA at iteration 275 on 9x9 duels; the curriculum then
+            # widened and the same policy scored 55-70% on the harder
+            # distribution, so `best.pt` froze at iteration ~275 and stayed a
+            # stage-1 checkpoint for 1,800 iterations. Resetting the bar per
+            # stage does not fix it either: strength actually peaked around
+            # iteration 1,340 and then collapsed, and a per-stage best keeps the
+            # best of the *current* stage, which by then was much weaker.
+            # Only a yardstick that never changes can say "this is the best
+            # checkpoint of the run".
+            ref = play_match(agent, gate_opponent(), args.eval_pairs,
+                             GATE_SIZE, seed=9191, max_steps=400,
+                             sizes=(GATE_SIZE,), players=(2,),
+                             map_types=GATE_MAP_TYPES)
+            gate = ref.win_rate
             blob = snapshot_blob(it, league.main_elo, vs_scr.win_rate,
                                  vs_osla.win_rate)
             blob["gate"] = gate
-            blob["gate_name"] = "osla" if args.league_scripted else "scripted"
+            blob["gate_name"] = GATE_NAME
+            blob["stage"] = stage_key
             save_atomic(blob, out_dir / "latest.pt")
+            print(f"    gate (fixed {GATE_SIZE}x{GATE_SIZE} duel vs crazy): "
+                  f"{ref.record}"
+                  f"{'  <- new best' if gate > best else f'  (best {best:.1%})'}")
+
+            # --- keep Elo honest ------------------------------------------
+            # Elo against a pool of one's own snapshots is a closed loop that
+            # can manufacture rating indefinitely: run 2 reached +842 while
+            # sitting at 52% against ScriptedBot, whose anchor says that is
+            # worth about 0. The only games tied to an external reference were
+            # the ~6% of iterations that happened to draw a scripted opponent,
+            # so the inflation took 800 iterations to start correcting.
+            #
+            # The eval already plays 32 games against ScriptedBot and threw the
+            # results away. Feeding them to the anchor costs nothing and gives
+            # the rating a fixed point at every eval instead of every 15th
+            # iteration.
+            anchor = next((m for m in league.scripted), None)
+            if anchor is None:
+                anchor = league.add_scripted("scripted", lambda s: ScriptedBot(seed=s, never_peace=True))
+            before = league.main_elo
+            league.record_results(anchor, [1.0] * round(vs_scr.score)
+                                  + [0.0] * (vs_scr.games - round(vs_scr.score)))
+            print(f"    anchored on {vs_scr.games} scripted games: "
+                  f"elo {before:+.0f} -> {league.main_elo:+.0f}")
+
+            # --- snapshot, AFTER anchoring --------------------------------
+            # A new snapshot inherits `main_elo`, which is right in principle --
+            # it *is* the current net -- but only as good as that number. Taken
+            # mid-run, `main_elo` has drifted on nothing but self-play results
+            # since the last anchor, and self-play against one's own past is a
+            # closed loop that manufactures rating: run 2 reached +842 while
+            # sitting at 52% against ScriptedBot, which the anchor prices near
+            # zero. Every snapshot minted in between inherited that inflation,
+            # so the pool's ratings were an echo of the drift rather than a
+            # measurement, and two things read them: `_evict`, which keeps the
+            # pool spread across *elo* and was therefore preserving a spread of
+            # noise, and the Elo update itself, whose `expected` term is
+            # computed from the opponent's rating.
+            #
+            # Minting here, immediately after 32 anchored games, means a
+            # snapshot's starting rating is something that was measured against
+            # a fixed external opponent.
+            if args.snapshot_every and (it - last_snapshot) >= args.snapshot_every:
+                league.add_snapshot(policy.net, it)
+                last_snapshot = it
+
             if gate > best:
                 best = gate
                 blob["best"] = best

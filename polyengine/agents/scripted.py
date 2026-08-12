@@ -54,12 +54,26 @@ DIFFICULTIES = {
 
 class ScriptedBot:
     def __init__(self, seed: int = 0, difficulty: str = "normal",
-                 min_army: int | None = None):
+                 min_army: int | None = None, never_peace: bool = False):
+        """`never_peace` refuses every treaty regardless of difficulty.
+
+        Off by default, because difficulty-linked diplomacy is the wiki's own
+        rule -- "easy bots will almost always be peaceful until provoked, while
+        crazy bots may be immediately hostile" -- and the engine should keep
+        modelling it.
+
+        It exists for *training*. A treaty makes a game unwinnable by
+        construction, so a peaceful sparring partner hands the learner an
+        endless supply of games that cannot be won and teaches it that the safe
+        line is to accept. A training opponent that always fights forces every
+        game to be decided.
+        """
         if difficulty not in DIFFICULTIES:
             raise ValueError(f"unknown difficulty {difficulty!r}; "
                              f"choose from {sorted(DIFFICULTIES)}")
         self.rng = np.random.Generator(np.random.PCG64(seed))
         self.difficulty = difficulty
+        self.never_peace = never_peace
         self.aggression, self.income_bonus = DIFFICULTIES[difficulty]
         # A more aggressive bot keeps a bigger standing army.
         self.min_army = (min_army if min_army is not None
@@ -195,6 +209,8 @@ class ScriptedBot:
         # again -- 39 breaks across six games, and it lost more than it won.
         # If we would tear a treaty up, we must not sign it either.
         def wants_peace(other: int) -> bool:
+            if self.never_peace:
+                return False                    # training opponent: always fights
             if self.aggression >= 0.9:
                 return False                    # crazy bots never make peace
             if self.aggression >= 0.7 and self._stronger_than(s, player, other):
@@ -262,8 +278,15 @@ class ScriptedBot:
             defense_bonus_for(s, a.dst, rules), rules.accuracy)
 
         lethal = atk_res >= int(s.unit_hp[a.dst])
-        ranged = int(rules.unit_range[at]) > 1
-        retaliation = 0.0 if (lethal or ranged) else float(def_res)
+        # Whether the reply lands is the *defender's* reach, not our own kind:
+        # shooting an Archer from two tiles is answered, shooting a Warrior from
+        # two tiles is not. Estimating it as "ranged is safe" made the bot value
+        # every ranged attack as free and walk bowmen into melee.
+        reaches = s.chebyshev(a.src, a.dst) <= int(rules.unit_range[dt])
+        stiff = "stiff" in rules.unit_skills[dt]
+        surprise = "surprise" in rules.unit_skills[at]
+        retaliation = (0.0 if (lethal or not reaches or stiff or surprise)
+                       else float(def_res))
         suicidal = retaliation >= int(s.unit_hp[a.src])
 
         value = float(atk_res) + (10.0 if lethal else 0.0) - retaliation

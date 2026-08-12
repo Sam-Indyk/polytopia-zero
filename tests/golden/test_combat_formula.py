@@ -55,14 +55,21 @@ def test_damage_numbers(args, expected):
     assert damage_numbers(a_atk, a_hp, a_max, d_def, d_hp, d_max, bonus, ACC) == expected
 
 
-def _two_unit_state(atk_type, def_type, atk_hp=None, def_hp=None):
-    s = GameState(RULES, size=3, n_players=2, map_seed=0)
+def _two_unit_state(atk_type, def_type, atk_hp=None, def_hp=None, gap=1):
+    """Attacker on tile 0, defender `gap` tiles east of it along the top row.
+
+    `gap` is not decoration: retaliation is gated on the *defender's* range
+    against this distance, so a test that leaves it implicit at 1 cannot tell
+    "ranged" from "out of reach".
+    """
+    s = GameState(RULES, size=max(3, gap + 1), n_players=2, map_seed=0)
+    dst = gap
     s.unit_type[0] = atk_type
     s.unit_owner[0] = 0
     s.unit_hp[0] = atk_hp if atk_hp is not None else RULES.unit_max_hp[atk_type]
-    s.unit_type[1] = def_type
-    s.unit_owner[1] = 1
-    s.unit_hp[1] = def_hp if def_hp is not None else RULES.unit_max_hp[def_type]
+    s.unit_type[dst] = def_type
+    s.unit_owner[dst] = 1
+    s.unit_hp[dst] = def_hp if def_hp is not None else RULES.unit_max_hp[def_type]
     return s
 
 
@@ -85,10 +92,28 @@ def test_melee_kill_advances_into_tile():
     assert s.unit_kills[1] == 1
 
 
-def test_ranged_takes_no_retaliation():
-    # Catapult vs a Giant that survives: ranged attacker keeps full HP.
-    s = _two_unit_state(C.U_CATAPULT, C.U_GIANT)
+def test_a_standoff_shot_takes_no_retaliation():
+    """Catapult (range 3) shooting a Giant (range 1) from three tiles.
+
+    "No retaliation occurs if the unit being attacked ... cannot reach ... the
+    attacker (the attacker is outside the unit's range)." The standoff is what
+    buys the safety, not the fact that the attacker is ranged -- this test used
+    to place the two units *adjacent* and still assert no reply, which is the
+    rule's usual consequence standing in for the rule.
+    """
+    s = _two_unit_state(C.U_CATAPULT, C.U_GIANT, gap=3)
+    res = resolve_attack(s, 0, 3, RULES)
+    assert not res.defender_died
+    assert s.unit_hp[0] == RULES.unit_max_hp[C.U_CATAPULT]  # out of the Giant's reach
+    assert not res.attacker_advanced                        # ranged never advances
+
+
+def test_a_ranged_attacker_adjacent_to_its_target_is_hit_back():
+    """The same Catapult standing next to the same Giant is inside its range,
+    so it takes the reply -- which is why siege units are kept at distance."""
+    s = _two_unit_state(C.U_CATAPULT, C.U_GIANT, gap=1)
     res = resolve_attack(s, 0, 1, RULES)
     assert not res.defender_died
-    assert s.unit_hp[0] == RULES.unit_max_hp[C.U_CATAPULT]  # no retaliation
-    assert not res.attacker_advanced                        # ranged never advances
+    assert s.unit_hp[0] < RULES.unit_max_hp[C.U_CATAPULT]
+    assert res.retaliation_to_attacker > 0
+    assert not res.attacker_advanced

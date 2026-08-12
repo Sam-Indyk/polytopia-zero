@@ -32,14 +32,27 @@ disagreed with `Game.winner` about who had won 15% of turn-capped games.
 """
 from __future__ import annotations
 
-# A city is 100 points and a monument 400, which is the scale this tilt is
-# measured against: a maximal Domination advantage is worth about two cities.
-# Enough to break an even position toward the aggressive line, not enough to
-# talk the agent into trading an army for one kill.
-DOMINATION_WEIGHT = 200.0
+# How much a maximal Domination advantage is worth against the score lead.
+#
+# This was 200 -- about two cities -- which made the tilt a rounding error next
+# to score totals in the thousands, and the agent behaved accordingly: watching
+# a trained net play showed Warriors only, an early peace treaty, and all seven
+# monuments farmed for 2,800 points. It had correctly concluded that points win
+# games, because under that weighting they did.
+#
+# At 1500 the tilt is comparable to a large score lead, so "the opponent is
+# close to losing their last city" moves the potential as much as "I am ahead
+# on points". The goal is Domination; the potential should point at it.
+DOMINATION_WEIGHT = 1500.0
 
 # Equal split across the three mid-game-observable rating parts, matching "four
 # equally weighted parts" (the fourth, difficulty, is fixed for a given game).
+# Score-equivalent value of each unit type a player can train. Ten units
+# unlocked is worth ~2,000, comparable to a large score lead -- enough that
+# opening the tech tree competes with hoarding points, which is what the agent
+# was doing instead.
+OPTION_WEIGHT = 200.0
+
 W_BATTLE = 1.0 / 3.0
 W_TRIBES = 1.0 / 3.0
 W_SPEED = 1.0 / 3.0
@@ -96,6 +109,34 @@ def elimination_pressure(game, player: int) -> float:
     return 1.0 / (1.0 + weakest)
 
 
+def option_value(game, player: int) -> float:
+    """What a player's technology has *unlocked*, in score-equivalent points.
+
+    Technology already scores 100 a tier, and rewarding it for that turned out
+    to be rewarding it for the wrong reason: points. This counts something
+    different -- how many distinct unit types the player may now train.
+
+    That is the thing a Domination player actually buys tech for. Riding is not
+    worth having because it is 100 points, it is worth having because it is a
+    Rider. And it closes the trap the agent fell into: with three techs only
+    Warriors exist, so a Warrior rush is genuinely optimal, so it never
+    researches, so only Warriors exist. Measured at iteration 1987 the net
+    trained 734 Warriors, 35 Archers and nothing else, having researched three
+    technologies in a whole game.
+
+    Deliberately *unlocks*, not *units owned*: this pays for opening the option,
+    not for spending stars on it, so it cannot be farmed by hoarding an army.
+    """
+    rules, s = game.rules, game.state
+    n = 0
+    for uid in range(rules.n_units):
+        if not rules.unit_trainable[uid]:
+            continue
+        if s.has_tech(player, int(rules.unit_requires_tech[uid])):
+            n += 1
+    return OPTION_WEIGHT * n
+
+
 def domination_term(game, player: int) -> float:
     """The combat tilt, expressed in score-equivalent points."""
     progress = max(tribes_destroyed(game, player),
@@ -116,7 +157,7 @@ def evaluate(game, player: int) -> float:
     own = float(game.score(player))
     opp = max((float(game.score(p)) for p in range(n) if p != player), default=0.0)
 
-    own_tilt = domination_term(game, player)
-    opp_tilt = max((domination_term(game, p) for p in range(n) if p != player),
-                   default=0.0)
+    own_tilt = domination_term(game, player) + option_value(game, player)
+    opp_tilt = max((domination_term(game, p) + option_value(game, p)
+                    for p in range(n) if p != player), default=0.0)
     return (own - opp) + (own_tilt - opp_tilt)

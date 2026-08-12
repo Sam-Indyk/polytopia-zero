@@ -330,6 +330,16 @@ function buildKey(H, frame) {
       esc(r) + (hid ? ` <span class="muted">— hidden until ${esc(hid.map(pretty).join(' or '))}</span>` : ''));
   });
 
+  grp('monuments (400 points each, one per task, seven at most)');
+  [["altar_of_peace", "pacifist"], ["emperors_tomb", "wealth"],
+   ["eye_of_god", "explorer"], ["gate_of_power", "killer"],
+   ["grand_bazaar", "network"], ["park_of_fortune", "metropolis"],
+   ["tower_of_wisdom", "genius"]].forEach(([imp, task]) => {
+    if (!H.improvement_names.includes(imp)) return;
+    add(keySwatch((g, x, y, z) => drawMonument(g, x, y + 10, z * 1.25, imp)),
+        `${esc(pretty(imp))} <span class="muted">— ${esc(task)}</span>`);
+  });
+
   grp('cities');
   add(keySwatch((g, x, y, z) => drawCity(g, x, y, z * 1.2,
       fake({city_level: [3]}), 0)),

@@ -23,11 +23,13 @@ def recompute_fog(state, player: int) -> None:
         state.size, player, state.rules.unit_sight, C.SIGHT_RADIUS_CITY,
         state.terrain, state.rules.terrain_sight,
         state.unit_owner, state.unit_type, state.city_owner, state.city_level,
-        state.owner,
+        state.owner, state.resource, state.improvement,
         state.fog_visible[player], state.fog_explored[player],
         state.fog_staleness[player],
         state.mem_unit_type[player], state.mem_unit_owner[player],
         state.mem_city_owner[player], state.mem_city_level[player],
+        state.mem_owner[player], state.mem_terrain[player],
+        state.mem_resource[player], state.mem_improvement[player],
     )
     _hide_cloaks_from(state, player)
     _apply_capital_vision(state, player)

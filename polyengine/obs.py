@@ -66,10 +66,58 @@ def n_planes(rules: Ruleset) -> int:
     return start + count
 
 
+# --- per-opponent block -------------------------------------------------------
+# One fixed-width row per seat, indexed by ABSOLUTE player id. That indexing is
+# not a detail: `A_PEACE_OFFER` and `A_PEACE_BREAK` take a *player id* as their
+# sub-type, so unless row k describes player k the policy is choosing who to
+# make peace with out of a vector it cannot connect to the choice. The
+# aggregate "share of opponents at war" that used to be the only relation
+# signal is fine for sensing the mood of a game and useless for picking a
+# target -- which is why diplomacy was unlearnable before this block existed.
+#
+# Every feature is something a human reads off their own screen: the tribe list
+# shows who is still alive, the diplomacy panel shows treaties and pending
+# offers, and the counts come from the player's own fog memory.
+OPP_FEATURES = (
+    "seat_exists",      # this slot is a real seat in this game
+    "is_me",            # ... and it is the acting player
+    "alive",
+    "at_peace",
+    "at_war",
+    "offered_me",       # they have proposed a treaty to me
+    "i_offered",        # I have proposed one to them
+    "seen_cities",      # their cities in my memory, normalised
+    "seen_units",
+)
+N_OPP_FEATURES = len(OPP_FEATURES)
+
+
+def global_layout(rules: Ruleset) -> dict[str, tuple[int, int]]:
+    """Name -> (start, count) for each block of the global vector.
+
+    The spatial planes have had `plane_layout` for debugging since the start;
+    the global vector was addressed by hand-computed strides scattered across
+    the encoder and its tests, which is how `2 * stride + 3` ends up meaning
+    something different in two places."""
+    stride = 4 + rules.n_techs
+    blocks = [
+        ("own", stride),
+        ("opponent_seen", stride),
+        ("turn", 1), ("size", 1), ("peace_share", 1), ("war_share", 1),
+        ("opponents", C.MAX_PLAYERS * N_OPP_FEATURES),
+    ]
+    out, start = {}, 0
+    for name, count in blocks:
+        out[name] = (start, count)
+        start += count
+    return out
+
+
 def global_dim(rules: Ruleset) -> int:
     # own: stars, cities, units, techs-known + tech bits
     # opp: stars(known), cities seen, units seen, techs seen + tech bits
-    # plus turn progress, map size, and the two relation summaries
+    # plus turn progress, map size, the two relation summaries, and one row per
+    # seat (see OPP_FEATURES).
     #
     # Deliberately NOT here: any summary of how wet the world is, or which map
     # type is in play. The net sees water tile by tile in the spatial planes and
@@ -80,12 +128,13 @@ def global_dim(rules: Ruleset) -> int:
     # Relations ARE fair game: your own treaties are on your own screen, always,
     # and the fraction of opponents you are at peace or at war with is something
     # a player reads straight off the tribe list.
-    return 2 * (4 + rules.n_techs) + 4
+    start, count = global_layout(rules)["opponents"]
+    return start + count
 
 
 @njit(cache=True)
 def _encode_spatial(size, player, n_terrain, n_resource, n_units, n_improvement,
-                    terrain, resource, improvement, owner,
+                    mem_terrain, mem_resource, mem_improvement, mem_owner,
                     mem_city_owner, mem_city_level, city_pop, city_walls,
                     city_capital, city_workshop, city_support_frac,
                     mem_unit_type, mem_unit_owner, unit_hp, unit_veteran,
@@ -110,18 +159,31 @@ def _encode_spatial(size, player, n_terrain, n_resource, n_units, n_improvement,
         y = i // size
         seen = explored[i] == 1
 
-        out[o_terr + terrain[i], y, x] = 1.0
-        out[o_res + resource[i], y, x] = 1.0
-        if improvement[i] >= 0:
-            out[o_imp + improvement[i], y, x] = 1.0
+        # Terrain, resources and buildings, all from memory. These read ground
+        # truth for every tile until now, which handed the player the entire
+        # map on turn 0: every mountain and ocean, every ruin, before walking a
+        # step. That also quietly falsified the design claim that the policy
+        # infers the map type "water tile by tile, through fog" — it was seeing
+        # all of the water immediately, and the full terrain grid *is* the map
+        # type. An unexplored tile now sets no terrain, resource or improvement
+        # plane at all.
+        if seen:
+            out[o_terr + mem_terrain[i], y, x] = 1.0
+            out[o_res + mem_resource[i], y, x] = 1.0
+            if mem_improvement[i] >= 0:
+                out[o_imp + mem_improvement[i], y, x] = 1.0
 
-        # territory (relative ownership)
-        if owner[i] == player:
-            out[o_terr_own + 0, y, x] = 1.0
-        elif owner[i] >= 0:
-            out[o_terr_own + 1, y, x] = 1.0
-        else:
-            out[o_terr_own + 2, y, x] = 1.0
+        # Territory, from memory — the same contract as cities and units.
+        # An unexplored tile sets none of the three, which reads as "unknown"
+        # and is exactly correlated with the explored plane, so it leaks
+        # nothing; asserting "neutral" there would be a lie.
+        if seen:
+            if mem_owner[i] == player:
+                out[o_terr_own + 0, y, x] = 1.0
+            elif mem_owner[i] >= 0:
+                out[o_terr_own + 1, y, x] = 1.0
+            else:
+                out[o_terr_own + 2, y, x] = 1.0
         # slot 3 is the off-board mask, set by the padding helper
 
         # city, from memory
@@ -195,7 +257,8 @@ def encode_spatial(state, player: int, rules: Ruleset,
     _encode_spatial(
         size, player, rules.n_terrain, len(rules.resource_names), rules.n_units,
         rules.n_improvements,
-        state.terrain, state.resource, state.improvement, state.owner,
+        state.mem_terrain[player], state.mem_resource[player],
+        state.mem_improvement[player], state.mem_owner[player],
         state.mem_city_owner[player], state.mem_city_level[player],
         state.city_pop, state.city_walls, state.city_capital,
         state.city_workshop, support,
@@ -278,12 +341,16 @@ def encode_global(state, player: int, rules: Ruleset,
     stride = 4 + n_techs
     fill(stride, 0.0, seen_cities, seen_units, 0)
 
-    vec[2 * stride + 0] = min(1.0, state.turn / float(max_turns))
+    # The turn cap is per game now (it scales with map size and seat count), so
+    # progress is measured against *this* game's cap rather than a constant the
+    # encoder happened to be built with.
+    cap = float(getattr(state, "turn_cap", 0) or max_turns)
+    vec[2 * stride + 0] = min(1.0, state.turn / cap)
     vec[2 * stride + 1] = state.size / 32.0
     # Own relations, which a player always knows: the share of live opponents
     # this player has a treaty with, and the share who attacked (or were
     # attacked by) them within the last turn.
-    from polyengine.core.diplomacy import at_peace, at_war
+    from polyengine.core.diplomacy import at_peace, at_war, offered
     others = [q for q in range(state.n_players)
               if q != player and state.alive[q]]
     if others:
@@ -291,6 +358,27 @@ def encode_global(state, player: int, rules: Ruleset,
                                   for q in others) / len(others)
         vec[2 * stride + 3] = sum(at_war(state, player, q)
                                   for q in others) / len(others)
+
+    # --- one row per seat, indexed by player id ---------------------------
+    base = 2 * stride + 4
+    live_city = explored & (state.mem_city_level[player] > 0)
+    live_unit = explored & (state.mem_unit_type[player] != C.U_NONE)
+    for q in range(C.MAX_PLAYERS):
+        row = base + q * N_OPP_FEATURES
+        if q >= state.n_players:
+            continue                       # slot unused on a smaller map
+        vec[row + 0] = 1.0
+        if q == player:
+            vec[row + 1] = 1.0
+            vec[row + 2] = 1.0 if state.alive[q] else 0.0
+            continue                       # the rest describe a *relationship*
+        vec[row + 2] = 1.0 if state.alive[q] else 0.0
+        vec[row + 3] = 1.0 if at_peace(state, player, q) else 0.0
+        vec[row + 4] = 1.0 if at_war(state, player, q) else 0.0
+        vec[row + 5] = 1.0 if offered(state, q, player) else 0.0
+        vec[row + 6] = 1.0 if offered(state, player, q) else 0.0
+        vec[row + 7] = float((live_city & (mem_city_owner == q)).sum()) / 10.0
+        vec[row + 8] = float((live_unit & (mem_unit_owner == q)).sum()) / 20.0
     return vec
 
 

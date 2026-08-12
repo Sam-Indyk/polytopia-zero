@@ -17,8 +17,10 @@ _INF = np.int16(32000)
 @njit(cache=True)
 def fog_kernel(size, player, unit_sight, sight_city, terrain, terrain_sight,
                unit_owner, unit_type, city_owner, city_level, owner,
+               resource, improvement,
                visible, explored, stale,
-               mem_unit_type, mem_unit_owner, mem_city_owner, mem_city_level):
+               mem_unit_type, mem_unit_owner, mem_city_owner, mem_city_level,
+               mem_owner, mem_terrain, mem_resource, mem_improvement):
     """`unit_sight` is indexed by unit type and `terrain_sight` by terrain, and a
     unit gets the better of the two.
 
@@ -61,6 +63,13 @@ def fog_kernel(size, player, unit_sight, sight_city, terrain, terrain_sight,
             mem_unit_owner[i] = unit_owner[i]
             mem_city_owner[i] = city_owner[i]
             mem_city_level[i] = city_level[i]
+            mem_owner[i] = owner[i]
+            # Terrain looks static but is not — Clear, Grow and Burn Forest all
+            # rewrite it — and a building or a harvested resource plainly is
+            # not. All three are remembered rather than observed.
+            mem_terrain[i] = terrain[i]
+            mem_resource[i] = resource[i]
+            mem_improvement[i] = improvement[i]
         elif explored[i]:
             stale[i] += 1
 

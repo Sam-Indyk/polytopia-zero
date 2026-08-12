@@ -212,12 +212,34 @@ def resolve_attack(state, src: int, dst: int, rules: Ruleset) -> CombatResult:
             _move_unit(state, src, dst)
             attacker_advanced = True
     else:
-        # Retaliation is melee-only, and two skills switch it off:
-        #   "Stiff: prevents a unit from being able to do retaliation attacks
-        #    when attacked by an enemy unit."
-        #   "Surprise: prevents a unit from triggering retaliation attacks when
-        #    attacking an enemy unit."
-        if (a_range == 1 and "stiff" not in d_skills
+        # Retaliation is the *defender's* reach, not the attacker's kind. The
+        # wiki's Combat page lists the whole exclusion set in one sentence:
+        #
+        #   "No retaliation occurs if the unit being attacked is killed by the
+        #    attacker, cannot reach or see the attacker (the attacker is
+        #    outside the unit's range or hidden by fog), deals 0 retaliation
+        #    damage, has Stiff skill or defends from a unit with Surprise."
+        #
+        # This used to read `a_range == 1` -- "a ranged attacker is never
+        # retaliated against" -- which is the rule's *usual consequence*
+        # mistaken for the rule. It is right only when the defender is melee
+        # and standing off. It gets two cases backwards:
+        #
+        #   Archer shoots an Archer at 2  defender's range 2 reaches back, so
+        #                                 it retaliates; we said it could not,
+        #                                 making ranged-vs-ranged risk-free
+        #   Archer shoots an adjacent     a Warrior at distance 1 is inside its
+        #   Warrior                       own range and hits back; we said no
+        #
+        # Both made ranged units strictly safer than the game allows, and the
+        # second removed the reason to keep a bowman *out* of melee at all.
+        d_range = int(rules.unit_range[d_type])
+        reaches = state.chebyshev(src, dst) <= d_range
+        # "or hidden by fog" -- you cannot shoot back at what you cannot see,
+        # which is the hidden Cloak. `movement.attack_targets` already refuses
+        # it as a target for the same reason; this is the other direction.
+        sees = not (state.unit_hidden[src] and "hide" in a_skills)
+        if (reaches and sees and "stiff" not in d_skills
                 and "surprise" not in a_skills):
             state.unit_hp[src] -= def_res
             if state.unit_hp[src] <= 0:
