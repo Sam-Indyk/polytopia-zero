@@ -638,25 +638,40 @@ def test_the_action_floor_sees_what_the_entropy_floor_cannot():
     assert quiet == 0.0, "a healthy distribution must cost nothing"
 
 
-def test_only_size_and_seats_are_staged():
-    """Map type and tribe have no mechanical reason to be staged, and staging
-    them cost run 4 its first 780 iterations on land-only maps.
+def test_map_types_are_staged_because_variety_costs_samples():
+    """The claim this test used to make, and the measurement that refuted it.
 
-    Size is staged because `PolicyEncoder.encode` pads a batch to `max(sizes)`;
-    seats because more players means longer games and fewer terminal rewards.
-    Neither applies to map type or tribe.
+    It asserted that stage 1 must deal every map type, on the reasoning that
+    only board size has a mechanical cost -- `PolicyEncoder.encode` pads a batch
+    to `max(sizes)` -- while map type does not change tensor shape and is
+    therefore free.
+
+    That conflated *computational* cost with *statistical* cost. Map type is
+    free in throughput and expensive in sample efficiency: six regimes on one
+    budget is a sixth of the data each, and the gradients interfere rather than
+    accumulate. Three runs measured it.
+
+      run 4  narrow (2 map types) to iteration 780: ScriptedBot 19.8/32, elo
+             +126, 76% against its own snapshots. Widened to six in one step:
+             10.2/32, elo -59, 59%, and no recovery in 500 iterations.
+      run 5  six map types from iteration 1: never learned. 675 iterations,
+             Scripted 2/32 -> 4/32, ~55% against its own snapshots.
+      run 6  same, with the exploration bonus annealed: also never learned.
+
+    So map type is staged, and the property worth pinning is that it widens
+    *gradually* -- see `test_standard_moves_one_axis_per_boundary` in
+    tests/test_curriculum.py, which owns that check.
     """
     from polytrain import curriculum
 
     for name in ("standard", "ffa"):
-        first = curriculum.PRESETS[name].stages[0]
-        assert set(first.map_types) == set(curriculum.ALL_MAP_TYPES), (
-            f"{name} stage 1 must deal every map type from iteration 1; "
-            f"got {first.map_types}")
-        assert set(first.tribes) == set(curriculum.ALL_TRIBES), (
-            f"{name} stage 1 must deal every tribe; got {first.tribes}")
-        # ...while the axes that *do* cost something are still staged.
-        last = curriculum.PRESETS[name].stages[-1]
+        stages = curriculum.PRESETS[name].stages
+        first, last = stages[0], stages[-1]
+        assert len(first.map_types) < len(curriculum.ALL_MAP_TYPES), (
+            f"{name} must not start on every map type; that is runs 5 and 6")
+        assert set(last.map_types) == set(curriculum.ALL_MAP_TYPES), (
+            f"{name} must still reach every map type by the end")
+        # The axes that cost throughput are still staged, as they always were.
         assert len(last.sizes) > len(first.sizes)
         assert len(last.players) > len(first.players)
 

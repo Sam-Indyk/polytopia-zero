@@ -68,14 +68,17 @@ def test_the_curriculum_actually_widens():
     late = {cur.spec(399, i, seed=2).n_players for i in range(24)}
     assert max(late) > max(early), "seat count never grew"
     assert cur.size_for(399) > cur.size_for(0), "board size never grew"
-    # Tribe and map type deliberately do NOT widen: neither changes the tensor
-    # shape, so staging them buys nothing and cost run 4 its first 780
-    # iterations on land-only maps. They are full from iteration 1 and stay
-    # full -- see test_only_size_and_seats_are_staged.
+    # Tribe and map type widen too. They were briefly full from iteration 1, on
+    # the reasoning that neither changes tensor shape and so neither costs
+    # anything -- which confused throughput cost with sample cost. Runs 5 and 6
+    # trained that way and never learned at all; see
+    # `test_map_types_are_staged_because_variety_costs_samples`.
     early_tribes = {t for i in range(24) for t in cur.spec(0, i, seed=2).tribes}
     late_tribes = {t for i in range(24) for t in cur.spec(399, i, seed=2).tribes}
-    assert len(early_tribes) > 2, "the tribe pool must be wide from the start"
-    assert late_tribes >= early_tribes, "the tribe pool must never shrink"
+    assert len(late_tribes) > len(early_tribes), "the tribe pool never grew"
+    early_maps = {cur.spec(0, i, seed=2).map_type for i in range(24)}
+    late_maps = {cur.spec(399, i, seed=2).map_type for i in range(24)}
+    assert len(late_maps) > len(early_maps), "the map-type pool never grew"
 
 
 def test_stage_boundaries_rescale_to_the_run_length():
@@ -290,3 +293,58 @@ def test_eval_axes_are_not_aliased():
     # exactly the same games and so recorded exactly the same game count.
     assert by_size[11] == by_size[9], "sizes should be balanced"
     assert by_players[2] == by_players[3], "seat counts should be balanced"
+
+
+def test_standard_moves_one_axis_per_boundary():
+    """A boundary that changes one thing is a boundary you can read.
+
+    Run 4 widened from two map types to all six at a single boundary that also
+    changed board size and seat count. It had been beating ScriptedBot 19.8/32
+    at elo +126 on iterations 600-799 and fell to 10.2/32 at elo -59 over
+    800-999, never recovering -- and because four axes moved together, which one
+    did it took two more failed runs to establish.
+
+    So: map types only ever *grow*, at most one at a time, and never on the same
+    boundary as a size or seat change.
+    """
+    from polytrain import curriculum as CU
+
+    stages = CU.PRESETS["standard"].stages
+    for a, b in zip(stages, stages[1:]):
+        before, after = set(a.map_types), set(b.map_types)
+        assert before <= after, "map types may only be added, never removed"
+        added = after - before
+        assert len(added) <= 1, f"one map type per boundary, got {sorted(added)}"
+        if added:
+            assert a.sizes == b.sizes, (
+                f"adding {added} also changed board size {a.sizes}->{b.sizes}; "
+                "move one axis per boundary")
+            assert a.players == b.players, (
+                f"adding {added} also changed seat count {a.players}->{b.players}")
+
+    # Every map type must actually arrive, or the agent never meets the game.
+    assert set(stages[-1].map_types) == set(CU.ALL_MAP_TYPES)
+    # ...and the run must start where run 4 demonstrably learned.
+    assert set(stages[0].map_types) == {"drylands", "lakes"}
+
+
+def test_every_map_type_gets_time_to_consolidate():
+    """Adding a regime is only gradual if it is given room before the next one.
+
+    `with_horizon` spreads stages evenly, so this is really a check that the
+    preset has enough stages: six map types crammed into two boundaries is the
+    step change that broke run 4, whatever the labels say.
+    """
+    from polytrain import curriculum as CU
+
+    cur = CU.with_horizon(CU.PRESETS["standard"], 4000)
+    firsts = {}
+    for st in cur.stages:
+        for m in st.map_types:
+            firsts.setdefault(m, st.until if st.until > 0 else 4000)
+    arrivals = sorted(firsts.values())
+    gaps = [b - a for a, b in zip(arrivals, arrivals[1:]) if b != a]
+    assert gaps, "map types all arrive at once"
+    assert min(gaps) >= 300, (
+        f"a new map type arrives only {min(gaps)} iterations after the last; "
+        "that is a step change wearing a curriculum's name")
